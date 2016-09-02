@@ -1,0 +1,2 @@
+In this project, code is distributed under the GNU Affero General Public License version 3.0 or higher and text is distributed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.
+LaTeX files, with the extension .tex, are text, not code.
