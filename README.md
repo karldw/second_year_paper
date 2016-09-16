@@ -4,6 +4,7 @@
 Are cars that are subject to smog checks less valuable?
 
 Identification would be off some combination of geography (since not all counties are subject to smog checks) and time (since the rules and exemptions are discontinuous and have changed over time).
+However, the main exemption is for cars 1975, but there aren't any in the
 
 Related: the [vehicle buy-back program](https://www.arb.ca.gov/msprog/avrp/avrp.htm).
 
@@ -20,8 +21,8 @@ Would should be possible to use a strategy like Wolfram and Reed's airport paper
 Of course, that will only give the short-term effect of a marginal increase in emissions, which isn't ideal.
 
 
-## 3. Alaska car prices  -- dropped
-**Update:** There are only sales in 32  states, and Alaska isn't one of them.
+## 3. Alaska car prices
+**Update:** There are only auctions in 32 states, and Alaska isn't one of them, but there are Alaskan buyers and sellers.
 
 
 Hsieh (2003) looked at the Alaska Permanent Wealth Fund to see how consumers smooth their income and found that their consumption _was_ smooth for Permanent Fund payments, but not tax refunds.
@@ -33,13 +34,18 @@ I'm sure Alaska is a bit different than other states, so maybe I could present b
 Fun fact: you can get the [name of everyone who applied](https://pfd.alaska.gov/Division-Info/Applicant-Database) to receive a Permanent Fund check in a given year.
 
 
-### Possibly related Alaska papers
+### Possibly related papers
+#### About the Alaska Permanent Fund:
 - https://link.springer.com/chapter/10.1057/9781137015020_4#page-1
 - http://www.iser.uaa.alaska.edu/Publications/Economic_Impacts_AK_PFD.pdf
 - https://www.jstor.org/stable/2696554?seq=1#page_scan_tab_contents
 - http://www.sciencedirect.com/science/article/pii/S1094202510000359
 - https://ideas.repec.org/p/alb/series/1085.html
 - https://link.springer.com/chapter/10.1057/9781137015020_3#page-1
+#### About consumption smoothing and the like
+- http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.693.16&rep=rep1&type=pdf
+- http://www.mitpressjournals.org/doi/pdf/10.1162/REST_a_00184
+- http://www.sciencedirect.com/science/article/pii/S0047272707000631
 
 ### Notes on the Alaska data
 There's something weird with the garnishments; the numbers are the same for 2012 and 2013.
