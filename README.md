@@ -31,3 +31,17 @@ Someone else (who?) found price cyclicality from income tax refunds in other par
 I'm sure Alaska is a bit different than other states, so maybe I could present both a difference-in-differences analysis and a interrupted time series.
 
 Fun fact: you can get the [name of everyone who applied](https://pfd.alaska.gov/Division-Info/Applicant-Database) to receive a Permanent Fund check in a given year.
+
+
+### Possibly related Alaska papers
+- https://link.springer.com/chapter/10.1057/9781137015020_4#page-1
+- http://www.iser.uaa.alaska.edu/Publications/Economic_Impacts_AK_PFD.pdf
+- https://www.jstor.org/stable/2696554?seq=1#page_scan_tab_contents
+- http://www.sciencedirect.com/science/article/pii/S1094202510000359
+- https://ideas.repec.org/p/alb/series/1085.html
+- https://link.springer.com/chapter/10.1057/9781137015020_3#page-1
+
+### Notes on the Alaska data
+There's something weird with the garnishments; the numbers are the same for 2012 and 2013.
+
+Payment is the first Thursday of October.

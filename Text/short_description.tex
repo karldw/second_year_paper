@@ -1,0 +1,149 @@
+\documentclass[11pt,letterpaper,oneside]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb,amsmath,amsthm}
+\usepackage{enumitem}
+\usepackage[osf]{libertine}
+\usepackage{carlito}
+\usepackage{inconsolata}
+\usepackage{sectsty}
+
+\allsectionsfont{\sffamily\mdseries}
+\usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
+\microtypecontext{spacing=nonfrench}
+%\usepackage{embrac}
+\usepackage{typearea}   % Let the typearea package work out the best margins (wider than the defaults)
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{}
+\chead{}
+\rhead{}
+\lfoot{}
+\cfoot{}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\newcommand{\proofsep}{\vspace{-0.75em}}
+\usepackage{booktabs}
+
+\usepackage{graphicx}
+% Improve math spacing around |,\left and \right
+% See: https://tex.stackexchange.com/questions/2607/spacing-around-left-and-right/
+\let\originalleft\left
+\let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+\renewcommand{\right}{\aftergroup\egroup\originalright}
+
+% Remove section numbering
+\makeatletter
+% we use \prefix@<level> only if it is defined
+\renewcommand{\@seccntformat}[1]{%
+    \ifcsname prefix@#1\endcsname
+    \csname prefix@#1\endcsname
+    \else
+    \csname the#1\endcsname\quad
+    \fi}
+% define \prefix@section
+\newcommand\prefix@section{}
+\newcommand\prefix@subsection{}
+\newcommand\prefix@subsubsection{}
+\makeatother
+
+% Define new commands for "such that", the blackboard-bold letters and "closure".
+\newcommand{\st}{\textit{ s.t.\ }}
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
+\newcommand{\cl}{\ensuremath{\text{cl\hspace{0.1em}}}}
+\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
+
+\DeclareMathOperator{\blackboardE}{\mathbb{E}}
+\newcommand{\expected}[1]{\blackboardE\left[#1\right]}
+\newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
+\newlength{\postparenlength}
+\setlength{\postparenlength}{0.14em}
+\newcommand{\postparen}{\hspace{\postparenlength}}
+\usepackage{url}
+\usepackage{xcolor}
+
+\usepackage[biblatex]{embrac}
+\usepackage{siunitx}
+%\sisetup{options}
+\usepackage[authordate,isbn=false,backend=biber,autopunct=true]{biblatex-chicago}
+\DefineBibliographyExtras{american}{\stdpunctuation}
+\renewcommand{\finalnamedelim}{\addspace \bibstring {and}\space}
+%\renewcommand*{\bibfont}{\footnotesize}
+%\DefineBibliographyStrings{english}{references = {References}}
+%\setlength\bibitemsep{0pt}
+\bibhang=\parindent
+\addbibresource{./papers.bib}
+\newcommand{\cex}{\textsc{cex}}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=darkgray,
+    citecolor=black,
+    pdfpagemode=UseNone,
+    pdftoolbar=false,
+    pdftitle={Brief description},
+    pdfauthor={Karl Dunkle Werner},
+    pdfsubject={ARE second year paper},
+    pdfcreator={},
+    pdfproducer={},
+    pdflang=en,
+    unicode=true
+}
+
+
+\begin{document}
+\section{Consumption Effects of the Alaska Permanent Fund}
+\noindent Residents of Alaska are eligible for large payments from the Alaska Permanent Fund, a government organization created to distribute oil revenues.
+In 2015, 86\% of the population received the dividend, \$2072.
+If consumers deviate from perfect consumption smoothing, we might think that such a large payment would affect their purchase behavior.
+Somewhat surprisingly, \textcite{hsieh2003} found that consumption was smoothed out in Consumer Expenditure Survey (\cex) data from 1980--2001.
+I'm hoping to do two things in my second-year paper: extend Hsieh's analysis of consumers and expand the scope to firms.
+
+Extending Hsieh's analysis is straightforward.
+There's a decade more \cex{} data, including the recent financial crisis and substantial variation in the Permanent Fund payments, and it would be interesting to see if the original conclusions still hold.
+Additionally, Hsieh's identification is a difference-in-differences between Alaska and the other 49 states.
+I won't be able to fundamentally improve  % I have no qualms about splitting infinitives
+on the underlying assumption of parallel trends, but I will be able to apply slightly newer methods, like synthetic controls. 
+
+Expanding the scope of analysis to firms is more interesting.
+I have data on used wholesale car auctions from 2002 to 2014, where the buyers and sellers are auto dealerships and other players in the wholesale market.
+In those data Alaskan firms buy vehicles from other states, presumably to sell in Alaska.
+If consumers are actually smoothing their consumption, even of large purchases like cars, I would expect the Permanent Fund payments to have no effect on Alaskan wholesalers' behavior.  
+If I make the same diff-in-diff assumptions about wholesalers, I can test the hypothesis of consumption smoothing with the used car data, since wholesalers' auction behavior should be unchanged if their end-consumers' behavior has been smoothed out.
+
+But I can go further.
+If the consumption smoothing hypothesis didn't hold, I would expect auto wholesalers to smooth out consumers' behavior.
+(But I wouldn't expect wholesalers to be totally unaffected by Permanent Fund timing, since it's costly to hold extra cars in inventory.)
+That's to say, if consumers weren't smoothing their auto purchases, I'd expect to find that:
+\begin{itemize}
+    \item Alaskan wholesalers would increase their auction \emph{purchases} (and be willing to pay higher prices) in the days and weeks before the Permanent Fund payouts, bringing more cars to Alaska.
+    \item Alaskan wholesalers would decrease their auction \emph{sales} (or require higher sale prices) in advance of the payouts, keeping cars in Alaska.
+    \item Alaskan wholesalers would preferentially accumulate cars of the type that would be bought by people using their Permanent Fund dividends.%
+    \footnote{I think this will be too noisy to measure, and it's not clear to me whether consumers would tend toward lower-price cars, since that's what they can afford, or higher-price cars, pooling together the dividend and their own savings to get a nicer used car.}
+\end{itemize}
+I need to think a bit more about the implications here.
+Consumer spending and the permanent-income hypothesis are a big deal, and it probably matters how local firms act to smooth out consumers' behavior, but I'm not up enough on macro to know why.
+
+
+There are, of course, a lot of caveats.
+Alaska is different than other states.
+For one thing, shipping cars there is probably expensive, and that cost probably varies by time of year, possibly violating the diff-in-diff assumptions.
+
+I don't observe wholesalers' inventory or final prices, so if wholesalers (temporarily) draw down their inventory instead of buying in the auctions, I wouldn't be able to observe any behavior changes and it would look like consumers were smoothing their consumption, even if they weren't.
+On the other hand, if wholesalers are credit constrained and unable to respond to consumers' changes in demand, I would again see little change in the auctions, regardless of consumers' smoothing behavior. 
+
+
+\begin{table}
+    \input{alaska_permanent_fund_payments_summary_1982_2015.tex}
+\end{table}
+
+% References
+\printbibliography
+\end{document}
