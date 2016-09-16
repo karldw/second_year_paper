@@ -69,7 +69,12 @@
 
 \usepackage[biblatex]{embrac}
 \usepackage{siunitx}
-%\sisetup{options}
+\sisetup{
+	group-separator={,},
+	group-digits = integer,
+	input-ignore = {,},
+	input-decimal-markers = {.}
+	}
 \usepackage[authordate,isbn=false,backend=biber,autopunct=true]{biblatex-chicago}
 \DefineBibliographyExtras{american}{\stdpunctuation}
 \renewcommand{\finalnamedelim}{\addspace \bibstring {and}\space}
@@ -79,7 +84,7 @@
 \bibhang=\parindent
 \addbibresource{./papers.bib}
 \newcommand{\cex}{\textsc{cex}}
-
+%\usepackage{footnote}
 \usepackage{hyperref}
 \hypersetup{colorlinks,
     linkcolor=black,
@@ -99,9 +104,16 @@
 
 
 \begin{document}
+	
+	
+\part{One-sentence blurb}
+How do the Alaska Permanent Fund payments affect consumers' behavior, particularly in the used car market?
+
+
+\part{Question \& abstract (rough)}
 \section{Consumption Effects of the Alaska Permanent Fund}
 \noindent Residents of Alaska are eligible for large payments from the Alaska Permanent Fund, a government organization created to distribute oil revenues.
-In 2015, 86\% of the population received the dividend, \$2072.
+In 2015, 86\% of the population received the dividend, \$2072. (See table~\ref{table:APF-payment-summary} for details.)
 If consumers deviate from perfect consumption smoothing, we might think that such a large payment would affect their purchase behavior.
 Somewhat surprisingly, \textcite{hsieh2003} found that consumption was smoothed out in Consumer Expenditure Survey (\cex) data from 1980--2001.
 I'm hoping to do two things in my second-year paper: extend Hsieh's analysis of consumers and expand the scope to firms.
@@ -139,10 +151,19 @@ For one thing, shipping cars there is probably expensive, and that cost probably
 I don't observe wholesalers' inventory or final prices, so if wholesalers (temporarily) draw down their inventory instead of buying in the auctions, I wouldn't be able to observe any behavior changes and it would look like consumers were smoothing their consumption, even if they weren't.
 On the other hand, if wholesalers are credit constrained and unable to respond to consumers' changes in demand, I would again see little change in the auctions, regardless of consumers' smoothing behavior. 
 
-
-\begin{table}
+\noindent\begin{minipage}{\textwidth}
+	\centering
+%\begin{table}
+%	\caption{Alaska Permanent Fund payment summary	\footnote{Numbers not adjusted for inflation. Accessed Sept.\ 16, 2016 from \url{http://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments}.}}	
+	\label{table:APF-payment-summary}
+	\textsc{Table} \ref{table:APF-payment-summary}: Alaska Permanent Fund payment summary%
+	\footnote{Numbers not adjusted for inflation. Accessed Sept.\ 16, 2016 from \url{http://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments}.}
+	
+	\vspace{1em}
     \input{alaska_permanent_fund_payments_summary_1982_2015.tex}
-\end{table}
+%\end{table}
+%\footnotetext{text}
+\end{minipage}
 
 % References
 \printbibliography
