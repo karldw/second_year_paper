@@ -178,6 +178,7 @@ main <- function(verbose = TRUE) {
     }
     all_dta_files <- list.files(dta_dir, full.names = TRUE)
     lapply(all_dta_files, insert_into_postgres, con=con, verbose=verbose)
+    DBI::dbDisconnect(con)
 }
 
 # Run things:

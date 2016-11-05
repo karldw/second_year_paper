@@ -1,15 +1,21 @@
 
-library(reshape2)
-library(memoise)
-library(curl)
+
+install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
+
+POSTGRES_DB <- 'second_year_paper'
+
+# library(reshape2)
+# library(memoise)
+# library(curl)
 library(ggplot2)
 library(dplyr)
-library(haven)
-library(zipcode)
-data('zipcode')
-if (! memoise::is.memoised(curl_fetch_memory)) {
-    curl_fetch_memory <- memoise::memoise(curl::curl_fetch_memory)
-}
+library(magrittr)
+# library(haven)
+# library(zipcode)
+# data('zipcode')
+# if (! memoise::is.memoised(curl_fetch_memory)) {
+    # curl_fetch_memory <- memoise::memoise(curl::curl_fetch_memory)
+# }
 # if (! memoise::is.memoised(read_dta)) {
 #     read_dta <- memoise::memoise(haven::read_dta)
 # }
@@ -68,58 +74,81 @@ first_thursday_in_october <- function(years) {
 
     return(thursdays)
 }
+#
+# load_sales_data <- function(dta_file = 'C:\\Users\\Karl\\Dropbox\\KarlJim\\CarPriceData\\MannheimDataNew_2002-2009\\data_2002_b.dta') {
+#     # TODO: eventually, read all years:
+#
+#     # dta_file <- 'H:/cleaned_price_zip_date.dta'
+#     zip_state_map <- as.tbl(zipcode) %>%
+#         select(zip, state)  # can also get city, lat and long
+#
+#
+#     #dta_file <- 'H:/uncleaned_price_zip_date.dta'
+#     sales <- read_dta(dta_file) %>%
+#         select(sale_date, auction_zip, buy_zip, sell_zip, sales_pr) %>%
+#         filter(sales_pr > 0) %>% # only necessary when working with uncleaned data
+#         mutate(sale_date = lubridate::ymd(sale_date)) %>%
+#         left_join(zip_state_map, by = c('buy_zip' = 'zip')) %>%
+#         rename(buy_state = state) %>%
+#         left_join(zip_state_map, by = c('sell_zip' = 'zip')) %>%
+#         rename(sell_state = state) %>%
+#         left_join(zip_state_map, by = c('auction_zip' = 'zip')) %>%
+#         rename(auction_state = state) %>%
+#         mutate(alaskan_buyer   = buy_state     == 'AK',
+#                alaskan_seller  = sell_state    == 'AK',
+#                alaskan_auction = auction_state == 'AK') #%>%
+#         # select(sale_date, sales_pr, alaskan_buyer, alaskan_seller, alaskan_auction) %>%
+#         # melt(id.vars = c('sale_date', 'alaskan_buyer', 'alaskan_seller', 'alaskan_auction'),
+#         #      measure.vars = 'sales_pr')
+#
+#     return(sales)
+# }
+# if (! is.memoised(load_sales_data)) {
+#     load_sales_data <- memoise(load_sales_data)
+# }
+#
+#
+# sales <- load_sales_data('H:/uncleaned_price_zip_date.dta')
 
-load_sales_data <- function(dta_file = 'C:\\Users\\Karl\\Dropbox\\KarlJim\\CarPriceData\\MannheimDataNew_2002-2009\\data_2002_b.dta') {
-    # TODO: eventually, read all years:
-
-    # dta_file <- 'H:/cleaned_price_zip_date.dta'
-    zip_state_map <- as.tbl(zipcode) %>%
-        select(zip, state)  # can also get city, lat and long
-
-
-    #dta_file <- 'H:/uncleaned_price_zip_date.dta'
-    sales <- read_dta(dta_file) %>%
-        select(sale_date, auction_zip, buy_zip, sell_zip, sales_pr) %>%
-        filter(sales_pr > 0) %>% # only necessary when working with uncleaned data
-        mutate(sale_date = lubridate::ymd(sale_date)) %>%
-        left_join(zip_state_map, by = c('buy_zip' = 'zip')) %>%
-        rename(buy_state = state) %>%
-        left_join(zip_state_map, by = c('sell_zip' = 'zip')) %>%
-        rename(sell_state = state) %>%
-        left_join(zip_state_map, by = c('auction_zip' = 'zip')) %>%
-        rename(auction_state = state) %>%
-        mutate(alaskan_buyer   = buy_state     == 'AK',
-               alaskan_seller  = sell_state    == 'AK',
-               alaskan_auction = auction_state == 'AK') #%>%
-        # select(sale_date, sales_pr, alaskan_buyer, alaskan_seller, alaskan_auction) %>%
-        # melt(id.vars = c('sale_date', 'alaskan_buyer', 'alaskan_seller', 'alaskan_auction'),
-        #      measure.vars = 'sales_pr')
-
-    return(sales)
-}
-if (! is.memoised(load_sales_data)) {
-    load_sales_data <- memoise(load_sales_data)
-}
+#
+# disconnect_all <- function(){
+#     lapply(DBI::dbListConnections(DBI::dbDriver('PostgreSQL')), DBI::dbDisconnect)
+#     invisible(NULL)
+# }
+#disconnect_all()  # for repeted sourcing
+con <- src_postgres(POSTGRES_DB)
+sales <- tbl(con, 'all_years_all_sales')
+zipcode <- tbl(con, 'zipcode')
+zipcode_state <- select(zipcode, zip, state)
 
 
-sales <- load_sales_data('H:/uncleaned_price_zip_date.dta')
-
-thursdays <- filter(sales, ! is.na(sale_date)) %$%
-    year %>%
-    unique %>%
-    first_thursday_in_october
+thursdays <- first_thursday_in_october(seq(2002, 2014, by=1)) #%>%
+    # as.Date(origin='1970-01-01')
 
 #first_thursday_in_october(unique(lubridate::year(sales$sale_date)))
 
+# Only to the expensive operation once
+if (!exists('daily_sales_totals_alaska_vs')) {
+    daily_sales_totals_alaska_vs <- select(sales, buy_zip, sale_date, sales_pr) %>%
+        filter(!is.na(buy_zip)) %>%
+        inner_join(zipcode_state, by=c('buy_zip'='zip')) %>%
+        mutate(alaskan_buyer = state == 'AK') %>%
+        group_by(alaskan_buyer, sale_date) %>%
+        summarize(sales_total_day = sum(sales_pr)) %>%
+        collect()
+}
+daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
+    mutate(year = lubridate::year(sale_date)) %>%
+    group_by(alaskan_buyer, year) %>%
+    mutate(sales_total_year = sum(sales_total_day),
+           sales_day_frac = sales_total_day / sales_total_year)
 
-plt <- sales %>%
-    filter(! is.na(alaskan_buyer)) %>%
-    group_by(alaskan_buyer) %>%
-    sample_n(1000) %>%  # take 500 from alaskan sellers and non-alaskan sellers
-    ggplot(aes(x = sale_date, y = sales_pr, color = alaskan_buyer)) +
-    geom_smooth(data = sales) +  # plot the smooth of the whole function
+plt <- ggplot(daily_sales_totals,
+              aes(x = sale_date, y = sales_day_frac, color = alaskan_buyer)) +
+    geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
     geom_point(alpha = 0.1) +
     labs(color = 'Alaskan buyer') +
-    geom_vline(xintercept = thursdays)
+    geom_vline(xintercept = thursdays) +
+    xlim(as.Date(c('2004-01-01', '2006-01-01')))
 
 print(plt)
