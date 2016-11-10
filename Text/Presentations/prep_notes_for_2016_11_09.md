@@ -37,3 +37,4 @@
 - What newspapers publish the results?  When?  How accurate are they?
 - If the newspapers are ever off their estimates, do we see people updating?
 - Be explicit about the assumptions necessary for Hsieh's version and for my DD version.
+- Find out more about MEPS

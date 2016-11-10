@@ -4,7 +4,7 @@
 
 ## Medical Expenditure Panel Survey (MEPS)
 
-The data could be useful, but they are restricted.
+The data could be useful, but the ones I want are restricted.
 
 ### Component event files
 |||
