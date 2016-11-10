@@ -1,5 +1,8 @@
 
 Text/short_description.pdf
+Text/Presentations/cohort_presentation_2016_11_09.pdf
+Data/
+Text/Plots/*.pdf
 
 # Created by https://www.gitignore.io/api/python,ipythonnotebook,stata,r,c++,windows,linux
 

@@ -21,6 +21,16 @@ library(magrittr)
 # }
 
 
+
+PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
+                    panel.border = element_rect(fill = NA, color = 'black'),
+                    panel.grid.major = element_blank(),
+                    panel.grid.minor = element_blank(),
+                    axis.ticks = element_line(color = 'gray5'),
+                    axis.text = element_text(color = 'black', size = 10),
+                    axis.title = element_text(color = 'black', size = 12),
+                    legend.key = element_blank())
+
 # load_package_no_attach <- function(pkg_name) {
 #     load_successful <- requireNamespace(pkg_name, quietly = TRUE)
 #     if (! load_successful) {
@@ -141,14 +151,26 @@ daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
     mutate(year = lubridate::year(sale_date)) %>%
     group_by(alaskan_buyer, year) %>%
     mutate(sales_total_year = sum(sales_total_day),
-           sales_day_frac = sales_total_day / sales_total_year)
+           sales_day_frac = sales_total_day / sales_total_year) %>%
+    ungroup() %>%
+    mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
+
 
 plt <- ggplot(daily_sales_totals,
-              aes(x = sale_date, y = sales_day_frac, color = alaskan_buyer)) +
+              aes(x = sale_date, y = sales_total_day/10^6)) +
     geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
     geom_point(alpha = 0.1) +
-    labs(color = 'Alaskan buyer') +
+    facet_grid(alaskan_buyer ~ ., scales='free_y') +
+    #labs(color = 'Alaskan buyer') +
     geom_vline(xintercept = thursdays) +
-    xlim(as.Date(c('2004-01-01', '2006-01-01')))
+    xlim(as.Date(c('2004-06-01', '2005-03-01'))) +
+    PLOT_THEME +
+    labs(x='Sale date', y='Daily sale total (millions)', title='Wholesale car auctions, 2004')
 
+
+plot_dir <- '../Text/Plots'
+stopifnot(dir.exists(plot_dir))
+
+file.path(plot_dir, 'auctions_2004_alaska_vs_other.pdf') %>%
+ggsave(plt, width=6.3*2, height=3.54*2)
 print(plt)
