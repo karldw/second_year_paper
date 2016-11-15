@@ -1,5 +1,5 @@
 
-install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
+#install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
 library(dplyr)
@@ -214,10 +214,14 @@ main <- function(verbose = TRUE) {
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'vin_decoder'
-# CSV_DIR <- file.path(dropbox_home()[1],
-#                      'KarlJim/CarPriceData/VINdecoder/DataOne_US_LDV_Data')
-CSV_DIR <- '~/Work/second_year_paper/Data/VINdecoder/DataOne_US_LDV_Data'
-
+try(
+CSV_DIR <- file.path(dropbox_home()[1],
+                     'KarlJim/CarPriceData/VINdecoder/DataOne_US_LDV_Data')
+, silent = TRUE
+)
+if (! (exists('CSV_DIR') & dir.exists(CSV_DIR))) {
+    CSV_DIR <- '~/Work/second_year_paper/Data/VINdecoder/DataOne_US_LDV_Data'
+}
+stopifnot(dir.exists(CSV_DIR))
 # Run things:
-# main()
-vin_decoder <- merge_files()
+main()

@@ -1,1 +1,0 @@
-/home/karl/bin/r_default_functions.r

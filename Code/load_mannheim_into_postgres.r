@@ -1,5 +1,8 @@
 
-install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL'), verbose = FALSE)
+if (!existsFunction('install_lazy')) {
+    source('r_default_functions.r')
+}
+# install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL'), verbose = FALSE)
 library(magrittr)
 library(RPostgreSQL)
 #compiler::enableJIT(1)

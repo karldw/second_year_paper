@@ -1,5 +1,5 @@
 
-install_lazy(c('zipcode', 'RPostgreSQL'), verbose = FALSE)
+#install_lazy(c('zipcode', 'RPostgreSQL'), verbose = FALSE)
 library(RPostgreSQL)
 library(zipcode)
 options(warn = 2)
