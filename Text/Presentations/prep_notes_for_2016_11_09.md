@@ -38,3 +38,6 @@
 - If the newspapers are ever off their estimates, do we see people updating?
 - Be explicit about the assumptions necessary for Hsieh's version and for my DD version.
 - Find out more about MEPS
+
+### Question:
+Is there any traction with people who have kids born just before the cutoff vs those born just after?
