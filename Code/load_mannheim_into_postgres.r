@@ -2,7 +2,7 @@
 if (!existsFunction('install_lazy')) {
     source('r_default_functions.r')
 }
-# install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL'), verbose = FALSE)
+# install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL', 'lubridate'), verbose = FALSE)
 library(magrittr)
 library(RPostgreSQL)
 #compiler::enableJIT(1)
@@ -46,12 +46,6 @@ dropbox_home <- function(){
 }
 
 
-
-
-# create_table <- function(con) {
-#     sqlCreateTable(con, POSTGRES_TABLE, row.names = FALSE, temporary = FALSE)
-# }
-
 make_names_legal_sql <- function(x, con) {
     # The SQL backend does this anyway, but doing myself raises errors sooner and prompts
     # the user to resolve them.
@@ -73,8 +67,6 @@ make_names_legal_sql <- function(x, con) {
 }
 
 
-
-
 insert_into_postgres <- function(dta_file, con, verbose = TRUE) {
 
     if (verbose) {
@@ -92,7 +84,7 @@ insert_into_postgres <- function(dta_file, con, verbose = TRUE) {
 
 
 is_valid_zip <- function(x) {
-    grepl('[0-9]{5}', x, perl = TRUE)
+    grepl('^[0-9]{5}$', x, perl = TRUE)
 }
 
 
@@ -150,22 +142,33 @@ is_valid_vin <- function(vins) {
         return(vin_check_str == actual_check_digit)
     }
 
-
     vapply(vins, is_valid_vin_once, logical(1))
+}
+
+filename_to_year <- function(filename) {
+    gsub('.*(\\d{4}).*', '\\1', basename(filename), perl=TRUE) %>%
+        as.integer() %>%
+        return()
 }
 
 
 load_df <- function(dta_file, con) {
+    file_year <- filename_to_year(dta_file)
+    # sale date is an integer of the form YYYYMMDD
+    sale_date_max <- file_year * 10000 + 1231
+    sale_date_min <- file_year * 10000 + 0101
     haven::read_dta(dta_file) %>%
     dplyr::select_(.dots = names(DATA_TYPES)) %>%
-    dplyr::filter(sales_pr > 0) %>%
+    dplyr::filter(sales_pr > 0,
+                  # between() ranges include both endpoints
+                  dplyr::between(sale_date, sale_date_min, sale_date_max)) %>%
     dplyr::mutate(sell_zip = ifelse(is_valid_zip(sell_zip), sell_zip, NA_character_),
                   buy_zip  = ifelse(is_valid_zip(buy_zip),  buy_zip,  NA_character_),
-                  vin      = ifelse(is_valid_vin(vin),      vin,      NA_character_)) %>%
+                  vin      = ifelse(is_valid_vin(vin),      vin,      NA_character_),
+                  sale_date = lubridate::ymd(sale_date)) %>%
     make_names_legal_sql(con) %>%
     return()
 }
-
 
 
 main <- function(verbose = TRUE) {
