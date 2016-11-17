@@ -2,51 +2,23 @@
 install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
-library(dplyr)
+library(magrittr)
 options(warn = 2)
 set.seed(198872394)
+source('common_functions.r')
 
-#
-#
-# if (sys.nframe() > 0) {
-#     this_script_name <- sys.frame(1)$ofile
-#     this_file_dir <- dirname(this_script_name)
-# } else {
-#     initial_options <- commandArgs(trailingOnly = FALSE)
-#     this_script_name <- gsub("^--file=", "", initial_options[grepl("--file=",
-#                              initial_options, fixed = TRUE)], perl = TRUE)
-#     rm(initial_options)
-# }
-# this_file_dir <- dirname(this_script_name)  # folder where this file is located
-# rm(this_script_name)
-
-
-dropbox_home <- function(){
-    loadNamespace('jsonlite')
-    .system <- .Platform$OS.type
-
-    if (.system == 'windows') {
-        appdata_paths <- Sys.getenv(c('APPDATA', 'LOCALAPPDATA'))
-
-        info_path = file.path(appdata_paths[1], 'Dropbox', 'info.json')
-        if (! file.exists(info_path)) {
-            info_path = file.path(appdata_paths[2], 'Dropbox', 'info.json')
-        }
-    } else if (.system == 'unix') {
-        info_path <- path.expand('~/.dropbox/info.json')
-    } else {
-        stop(paste0("Unknown system = ", .system))
-    }
-
-    if (! file.exists(info_path)) {
-        err_msg = paste0("Could not find the Dropbox info.json file! (Should be here: '", info_path, "')")
-        stop(err_msg)
-    }
-
-    dropbox_settings <- jsonlite::fromJSON(info_path)
-    paths <- vapply(dropbox_settings, function(account) {return(account$path)}, FUN.VALUE = '')
-    return(paths)
+POSTGRES_DB <- 'second_year_paper'
+POSTGRES_TABLE <- 'vin_decoder'
+try(
+CSV_DIR <- file.path(dropbox_home()[1],
+                     'KarlJim/CarPriceData/VINdecoder/DataOne_US_LDV_Data')
+, silent = TRUE
+)
+if (! (exists('CSV_DIR') & dir.exists(CSV_DIR))) {
+    CSV_DIR <- '~/Work/second_year_paper/Data/VINdecoder/DataOne_US_LDV_Data'
 }
+stopifnot(dir.exists(CSV_DIR))
+
 
 .load_vin_reference <- function() {
     csv_filename <- file.path(CSV_DIR, 'VIN_REFERENCE.csv')
@@ -184,11 +156,11 @@ merge_files <- function() {
         dplyr::group_by(vin_pattern) %>%
         # But it turns out vin_pattern doesn't uniquelly identify rows,
         # so we'll need to collapse down
-        dplyr::summarize(model_yr = first(model_yr, order_by = random),
-                         fuel_type = first(fuel_type, order_by = random),
+        dplyr::arrange(random) %>%
+        dplyr::summarize(model_yr = first(model_yr),
+                         fuel_type = first(fuel_type),
                          # max because we're using it to filter auction prices later
                          msrp = max(msrp)) %>%
-        dplyr::select(-random) %>%
         return()
 }
 
@@ -208,20 +180,10 @@ main <- function(verbose = TRUE) {
     successful_write <- DBI::dbWriteTable(con, POSTGRES_TABLE, vin_decoder,
                                           row.names = FALSE)
     stopifnot(successful_write)
+    pg_add_index(con, POSTGRES_TABLE, 'vin_pattern')  # make index vin_pattern_index
     DBI::dbDisconnect(con)
 }
 
 
-POSTGRES_DB <- 'second_year_paper'
-POSTGRES_TABLE <- 'vin_decoder'
-try(
-CSV_DIR <- file.path(dropbox_home()[1],
-                     'KarlJim/CarPriceData/VINdecoder/DataOne_US_LDV_Data')
-, silent = TRUE
-)
-if (! (exists('CSV_DIR') & dir.exists(CSV_DIR))) {
-    CSV_DIR <- '~/Work/second_year_paper/Data/VINdecoder/DataOne_US_LDV_Data'
-}
-stopifnot(dir.exists(CSV_DIR))
 # Run things:
 main()

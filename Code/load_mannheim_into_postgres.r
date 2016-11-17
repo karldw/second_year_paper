@@ -146,8 +146,12 @@ load_df <- function(dta_file, con) {
 
 
 main <- function(verbose = TRUE) {
-    dta_dir <- file.path(dropbox_home()[1],
-                         'KarlJim/CarPriceData/MannheimDataNew_2002-2009')
+    # dta_dir <- file.path(dropbox_home()[1],
+    #                      'KarlJim/CarPriceData/MannheimDataNew_2002-2009')
+    dta_dir <- '~/Desktop/MannheimDataNew_2002-2009'
+    stopifnot(dir.exists(dta_dir))
+    all_dta_files <- list.files(dta_dir, full.names = TRUE)
+    stopifnot(length(all_dta_files) == length(2002:2014))  # years I have data for
 
     con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
     if (DBI::dbExistsTable(con, POSTGRES_TABLE)) {
@@ -156,7 +160,7 @@ main <- function(verbose = TRUE) {
         }
         DBI::dbRemoveTable(con, POSTGRES_TABLE)
     }
-    all_dta_files <- list.files(dta_dir, full.names = TRUE)
+
     lapply(all_dta_files, insert_into_postgres, con=con, verbose=verbose)
     pg_vacuum(con, POSTGRES_TABLE)
     DBI::dbDisconnect(con)

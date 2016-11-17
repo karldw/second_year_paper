@@ -16,6 +16,7 @@ library(magrittr)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_ORIG_TABLE <- 'all_years_all_sales'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
+POSTGRES_VIN_DECODER_TABLE <- 'vin_decoder'
 
 message_if_verbose <- function(msg, verbose) {
     # Just for ease of reading code later
@@ -125,26 +126,47 @@ filter_damaged <- function(con) {
 }
 
 
-filter_price <- function(con) {
-    # prices in dollars
-    sales_pr_min <-   100
-    sales_pr_max <- 80000
-    # scaling factor on acceptable price relative to MSRP
-    msrp_factor <- 1.5
+filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 1.5) {
 
-    stopifnot(is.numeric(sales_pr_min) & is.numeric(sales_pr_max) &
-              length(sales_pr_min) == 1 & length(sales_pr_max) == 1 &
-              sales_pr_min < sales_pr_max &
-              is.numeric(msrp_factor) & length(msrp_factor) == 1 &
-              msrp_factor >= 1)
+    # The goal here is to drop rows outside the interval [100, min(80000, 1.5*msrp)]
+    # The numbers, of course, can be changed.
+    # To filter on msrp, we have to pull in the vin_decoder data, and to do that, we need
+    # to match on the appropriate VIN substring
+    # LEAST will ignore NULLs, so if MSRP is missing, just use 80000
 
-    # Drop rows outside the interval [sales_pr_min, min(sales_pr_max, msrp_factor * msrp)]
-    # when this comment was written, [100, min(80000, 1.5*msrp)]
-    # LEAST will ignore NULLs, so if MSRP is missing, just use sales_pr_max
-    delete_conditions <- sprintf("sales_pr NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
-                                 sales_pr_min, sales_pr_max, msrp_factor)
+    # Here's what the code would look like if msrp was already a column in the table:
+    # delete_conditions <- sprintf("sales_pr NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
+    #                              sales_pr_min, sales_pr_max, msrp_factor)
+    # rows_deleted <- excecute_deletion(con, delete_conditions)
 
-    rows_deleted <- excecute_deletion(con, delete_conditions)
+    # The VIN match data has VIN positions 1-8, 10 and 11 (position 9 is a check digit)
+
+    # I think this should work, but it will delete rows that don't match the VIN decoder.
+    # Is that what I want?  (Alternative: do a left join)
+    # delete_command <- paste0(
+    #     "DELETE FROM ", POSTGRES_CLEAN_TABLE, " AS auctions LEFT JOIN ",
+    #     POSTGRES_VIN_DECODER_TABLE, " AS vin_decoder WHERE (",
+    #     "(substring(auctions.vin FROM 1 FOR 8) || substring(auctions.vin FROM 10 FOR 2))",
+    #     " = vin_decoder.vin_pattern", ") AND ",
+    #     "(sales_pr NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",  msrp_factor,
+    #                                                      " * vin_decoder.msrp))"
+    # )
+    # TODO: this deletes zero rows. why?
+    delete_command <- paste(
+        "WITH vin_msrp AS (",
+            "select vin, msrp from",
+            POSTGRES_CLEAN_TABLE, "AS x LEFT JOIN",
+            POSTGRES_VIN_DECODER_TABLE, "AS y ON",
+            "(substring(x.vin FROM 1 FOR 8) ||",
+             "substring(x.vin FROM 10 FOR 2)) = y.vin_pattern",
+        ")",
+        "DELETE FROM", POSTGRES_CLEAN_TABLE, "AS auctions using vin_msrp",
+        "where auctions.vin = vin_msrp.vin AND",
+        # All the action is here:
+        sprintf("sales_pr NOT BETWEEN %s AND LEAST(%s, %s * msrp)",
+                min_price, max_price, msrp_factor)
+        )
+    rows_deleted <- DBI::dbExecute(con, delete_command)
     return(rows_deleted)
 }
 
@@ -175,9 +197,8 @@ clean_data <- function(con, verbose) {
     message_if_verbose("Dropping damaged vehicles", verbose)
     rows_deleted_damaged <- filter_damaged(con)  # count?
 
-    # TODO: merge in MSRP data, then uncomment these lines
-    # message_if_verbose("Dropping inappropriate prices", verbose)
-    # rows_deleted_price <- filter_price(con)  # count?
+    message_if_verbose("Dropping inappropriate prices", verbose)
+    rows_deleted_price <- filter_price(con)  # count?
 
     message_if_verbose("Dropping Canadian cars", verbose)
     rows_deleted_canadian <- filter_canadian(con)  # count?
@@ -185,7 +206,7 @@ clean_data <- function(con, verbose) {
     deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
                         'bad odometer'   = rows_deleted_bad_odo,
                         'damaged'        = rows_deleted_damaged,
-                        # 'price'          = rows_deleted_price,
+                        'price'          = rows_deleted_price,
                         'canadian'       = rows_deleted_canadian)
     return(deleted_counts)
 }
@@ -202,6 +223,6 @@ main <- function(verbose = TRUE) {
 
     return(deleted_counts)
 }
-
+# TODO: make a vin10 column
 
 #main()
