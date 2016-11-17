@@ -23,8 +23,7 @@ pg_add_index <- function(con, table_name, indexed_col) {
     # don't do anything too dumb.
     stopifnot(length(table_name) == 1 && length(indexed_col) == 1)
 
-    known_tables <- DBI::dbListTables(con)
-    if (! table_name %in% known_tables) {
+    if (! DBI::dbExistsTable(con, table_name)) {
         err_msg <- sprintf("Table name '%s' is not in the database", table_name)
         stop(err_msg)
     }

@@ -75,7 +75,7 @@ is_valid_vin <- function(vins) {
 
         vin_check_value <- 0L
         for (i in seq_len(17L)) {
-            vin_one_digit <- substr(x, i, i + 1)
+            vin_one_digit <- substr(x, i, i)
             if (i == 9L) {
                 # the ninth digit is the check; it's not included in the
                 # calculation (equivalently, you could assign vin_weight = 0)
@@ -111,12 +111,19 @@ is_valid_vin <- function(vins) {
                 vin_check_value <- vin_check_value + 9L
             }
         }
-        vin_check_value <- mod(vin_check_value, 11)
-        vin_check_str <- ifelse(vin_check_value < 10, as.character(vin_check_value), 'X')
+
+        vin_check_value <- mod(vin_check_value, 11L)
+        vin_check_str <- ifelse(vin_check_value < 10L, as.character(vin_check_value), 'X')
         return(vin_check_str == actual_check_digit)
     }
 
-    vapply(vins, is_valid_vin_once, logical(1))
+    # Do some tests:
+    stopifnot(  is_valid_vin_once("1M8GDM9AXKP042788"))
+    stopifnot(  is_valid_vin_once("5GZCZ43D13S812715"))
+    stopifnot(! is_valid_vin_once("WP0ZZZ99ZTS392124"))
+    stopifnot(! is_valid_vin_once("KLATF08Y1VB363636"))
+
+    vapply(vins, is_valid_vin_once, logical(1)) %>% return()
 }
 
 filename_to_year <- function(filename) {

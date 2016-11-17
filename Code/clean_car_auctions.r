@@ -223,6 +223,5 @@ main <- function(verbose = TRUE) {
 
     return(deleted_counts)
 }
-# TODO: make a vin10 column
 
 #main()
