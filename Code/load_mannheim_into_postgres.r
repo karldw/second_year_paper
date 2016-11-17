@@ -2,7 +2,9 @@
 if (!existsFunction('install_lazy')) {
     source('r_default_functions.r')
 }
-# install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL', 'lubridate'), verbose = FALSE)
+
+source('common_functions.r')
+install_lazy(c('dplyr', 'magrittr', 'haven', 'jsonlite', 'RPostgreSQL', 'lubridate'), verbose = FALSE)
 library(magrittr)
 library(RPostgreSQL)
 #compiler::enableJIT(1)
@@ -16,34 +18,6 @@ DATA_TYPES <- c(seller_id='text', seller_type='text', slrdlr_type='text',
                 mmr='float8', bid_ct='int2', buy_zip='char(5)')
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'all_years_all_sales'
-
-
-dropbox_home <- function(){
-    loadNamespace('jsonlite')
-    .system <- .Platform$OS.type
-
-    if (.system == 'windows') {
-        appdata_paths <- Sys.getenv(c('APPDATA', 'LOCALAPPDATA'))
-
-        info_path = file.path(appdata_paths[1], 'Dropbox', 'info.json')
-        if (! file.exists(info_path)) {
-            info_path = file.path(appdata_paths[2], 'Dropbox', 'info.json')
-        }
-    } else if (.system == 'unix') {
-        info_path <- path.expand('~/.dropbox/info.json')
-    } else {
-        stop(paste0("Unknown system = ", .system))
-    }
-
-    if (! file.exists(info_path)) {
-        err_msg = paste0("Could not find the Dropbox info.json file! (Should be here: '", info_path, "')")
-        stop(err_msg)
-    }
-
-    dropbox_settings <- jsonlite::fromJSON(info_path)
-    paths <- vapply(dropbox_settings, function(account) {return(account$path)}, FUN.VALUE = '')
-    return(paths)
-}
 
 
 make_names_legal_sql <- function(x, con) {
@@ -184,6 +158,7 @@ main <- function(verbose = TRUE) {
     }
     all_dta_files <- list.files(dta_dir, full.names = TRUE)
     lapply(all_dta_files, insert_into_postgres, con=con, verbose=verbose)
+    pg_vacuum(con, POSTGRES_TABLE)
     DBI::dbDisconnect(con)
 }
 

@@ -1,5 +1,5 @@
 
-#install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
+install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
 library(dplyr)

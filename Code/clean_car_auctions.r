@@ -2,6 +2,11 @@
 # This program is mostly a translation of the cleaning functions in
 # Dropbox/KarlJim/CarPriceData/Code/define_programs.do
 
+if (!existsFunction('install_lazy')) {
+    source('r_default_functions.r')
+}
+
+source('common_functions.r')
 
 install_lazy(c('RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
@@ -11,6 +16,39 @@ library(magrittr)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_ORIG_TABLE <- 'all_years_all_sales'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
+
+message_if_verbose <- function(msg, verbose) {
+    # Just for ease of reading code later
+    if (verbose) {
+        message(msg)
+    }
+    invisible()
+}
+
+copy_orig_table <- function(con, verbose){
+    if (DBI::dbExistsTable(con, POSTGRES_CLEAN_TABLE)) {
+        if (verbose) {
+            message(paste('Deleting existing table:', POSTGRES_CLEAN_TABLE))
+        }
+        DBI::dbRemoveTable(con, POSTGRES_CLEAN_TABLE)
+    }
+    # http://stackoverflow.com/a/6613805
+    create_table_command <- paste("SELECT *,",
+                                  "concat_ws(' ', anncmts, remarks) as comments",
+                                  "INTO", POSTGRES_CLEAN_TABLE,
+                                  'FROM', POSTGRES_ORIG_TABLE)
+    res <- DBI::dbSendStatement(con, create_table_command)
+    stopifnot(DBI::dbHasCompleted(res))
+}
+
+
+excecute_deletion <- function(con, delete_conditions) {
+    delete_command <- paste("DELETE FROM", POSTGRES_CLEAN_TABLE, "WHERE",
+                            delete_conditions)
+    rows_deleted <- DBI::dbExecute(con, delete_command)
+    return(rows_deleted)
+}
+
 
 filter_bad_odo <- function(con) {
     # Define some regexes:
@@ -51,9 +89,7 @@ filter_bad_odo <- function(con) {
                 regex_odo, regex_odo_exclude),
         sep=' OR ')
 
-    delete_command <- paste("DELETE FROM", POSTGRES_CLEAN_TABLE, "WHERE",
-                            delete_conditions)
-    rows_deleted <- DBI::dbExecute(con, delete_command)
+    rows_deleted <- excecute_deletion(con, delete_conditions)
     return(rows_deleted)
 }
 
@@ -84,49 +120,88 @@ filter_damaged <- function(con) {
         sprintf("(comments ~ '%s')", regex_combo_damage),
         sep=' OR ')
 
-    delete_command <- paste("DELETE FROM", POSTGRES_CLEAN_TABLE, "WHERE",
-                            delete_conditions)
-    rows_deleted <- DBI::dbExecute(con, delete_command)
+    rows_deleted <- excecute_deletion(con, delete_conditions)
     return(rows_deleted)
 }
 
 
 filter_price <- function(con) {
+    # prices in dollars
+    sales_pr_min <-   100
+    sales_pr_max <- 80000
+    # scaling factor on acceptable price relative to MSRP
+    msrp_factor <- 1.5
 
+    stopifnot(is.numeric(sales_pr_min) & is.numeric(sales_pr_max) &
+              length(sales_pr_min) == 1 & length(sales_pr_max) == 1 &
+              sales_pr_min < sales_pr_max &
+              is.numeric(msrp_factor) & length(msrp_factor) == 1 &
+              msrp_factor >= 1)
 
-    
+    # Drop rows outside the interval [sales_pr_min, min(sales_pr_max, msrp_factor * msrp)]
+    # when this comment was written, [100, min(80000, 1.5*msrp)]
+    # LEAST will ignore NULLs, so if MSRP is missing, just use sales_pr_max
+    delete_conditions <- sprintf("sales_pr NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
+                                 sales_pr_min, sales_pr_max, msrp_factor)
+
+    rows_deleted <- excecute_deletion(con, delete_conditions)
+    return(rows_deleted)
 }
-copy_orig_table <- function(con, verbose){
-    if (DBI::dbExistsTable(con, POSTGRES_CLEAN_TABLE)) {
-        if (verbose) {
-            message(paste('Deleting existing table:', POSTGRES_CLEAN_TABLE))
-        }
-        DBI::dbRemoveTable(con, POSTGRES_CLEAN_TABLE)
-    }
-    # http://stackoverflow.com/a/6613805
-    create_table_command <- paste("SELECT *,",
-                                  "concat_ws(' ', anncmts, remarks) as comments",
-                                  "INTO", POSTGRES_CLEAN_TABLE,
-                                  'FROM', POSTGRES_ORIG_TABLE)
-    res <- DBI::dbSendStatement(con, create_table_command)
-    stopifnot(DBI::dbHasCompleted(res))
+
+
+filter_canadian <- function(con) {
+    delete_conditions <- sprintf("comments ~ '%s'", "CAND|CANAD|CNAD")
+    rows_deleted <- excecute_deletion(con, delete_conditions)
+    return(rows_deleted)
+}
+
+
+filter_weird_vehicles <- function(con) {
+    # In order, these are: trailers, boats, air compressors (?), golf carts, vehicles
+    # with incomplete bodies, ATVs and RVs.
+    delete_conditions <- "veh_type IN ('A', 'B', 'C', 'G', 'I', 'P', 'R')"
+    rows_deleted <- excecute_deletion(con, delete_conditions)
+    return(rows_deleted)
 }
 
 
 clean_data <- function(con, verbose) {
-    rows_deleted_bad_odo <- filter_bad_odo(con)  #  601321
-    rows_deleted_damaged <- filter_damaged(con)  # 2665602
-    deleted_counts <- c('bad odometer' = rows_deleted_bad_odo,
-                        'damaged' = rows_deleted_damaged)
+    message_if_verbose("Dropping weird vehicles", verbose)
+    rows_deleted_weird_vehicles <- filter_weird_vehicles(con)
+
+    message_if_verbose("Dropping bad odometer", verbose)
+    rows_deleted_bad_odo <- filter_bad_odo(con)  # count?
+
+    message_if_verbose("Dropping damaged vehicles", verbose)
+    rows_deleted_damaged <- filter_damaged(con)  # count?
+
+    # TODO: merge in MSRP data, then uncomment these lines
+    # message_if_verbose("Dropping inappropriate prices", verbose)
+    # rows_deleted_price <- filter_price(con)  # count?
+
+    message_if_verbose("Dropping Canadian cars", verbose)
+    rows_deleted_canadian <- filter_canadian(con)  # count?
+
+    deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
+                        'bad odometer'   = rows_deleted_bad_odo,
+                        'damaged'        = rows_deleted_damaged,
+                        # 'price'          = rows_deleted_price,
+                        'canadian'       = rows_deleted_canadian)
     return(deleted_counts)
 }
 
 
 main <- function(verbose = TRUE) {
     con <- DBI::dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    message_if_verbose(sprintf("Starting by copying %s to %s", POSTGRES_ORIG_TABLE,
+                       POSTGRES_CLEAN_TABLE), verbose)
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
+    pg_vacuum(con, POSTGRES_CLEAN_TABLE)
     DBI::dbDisconnect(con)
+
     return(deleted_counts)
 }
+
+
 #main()
