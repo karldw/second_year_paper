@@ -66,7 +66,7 @@ is_valid_vin <- function(vins) {
     # See:
     # https://en.wikipedia.org/wiki/Vehicle_identification_number#Transliterating_the_numbers
 
-    is_valid_vin_once <- function(x) {
+    is_valid_vin_once_old <- function(x) {
         # Do a whitelist approach, where only letters (except "I", "O" and "Q")  and numbers are acceptable.
         proper_chars <- grepl("^[A-HJ-NPR-Z0-9]{17}$", x, perl=TRUE)
         if (proper_chars == FALSE) {
@@ -80,6 +80,7 @@ is_valid_vin <- function(vins) {
                 # the ninth digit is the check; it's not included in the
                 # calculation (equivalently, you could assign vin_weight = 0)
                 actual_check_digit <- vin_one_digit
+                next
             }
             if (i <= 7L) {
                 vin_weight <- 9L - i
@@ -89,27 +90,28 @@ is_valid_vin <- function(vins) {
                 vin_weight <- 19L - i
             }
 
-            if        (grepl('[0-9]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + as.integer(vin_one_digit)
-            } else if (grepl('[AJ]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 1L
-            } else if (grepl('[BKS]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 2L
-            } else if (grepl('[CLT]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 3L
-            } else if (grepl('[DMU]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 4L
-            } else if (grepl('[ENV]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 5L
-            } else if (grepl('[FW]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 6L
-            } else if (grepl('[GPX]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 7L
-            } else if (grepl('[HY]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 8L
-            } else if (grepl('[RZ]', vin_one_digit, fixed=TRUE)) {
-                vin_check_value <- vin_check_value + 9L
+            if        (grepl('[0-9]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- as.integer(vin_one_digit)
+            } else if (grepl('[AJ]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 1L
+            } else if (grepl('[BKS]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 2L
+            } else if (grepl('[CLT]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 3L
+            } else if (grepl('[DMU]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 4L
+            } else if (grepl('[ENV]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 5L
+            } else if (grepl('[FW]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 6L
+            } else if (grepl('[GPX]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 7L
+            } else if (grepl('[HY]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 8L
+            } else if (grepl('[RZ]', vin_one_digit, perl=TRUE)) {
+                one_digit_transliterated <- 9L
             }
+            vin_check_value <- vin_check_value + one_digit_transliterated * vin_weight
         }
 
         vin_check_value <- mod(vin_check_value, 11L)
@@ -117,7 +119,31 @@ is_valid_vin <- function(vins) {
         return(vin_check_str == actual_check_digit)
     }
 
+    transliterate <- function(x) {
+        # This function works for vectors of length >= 1
+        chars_vec <- c('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.',
+                       'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', '.', '.', 'J',
+                       'K', 'L', 'M', 'N', '.', 'P', '.', 'R', '.', '.', 'S',
+                       'T', 'U', 'V', 'W', 'X', 'Y', 'Z')
+        return((match(x, chars_vec) - 1) %% 10)
+    }
+    calculate_check_digit <- function(vin) {
+        weights_vec <- c(8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2)
+        vin_vec <- strsplit(vin, "", fixed=TRUE)[[1]]
+        check_value <- sum(transliterate(vin_vec) * weights_vec) %% 11
+        check_str <- ifelse(check_value < 10, as.character(check_value), 'X')
+        return(check_str)
+    }
+    is_valid_vin_once <- function(vin) {
+        # Do a whitelist approach, where only letters (except "I", "O" and "Q")  and numbers are acceptable, and the string must be 17 characters long.
+        if (! grepl("^[A-HJ-NPR-Z0-9]{17}$", vin, perl=TRUE)) {
+            return(FALSE)
+        }
+        return(substr(vin, 9, 9) == calculate_check_digit(vin))
+    }
+
     # Do some tests:
+    stopifnot(  is_valid_vin_once("11111111111111111"))
     stopifnot(  is_valid_vin_once("1M8GDM9AXKP042788"))
     stopifnot(  is_valid_vin_once("5GZCZ43D13S812715"))
     stopifnot(! is_valid_vin_once("WP0ZZZ99ZTS392124"))
@@ -125,6 +151,7 @@ is_valid_vin <- function(vins) {
 
     vapply(vins, is_valid_vin_once, logical(1)) %>% return()
 }
+
 
 filename_to_year <- function(filename) {
     gsub('.*(\\d{4}).*', '\\1', basename(filename), perl=TRUE) %>%
@@ -140,6 +167,8 @@ load_df <- function(dta_file, con) {
     sale_date_min <- file_year * 10000 + 0101
     haven::read_dta(dta_file) %>%
     dplyr::select_(.dots = names(DATA_TYPES)) %>%
+    # Do these filtering operations here, rather than in the cleaning program, so the
+    # variables fit in the table like I'm expecting.
     dplyr::filter(sales_pr > 0,
                   # between() ranges include both endpoints
                   dplyr::between(sale_date, sale_date_min, sale_date_max)) %>%
@@ -153,9 +182,9 @@ load_df <- function(dta_file, con) {
 
 
 main <- function(verbose = TRUE) {
-    # dta_dir <- file.path(dropbox_home()[1],
-    #                      'KarlJim/CarPriceData/MannheimDataNew_2002-2009')
-    dta_dir <- '~/Desktop/MannheimDataNew_2002-2009'
+    dta_dir <- file.path(dropbox_home()[1],
+                         'KarlJim/CarPriceData/MannheimDataNew_2002-2009')
+    # dta_dir <- '~/Desktop/MannheimDataNew_2002-2009'
     stopifnot(dir.exists(dta_dir))
     all_dta_files <- list.files(dta_dir, full.names = TRUE)
     stopifnot(length(all_dta_files) == length(2002:2014))  # years I have data for
@@ -173,5 +202,46 @@ main <- function(verbose = TRUE) {
     DBI::dbDisconnect(con)
 }
 
+
+test_insert_data <- function() {
+    library(assertthat)
+    dta_file <- 'C:/Users/Karl/Github/second_year_paper/Code/test_df_2008.dta'
+    stopifnot(file.exists(dta_file))
+    temp_table <- 'test_auction_table'
+    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    if (dbExistsTable(con, temp_table)) {
+        dbRemoveTable(con, temp_table)
+    }
+    df <- load_df(dta_file, con)
+
+    dbWriteTable(con, temp_table, df,
+                 field.types = DATA_TYPES,
+                 append = TRUE, row.names = FALSE) %>% stopifnot()
+
+    df_read_from_sql <- dbReadTable(con, temp_table)
+
+    # assert things
+    assert_that(are_equal(names(df), names(df_read_from_sql)))
+    df1 <- dplyr::arrange_(df, .dots=names(df))
+    df2 <- dplyr::arrange_(df_read_from_sql, .dots=names(df_read_from_sql))
+    for (nm in names(df)) {
+        col1 <- df1[[nm]]
+        col2 <- df2[[nm]]
+
+        value_diffs <- sum(col1 != col2, na.rm=TRUE)
+        na_diffs <- sum(xor(is.na(col1), is.na(col2)))
+        if (value_diffs > 0) {
+            message(sprintf("Value mismatch in column %s", nm))
+        }
+        if (na_diffs > 0) {
+            message(sprintf("NAs mismatch in column %s", nm))
+        }
+    }
+    # There are differences, but it's just some unicode garbage in the anncmts column
+    # "Â¬U TITLE SUNAY" becomes "Ã‚Â¬U TITLE SUNAY"
+    dbRemoveTable(con, temp_table)
+}
+
 # Run things:
+test_insert_data()
 main()
