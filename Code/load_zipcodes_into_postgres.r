@@ -28,6 +28,7 @@ main <- function(verbose = TRUE) {
     successful_write <- DBI::dbWriteTable(con, POSTGRES_TABLE, zipcode,
                                           field.types = DATA_TYPES, row.names = FALSE)
     stopifnot(successful_write)
+    pg_add_primary_key(con, POSTGRES_TABLE, 'zip')
     DBI::dbDisconnect(con)
 }
 

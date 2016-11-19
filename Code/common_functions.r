@@ -1,4 +1,23 @@
 
+
+
+.pg_assert_existence <- function(con, table_name, col_name=NULL) {
+    if (! DBI::dbExistsTable(con, table_name)) {
+        err_msg <- sprintf("Table name '%s' is not in the database", table_name)
+        stop(err_msg)
+    }
+    if (! is.null(col_name)) {
+        known_cols <- DBI::dbListFields(con, table_name)
+        if(! col_name %in% known_cols) {
+            err_msg <- sprintf("Column '%s' not found in table '%s'.",
+                               col_name, table_name)
+            stop(err_msg)
+        }
+    }
+    invisible()
+}
+
+
 pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
     stopifnot(length(table_name) == 1)
     if (analyze) {
@@ -8,8 +27,7 @@ pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
     }
     if (table_name != 'all') {
         # default w/o table name is all tables in database
-        known_tables <- DBI::dbListTables(con)
-        stopifnot(table_name %in% known_tables)
+        .pg_assert_existence(con, table_name)
         sql_cmd <- paste(sql_cmd, table_name)
     }
 
@@ -18,28 +36,51 @@ pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
 }
 
 
-pg_add_index <- function(con, table_name, indexed_col) {
+pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
     # This function is here so I don't have to remember the SQL index syntax and so I
     # don't do anything too dumb.
+    # Note, postgres is smart enough that you don't need to index a column that's already
+    # unique, but if you want to ALTER TABLE to make a primary key, you have to start
+    # with a unique index.
     stopifnot(length(table_name) == 1 && length(indexed_col) == 1)
 
-    if (! DBI::dbExistsTable(con, table_name)) {
-        err_msg <- sprintf("Table name '%s' is not in the database", table_name)
-        stop(err_msg)
-    }
+    .pg_assert_existence(con, table_name, indexed_col)
 
-    known_cols <- DBI::dbListFields(con, table_name)
-    if(! indexed_col %in% known_cols) {
-        err_msg <- sprintf("Column '%s' not found in table '%s'.",
-                           indexed_col, table_name)
-        stop(err_msg)
-    }
     index_name <- paste0(indexed_col, '_index')
 
-    sql_cmd <- sprintf("CREATE INDEX %s on %s (%s)", index_name, table_name, indexed_col)
+    if (unique_index) {
+        unique_cmd <- 'UNIQUE'
+    } else {
+        unique_cmd <- ''
+    }
+    sql_cmd <- sprintf("CREATE %s INDEX %s on %s (%s)",
+                       unique_cmd, index_name, table_name, indexed_col)
     res <- DBI::dbSendStatement(con, sql_cmd)
     stopifnot(DBI::dbHasCompleted(res))
     return(index_name)
+}
+
+
+pg_add_primary_key <- function(con, table_name, key_col) {
+    stopifnot(length(table_name) == 1 && length(key_col) == 1)
+
+    existing_index <- pg_add_index(con, table_name, key_col, unique_index=TRUE)
+
+    sql_cmd <- sprintf("ALTER TABLE %s ADD PRIMARY KEY USING INDEX %s",
+                       table_name, existing_index)
+    res <- DBI::dbSendStatement(con, sql_cmd)
+    stopifnot(DBI::dbHasCompleted(res))
+}
+
+
+pg_add_foreign_key <- function(con, table_name, column_name, reftable, refcolumn) {
+    .pg_assert_existence(con, table_name, column_name)
+    .pg_assert_existence(con, reftable, refcolumn)
+    sql_cmd <- sprintf("ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s (%s)",
+                       table_name, column_name, reftable, refcolumn)
+
+    res <- DBI::dbSendStatement(con, sql_cmd)
+    stopifnot(DBI::dbHasCompleted(res))
 }
 
 

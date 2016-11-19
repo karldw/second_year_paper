@@ -182,7 +182,7 @@ main <- function(verbose = TRUE) {
     successful_write <- DBI::dbWriteTable(con, POSTGRES_TABLE, vin_decoder,
                                           row.names = FALSE)
     stopifnot(successful_write)
-    pg_add_index(con, POSTGRES_TABLE, 'vin_pattern')  # make index vin_pattern_index
+    pg_add_primary_key(con, POSTGRES_TABLE, 'vin_pattern')
     DBI::dbDisconnect(con)
 }
 

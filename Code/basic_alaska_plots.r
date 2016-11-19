@@ -1,26 +1,15 @@
 
-
+if (!existsFunction('install_lazy')) {
+    source('r_default_functions.r')
+}
 install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
+POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
 
-# library(reshape2)
-# library(memoise)
-# library(curl)
 library(ggplot2)
 library(dplyr)
 library(magrittr)
-# library(haven)
-# library(zipcode)
-# data('zipcode')
-# if (! memoise::is.memoised(curl_fetch_memory)) {
-    # curl_fetch_memory <- memoise::memoise(curl::curl_fetch_memory)
-# }
-# if (! memoise::is.memoised(read_dta)) {
-#     read_dta <- memoise::memoise(haven::read_dta)
-# }
-
-
 
 PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
                     panel.border = element_rect(fill = NA, color = 'black'),
@@ -127,7 +116,7 @@ first_thursday_in_october <- function(years) {
 # }
 #disconnect_all()  # for repeted sourcing
 con <- src_postgres(POSTGRES_DB)
-sales <- tbl(con, 'all_years_all_sales')
+sales <- tbl(con, POSTGRES_CLEAN_TABLE)
 zipcode <- tbl(con, 'zipcode')
 zipcode_state <- select(zipcode, zip, state)
 
@@ -145,15 +134,15 @@ if (!exists('daily_sales_totals_alaska_vs')) {
         mutate(alaskan_buyer = state == 'AK') %>%
         group_by(alaskan_buyer, sale_date) %>%
         summarize(sales_total_day = sum(sales_pr)) %>%
-        collect()
+        collect() %>%
+        mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
 }
 daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
     mutate(year = lubridate::year(sale_date)) %>%
     group_by(alaskan_buyer, year) %>%
     mutate(sales_total_year = sum(sales_total_day),
            sales_day_frac = sales_total_day / sales_total_year) %>%
-    ungroup() %>%
-    mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
+    ungroup()    
 
 
 plt <- ggplot(daily_sales_totals,

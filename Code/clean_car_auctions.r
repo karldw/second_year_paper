@@ -17,6 +17,7 @@ POSTGRES_DB <- 'second_year_paper'
 POSTGRES_ORIG_TABLE <- 'all_years_all_sales'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
 POSTGRES_VIN_DECODER_TABLE <- 'vin_decoder'
+POSTGRES_ZIPCODE_TABLE <- 'zipcode'
 
 message_if_verbose <- function(msg, verbose) {
     # Just for ease of reading code later
@@ -33,11 +34,13 @@ copy_orig_table <- function(con, verbose){
         }
         DBI::dbRemoveTable(con, POSTGRES_CLEAN_TABLE)
     }
+    message_if_verbose(sprintf("Starting by copying %s to %s", POSTGRES_ORIG_TABLE,
+                       POSTGRES_CLEAN_TABLE), verbose)
     # http://stackoverflow.com/a/6613805
-    create_table_command <- paste("SELECT *,",
-                                  "concat_ws(' ', anncmts, remarks) as comments",
-                                  "INTO", POSTGRES_CLEAN_TABLE,
-                                  'FROM', POSTGRES_ORIG_TABLE)
+    create_table_command <- paste(
+        "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
+        "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
+        "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
     res <- DBI::dbSendStatement(con, create_table_command)
     stopifnot(DBI::dbHasCompleted(res))
 }
@@ -151,14 +154,12 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
     #     "(sales_pr NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",  msrp_factor,
     #                                                      " * vin_decoder.msrp))"
     # )
-    # TODO: this deletes zero rows. why?
     delete_command <- paste(
         "WITH vin_msrp AS (",
             "select vin, msrp from",
             POSTGRES_CLEAN_TABLE, "AS x LEFT JOIN",
             POSTGRES_VIN_DECODER_TABLE, "AS y ON",
-            "(substring(x.vin FROM 1 FOR 8) ||",
-             "substring(x.vin FROM 10 FOR 2)) = y.vin_pattern",
+            "x.vin_pattern = y.vin_pattern",
         ")",
         "DELETE FROM", POSTGRES_CLEAN_TABLE, "AS auctions using vin_msrp",
         "where auctions.vin = vin_msrp.vin AND",
@@ -212,16 +213,30 @@ clean_data <- function(con, verbose) {
 }
 
 
+index_and_clean <- function(con) {
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_zip')    # create buy_zip_index
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')  # create sale_date_index
+
+    # Not all of the zips are valid, but that's probably okay.
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'sell_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'auction_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'vin_pattern',
+    #                    POSTGRES_VIN_DECODER_TABLE, 'vin_pattern')
+    pg_vacuum(con, POSTGRES_CLEAN_TABLE)
+}
+
+
 main <- function(verbose = TRUE) {
     con <- DBI::dbConnect("PostgreSQL", dbname = POSTGRES_DB)
-    message_if_verbose(sprintf("Starting by copying %s to %s", POSTGRES_ORIG_TABLE,
-                       POSTGRES_CLEAN_TABLE), verbose)
+
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
-    pg_vacuum(con, POSTGRES_CLEAN_TABLE)
+    index_and_clean(con)
     DBI::dbDisconnect(con)
 
     return(deleted_counts)
 }
 
-main()
+deleted_counts <- main()
+print(deleted_counts)

@@ -184,7 +184,7 @@ load_df <- function(dta_file, con) {
 main <- function(verbose = TRUE) {
     dta_dir <- file.path(dropbox_home()[1],
                          'KarlJim/CarPriceData/MannheimDataNew_2002-2009')
-    # dta_dir <- '~/Desktop/MannheimDataNew_2002-2009'
+    dta_dir <- '~/Desktop/MannheimDataNew_2002-2009'
     stopifnot(dir.exists(dta_dir))
     all_dta_files <- list.files(dta_dir, full.names = TRUE)
     stopifnot(length(all_dta_files) == length(2002:2014))  # years I have data for
@@ -243,5 +243,5 @@ test_insert_data <- function() {
 }
 
 # Run things:
-test_insert_data()
+# test_insert_data()
 main()
