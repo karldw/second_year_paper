@@ -1,4 +1,6 @@
-
+if (!existsFunction('install_lazy')) {
+    source('r_default_functions.r')
+}
 install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)

@@ -10,12 +10,12 @@ library(RPostgreSQL)
 #compiler::enableJIT(1)
 options(warn = 2)
 
-DATA_TYPES <- c(seller_id='text', seller_type='text', slrdlr_type='text',
-                sell_zip='char(5)', buyer_id='text', auction_code='text',
-                auction_zip='text', sale_date='date', vin='char(17)',
+DATA_TYPES <- c(sale_date='date', seller_id='text', seller_type='text', slrdlr_type='text',
+                sell_zip='char(5)', buyer_id='text', buy_zip='char(5)',
+                auction_code='text', auction_zip='text', vin='char(17)',
                 model_yr='int2', make='text', model='text',
-                miles='int4', sale_type='text', salvg_flg='text', cond='text', anncmts='text', remarks='text', sales_pr='float8',
-                mmr='float8', bid_ct='int2', buy_zip='char(5)')
+                miles='int4', sale_type='text', salvg_flg='char(1)', cond='text', anncmts='text', remarks='text', sales_pr='float8',
+                mmr='float8', bid_ct='int2', veh_type='char(1)')
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'all_years_all_sales'
 

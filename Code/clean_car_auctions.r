@@ -224,4 +224,4 @@ main <- function(verbose = TRUE) {
     return(deleted_counts)
 }
 
-#main()
+main()
