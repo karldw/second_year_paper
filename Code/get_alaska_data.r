@@ -81,8 +81,17 @@ load_cpi <- function() {
     return(df)
 }
 
+
 adjust_pfd_payments <- function() {
-    pfd_payments <- download_summary_table()
+    # In 2008 there was a bonus paid to every APF recipient
+    # bill: http://www.legis.state.ak.us/basis/get_bill_text.asp?hsid=SB4002A&session=25
+    bonus_2008 <- 1200
+    pfd_payments <- download_summary_table() %>%
+        mutate(n_ = total_disbursed / amount,
+               total_disbursed = ifelse(year == 2008, total_disbursed + bonus_2008 * n_,
+                                        total_disbursed),
+               amount = ifelse(year == 2008, amount + bonus_2008, amount))
+
     cpi <- load_cpi()
 
     merged <- left_join(pfd_payments, cpi, by='year') %>%
@@ -91,14 +100,18 @@ adjust_pfd_payments <- function() {
                total_disbursed_2016dollars = total_disbursed / cpi_base_2016) %>%
         select(-cpi_base_2016)
     return(merged)
-
 }
+
 
 plot_payments <- function() {
     payments <- adjust_pfd_payments()
     plt_individual <- ggplot(payments, aes(x=year, y=amount_2016dollars)) +
         geom_bar(stat='identity') +
         labs(x='', y='2016 dollars', title='Alaska Permanent Fund payments, per individual') +
+        PLOT_THEME
+    plt_individual_notitle <- ggplot(payments, aes(x=year, y=amount_2016dollars)) +
+        geom_bar(stat='identity') +
+        labs(x='', y='2016 dollars', title='') +
         PLOT_THEME
 
     plt_aggregate <- ggplot(payments, aes(x=year, y=total_disbursed_2016dollars/10^6)) +
@@ -111,6 +124,9 @@ plot_payments <- function() {
 
     file.path(plot_dir, 'permanent_fund_payments_individual.pdf') %>%
     ggsave(plt_individual, width=6.3, height=3.54)
+
+    file.path(plot_dir, 'permanent_fund_payments_individual_notitle.pdf') %>%
+    ggsave(plt_individual_notitle, width=6.3, height=3.54)
 
     file.path(plot_dir, 'permanent_fund_payments_aggregate.pdf') %>%
     ggsave(plt_aggregate, width=6.3, height=3.54)
