@@ -213,9 +213,13 @@ clean_data <- function(con, verbose) {
 }
 
 
-index_and_clean <- function(con) {
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_zip')    # create buy_zip_index
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')  # create sale_date_index
+index_and_clean <- function(con, verbose) {
+    message_if_verbose("Adding SQL indexes", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_zip')      # buy_zip_index
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sell_zip')     # sell_zip_index
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'auction_zip')  # auction_zip_index
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buyer_zip')    # buyer_id_index
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')    # sale_date_index
 
     # Not all of the zips are valid, but that's probably okay.
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
@@ -227,12 +231,29 @@ index_and_clean <- function(con) {
 }
 
 
+replace_blanks_with_null <- function(con, verbose) {
+    message_if_verbose('Making blank strings NULL', verbose)
+    .replace_one_blank <- function(con, column_name) {
+        sql_cmd <- sprintf("UPDATE %s SET '%s' = NULL where '%s' = ''",
+                           POSTGRES_CLEAN_TABLE, column_name, column_name)
+        res <- DBI::dbSendStatement(con, sql_cmd)
+        stopifnot(DBI::dbHasCompleted(res))
+    }
+    vars_to_check <- c('buyer_id', 'seller_id', 'seller_type', 'slrdlr_type',
+                       'auction_code', 'make', 'model', 'sale_type', 'salvg_flg', 'cond')
+    lapply(vars_to_check, .replace_one_blank)
+
+    invisible()
+}
+
+
 main <- function(verbose = TRUE) {
     con <- DBI::dbConnect("PostgreSQL", dbname = POSTGRES_DB)
 
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
-    index_and_clean(con)
+    replace_blanks_with_null(con, verbose)
+    index_and_clean(con, verbose)
     DBI::dbDisconnect(con)
 
     return(deleted_counts)

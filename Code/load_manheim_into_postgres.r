@@ -174,6 +174,7 @@ load_df <- function(dta_file, con) {
                   dplyr::between(sale_date, sale_date_min, sale_date_max)) %>%
     dplyr::mutate(sell_zip = ifelse(is_valid_zip(sell_zip), sell_zip, NA_character_),
                   buy_zip  = ifelse(is_valid_zip(buy_zip),  buy_zip,  NA_character_),
+                  auction_zip = ifelse(is_valid_zip(auction_zip), auction_zip, NA_character_),
                   vin      = ifelse(is_valid_vin(vin),      vin,      NA_character_),
                   sale_date = lubridate::ymd(sale_date)) %>%
     make_names_legal_sql(con) %>%

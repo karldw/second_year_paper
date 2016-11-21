@@ -84,6 +84,26 @@ pg_add_foreign_key <- function(con, table_name, column_name, reftable, refcolumn
 }
 
 
+pg_force_foreign_key <- function(con, table_name, column_name, reftable, refcolumn) {
+    stop('not implemented or tested')
+    .pg_assert_existence(con, table_name, column_name)
+    .pg_assert_existence(con, reftable, refcolumn)
+
+    # First, do an anti-join to set unmatched values of column_name to NULL
+    # Then set a foreign key.
+    sql_antijoin_update <- paste(
+        sprintf("UPDATE '%s' SET '%s' = NULL", table_name, column_name),
+        "WHERE NOT EXISTS (",
+        sprintf("SELECT 1 FROM '%s'", reftable),
+        sprintf("WHERE ('%s'.'%s' = '%s'.'%s')",
+                table_name, column_name, reftable, refcolumn),
+        ")")
+    res <- DBI::dbSendStatement(con, sql_cmd)
+    stopifnot(DBI::dbHasCompleted(res))
+    pg_add_foreign_key(con, table_name, column_name, reftable, refcolumn)
+}
+
+
 dropbox_home <- function(){
     loadNamespace('jsonlite')
     .system <- .Platform$OS.type
