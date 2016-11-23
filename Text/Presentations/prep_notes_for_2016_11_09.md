@@ -26,8 +26,8 @@
 - Theory: why would people not be smoothing? Am I going with a credit constraint story?
 - Theory: would people ever pay more for a long-lasting durable good? Why not just wait a few months?
 - The money going into the PFD is intimately related to the Alaskan economy; think carefully about whether that tangles up my interpretation
-- Are there any safeways in Alaska? Costcos?  (Gabe wants a story where people buy bulk consumer products)
-- How big are the counties? Is it at all reasonable to talk about county-level data?
+- Are there any safeways in Alaska? (yes) Costcos? (yes) (Gabe wants a story where people buy bulk consumer products)
+- How big are the counties? (bigish, but there are 29, so it's probably not terrible) Is it at all reasonable to talk about county-level data?
 - Talk to Francis about getting health care data
 - Figure out how many hospitals are in Alaska and consider calling them for data
 - For the cars regression, run a version exactly like Hsieh: LHS is q4/q3 (or log thereof)
