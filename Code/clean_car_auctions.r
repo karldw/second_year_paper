@@ -2,11 +2,7 @@
 # This program is mostly a translation of the cleaning functions in
 # Dropbox/KarlJim/CarPriceData/Code/define_programs.do
 
-if (!existsFunction('install_lazy')) {
-    source('r_default_functions.r')
-}
-
-source('common_functions.r')
+source('r_defaults.r')
 
 install_lazy(c('RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 

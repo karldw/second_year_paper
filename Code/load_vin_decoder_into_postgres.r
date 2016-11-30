@@ -1,13 +1,11 @@
-if (!existsFunction('install_lazy')) {
-    source('r_default_functions.r')
-}
+source('r_defaults.r')
+
 install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
 library(magrittr)
 options(warn = 2)
 set.seed(198872394)
-source('common_functions.r')
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'vin_decoder'

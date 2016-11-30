@@ -1,8 +1,7 @@
 
 
-if (!existsFunction('install_lazy')) {
-    source('r_default_functions.r')
-}
+source('r_defaults.r')
+
 install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
@@ -12,17 +11,10 @@ library(ggplot2)
 library(dplyr)
 library(magrittr)
 
-PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
-                    panel.border = element_rect(fill = NA, color = 'black'),
-                    panel.grid.major = element_blank(),
-                    panel.grid.minor = element_blank(),
-                    axis.ticks = element_line(color = 'gray5'),
-                    axis.text = element_text(color = 'black', size = 10),
-                    axis.title = element_text(color = 'black', size = 12),
-                    legend.key = element_blank())
 
-
-con <- src_postgres('second_year_paper')
+if (!exists('con')) {
+    con <- src_postgres('second_year_paper')
+}
 auctions <- tbl(con, 'auctions_cleaned')
 zipcode <- tbl(con, 'zipcode') %>% select(zip, state)
 

@@ -1,23 +1,10 @@
-if (!existsFunction('install_lazy')) {
-    source('r_default_functions.r')
-}
-
-source('common_functions.r')
+source('r_defaults.r')
 
 install_lazy(c('readxl', 'dplyr', 'ggplot2'), verbose = FALSE)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
 
-PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
-                    panel.border = element_rect(fill = NA, color = 'black'),
-                    panel.grid.major = element_blank(),
-                    panel.grid.minor = element_blank(),
-                    axis.ticks = element_line(color = 'gray5'),
-                    axis.text = element_text(color = 'black', size = 10),
-                    axis.title = element_text(color = 'black', size = 12),
-                    legend.key = element_blank(),
-                    strip.background = element_blank())
 
 try(
 EXCEL_DIR <- file.path(box_home()[1],

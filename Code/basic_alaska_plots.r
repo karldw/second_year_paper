@@ -1,7 +1,6 @@
 
-if (!existsFunction('install_lazy')) {
-    source('r_default_functions.r')
-}
+source('r_defaults.r')
+
 install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
@@ -11,14 +10,6 @@ library(ggplot2)
 library(dplyr)
 library(magrittr)
 
-PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
-                    panel.border = element_rect(fill = NA, color = 'black'),
-                    panel.grid.major = element_blank(),
-                    panel.grid.minor = element_blank(),
-                    axis.ticks = element_line(color = 'gray5'),
-                    axis.text = element_text(color = 'black', size = 10),
-                    axis.title = element_text(color = 'black', size = 12),
-                    legend.key = element_blank())
 
 # load_package_no_attach <- function(pkg_name) {
 #     load_successful <- requireNamespace(pkg_name, quietly = TRUE)
@@ -115,7 +106,24 @@ first_thursday_in_october <- function(years) {
 #     invisible(NULL)
 # }
 #disconnect_all()  # for repeted sourcing
-con <- src_postgres(POSTGRES_DB)
+
+
+
+
+save_plot <- function(plt, name, scale_mult=1) {
+    plot_dir <- '../Text/Plots'
+    stopifnot(dir.exists(plot_dir))
+
+    file.path(plot_dir, name) %>%
+    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult)
+}
+
+
+
+
+if (!exists('con')) {
+    con <- src_postgres(POSTGRES_DB)
+}
 sales <- tbl(con, POSTGRES_CLEAN_TABLE)
 zipcode <- tbl(con, 'zipcode')
 zipcode_state <- select(zipcode, zip, state)
@@ -133,19 +141,26 @@ if (!exists('daily_sales_totals_alaska_vs')) {
         inner_join(zipcode_state, by=c('buy_zip'='zip')) %>%
         mutate(alaskan_buyer = state == 'AK') %>%
         group_by(alaskan_buyer, sale_date) %>%
-        summarize(sales_total_day = sum(sales_pr)) %>%
-        collect() %>%
-        mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
+        summarize(sales_total_day = sum(sales_pr), sale_count = n())
+    explain(daily_sales_totals_alaska_vs)
+    daily_sales_totals_alaska_vs <- collect(daily_sales_totals_alaska_vs) %>%
+        ungroup() %>%
+        mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE),
+                                      labels=c('Alaskan', 'Non-Alaskan')))
 }
+if (!exists('daily_sales_totals_by_state')) {
+
+}
+
 daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
     mutate(year = lubridate::year(sale_date)) %>%
     group_by(alaskan_buyer, year) %>%
     mutate(sales_total_year = sum(sales_total_day),
            sales_day_frac = sales_total_day / sales_total_year) %>%
-    ungroup()    
+    ungroup()
 
 
-plt <- ggplot(daily_sales_totals,
+sales_comparison_2004_plot <- ggplot(daily_sales_totals,
               aes(x = sale_date, y = sales_total_day/10^6)) +
     geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
     geom_point(alpha = 0.1) +
@@ -154,12 +169,23 @@ plt <- ggplot(daily_sales_totals,
     geom_vline(xintercept = thursdays) +
     xlim(as.Date(c('2004-06-01', '2005-03-01'))) +
     PLOT_THEME +
-    labs(x='Sale date', y='Daily sale total (millions)', title='Wholesale car auctions, 2004')
+    labs(x='Sale date', y='Daily sale total (millions)',
+         title='Wholesale car auctions, 2004')
 
+save_plot(sales_comparison_2004_plot, 'auctions_2004_alaska_vs_other.pdf', scale_mult=1.5)
 
-plot_dir <- '../Text/Plots'
-stopifnot(dir.exists(plot_dir))
+count_comparison_2004_plot <- filter(daily_sales_totals,
+    (sale_count > 100 & alaskan_buyer == 'Non-Alaskan') |
+    (sale_count > 5   & alaskan_buyer == 'Alaskan')) %>%
+    ggplot(aes(x = sale_date, y = sale_count)) +
+    geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
+    geom_point(alpha = 0.1) +
+    facet_grid(alaskan_buyer ~ ., scales='free_y') +
+    #labs(color = 'Alaskan buyer') +
+    geom_vline(xintercept = thursdays) +
+    xlim(as.Date(c('2004-06-01', '2005-03-01'))) +
+    PLOT_THEME +
+    labs(x='Sale date', y='Daily sale count',
+         title='Wholesale car auctions, 2004')
 
-file.path(plot_dir, 'auctions_2004_alaska_vs_other.pdf') %>%
-ggsave(plt, width=6.3*2, height=3.54*2)
-print(plt)
+# save_plot(count_comparison_2004_plot, 'auctions_2004_alaska_vs_other.pdf', scale_mult=1.5)
