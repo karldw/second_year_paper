@@ -52,9 +52,12 @@ pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
     } else {
         unique_cmd <- ''
     }
-    sql_cmd <- sprintf("CREATE %s INDEX %s on %s (%s)",
+    drop_cmd <- sprintf("DROP INDEX IF EXISTS %s", index_name)
+    DBI::dbSendStatement(con, drop_cmd)
+    # fillfactor to 100 because I'm never adding rows to this table
+    add_cmd <- sprintf("CREATE %s INDEX %s on %s (%s) WITH (fillfactor = 100)",
                        unique_cmd, index_name, table_name, indexed_col)
-    res <- DBI::dbSendStatement(con, sql_cmd)
+    res <- DBI::dbSendStatement(con, add_cmd)
     stopifnot(DBI::dbHasCompleted(res))
     return(index_name)
 }

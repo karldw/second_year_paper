@@ -1,8 +1,9 @@
 
 options(
     # Stop R from being too helpful
+    warn = 1,
     warnPartialMatchDollar = TRUE,
-    warnPartialMatchArgs = TRUE,
+    # warnPartialMatchArgs = TRUE,  # raises too many warnings
     warnPartialMatchAttr = TRUE
 )
 

@@ -3,7 +3,7 @@
 # Dropbox/KarlJim/CarPriceData/Code/define_programs.do
 
 source('r_defaults.r')
-
+options(warnPartialMatchArgs = FALSE)
 install_lazy(c('RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
 library(RPostgreSQL)
@@ -24,28 +24,128 @@ message_if_verbose <- function(msg, verbose) {
 }
 
 copy_orig_table <- function(con, verbose){
-    if (DBI::dbExistsTable(con, POSTGRES_CLEAN_TABLE)) {
+    if (dbExistsTable(con, POSTGRES_CLEAN_TABLE)) {
         if (verbose) {
             message(paste('Deleting existing table:', POSTGRES_CLEAN_TABLE))
         }
-        DBI::dbRemoveTable(con, POSTGRES_CLEAN_TABLE)
+        dbRemoveTable(con, POSTGRES_CLEAN_TABLE)
     }
     message_if_verbose(sprintf("Starting by copying %s to %s", POSTGRES_ORIG_TABLE,
                        POSTGRES_CLEAN_TABLE), verbose)
-    # http://stackoverflow.com/a/6613805
+
+    # CREATE TABLE auctions_cleaned AS
+    #
+    #     SELECT auction_zip, sell_zip, buy_zip, sale_date, seller_id, seller_type,
+    #     slrdlr_type, buyer_id, auction_code, vin, model_yr, make, model, miles,
+    #     sale_type, salvg_flg, cond, anncmts, remarks, sales_pr, mmr, bid_ct,
+    #     veh_type, comments, vin_pattern, buy_state, sell_state,
+    #     state AS auction_state,
+    #     concat_ws(' ', anncmts, remarks) AS comments,
+    #     concat(substring(vin FROM 1 FOR 8),
+    #            substring(vin FROM 10 FOR 2)) AS vin_pattern
+    #     FROM
+    #         (
+    #             SELECT * FROM
+    #                 (
+    #                 SELECT * FROM
+    #                     (
+    #                         SELECT * FROM
+    #                             all_years_all_sales
+    #                         LEFT JOIN
+    #                             (SELECT zip, state as buy_state FROM zipcode)
+    #                         ON (buy_zip = zip)
+    #                     )
+    #                 LEFT JOIN
+    #                     (SELECT zip, state as sell_state FROM zipcode)
+    #                 ON (sell_zip = zip)
+    #                 )
+    #             LEFT JOIN
+    #                 (SELECT zip, state AS auction_state FROM zipcode)
+    #             ON (auction_zip = zip)
+    #         )
+
+    # create_table_command <- paste(
+    #     "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
+    #     "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
+    #     "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
+
+    # get the original field names, then tack an extra comma on the end.
+
+    orig_col_names <- dbListFields(con, POSTGRES_ORIG_TABLE) %>%
+        paste(collapse=', ') %>% paste0(',')
+
+
     create_table_command <- paste(
-        "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
-        "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
-        "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
-    res <- DBI::dbSendStatement(con, create_table_command)
-    stopifnot(DBI::dbHasCompleted(res))
+        "CREATE TABLE",
+        POSTGRES_CLEAN_TABLE,
+        "AS",
+            "SELECT",
+                "sale_date, sell_zip, buy_zip, auction_zip, vin, model_yr, miles,",
+                "sales_pr, mmr, bid_ct, veh_type,",
+                "buy_state, sell_state, auction_state,",
+                "NULLIF(auction_code, '') AS auction_code,",
+                "NULLIF(buyer_id, '')     AS buyer_id,",
+                "NULLIF(cond, '')         AS cond,",
+                "NULLIF(make, '')         AS make,",
+                "NULLIF(model, '')        AS model,",
+                "NULLIF(sale_type, '')    AS sale_type,",
+                "NULLIF(salvg_flg, '')    AS salvg_flg,",
+                "NULLIF(seller_id, '')    AS seller_id,",
+                "NULLIF(seller_type, '')  AS seller_type,",
+                "NULLIF(slrdlr_type, '')  AS slrdlr_type,",
+                "concat_ws(' ', anncmts, remarks) AS comments,",
+                "concat(substring(vin FROM 1 FOR 8),",
+                       "substring(vin FROM 10 FOR 2)) AS vin_pattern,",
+                "random() as rand",
+            "FROM",
+                "(",
+                    "SELECT",
+                        orig_col_names,
+                        "buy_state, sell_state, auction_state",
+                    "FROM",
+                        "(",
+                        "SELECT",
+                            orig_col_names,
+                            "buy_state, sell_state",
+                        "FROM",
+                            "(",
+                                "SELECT",
+                                    orig_col_names,
+                                    "buy_state",
+                                "FROM",
+                                    POSTGRES_ORIG_TABLE,
+                                "LEFT JOIN",
+                                    "(SELECT zip, state as buy_state FROM",
+                                    POSTGRES_ZIPCODE_TABLE,
+                                    ") AS zipcode_buy_state",
+                                "ON (buy_zip = zip)",
+                            ") AS joined_buy",
+                        "LEFT JOIN",
+                            "(SELECT zip, state as sell_state FROM",
+                            POSTGRES_ZIPCODE_TABLE,
+                            ") AS zipcode_sell_state",
+                        "ON (sell_zip = zip)",
+                        ") AS joined_buy_sell",
+                    "LEFT JOIN",
+                        "(SELECT zip, state AS auction_state FROM",
+                        POSTGRES_ZIPCODE_TABLE,
+                        ") AS zipcode_auction_state",
+                    "ON (auction_zip = zip)",
+                ") AS joined_buy_sell_auction",
+        sep='\n')
+
+    set_seed_cmd <- "SELECT setseed(-0.783164798234)"
+    suppressWarnings(dbExecute(con, set_seed_cmd))
+
+    res <- dbSendStatement(con, create_table_command)
+    stopifnot(dbHasCompleted(res))
 }
 
 
 excecute_deletion <- function(con, delete_conditions) {
     delete_command <- paste("DELETE FROM", POSTGRES_CLEAN_TABLE, "WHERE",
                             delete_conditions)
-    rows_deleted <- DBI::dbExecute(con, delete_command)
+    rows_deleted <- dbExecute(con, delete_command)
     return(rows_deleted)
 }
 
@@ -163,7 +263,7 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
         sprintf("sales_pr NOT BETWEEN %s AND LEAST(%s, %s * msrp)",
                 min_price, max_price, msrp_factor)
         )
-    rows_deleted <- DBI::dbExecute(con, delete_command)
+    rows_deleted <- dbExecute(con, delete_command)
     return(rows_deleted)
 }
 
@@ -186,19 +286,19 @@ filter_weird_vehicles <- function(con) {
 
 clean_data <- function(con, verbose) {
     message_if_verbose("Dropping weird vehicles", verbose)
-    rows_deleted_weird_vehicles <- filter_weird_vehicles(con)
+    rows_deleted_weird_vehicles <- filter_weird_vehicles(con)  # 20299
 
     message_if_verbose("Dropping bad odometer", verbose)
-    rows_deleted_bad_odo <- filter_bad_odo(con)  # count?
+    rows_deleted_bad_odo <- filter_bad_odo(con)  # 586941
 
     message_if_verbose("Dropping damaged vehicles", verbose)
-    rows_deleted_damaged <- filter_damaged(con)  # count?
+    rows_deleted_damaged <- filter_damaged(con)  # 2665224
 
     message_if_verbose("Dropping inappropriate prices", verbose)
-    rows_deleted_price <- filter_price(con)  # count?
+    rows_deleted_price <- filter_price(con)  # 59193
 
     message_if_verbose("Dropping Canadian cars", verbose)
-    rows_deleted_canadian <- filter_canadian(con)  # count?
+    rows_deleted_canadian <- filter_canadian(con)  # 132118
 
     deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
                         'bad odometer'   = rows_deleted_bad_odo,
@@ -211,47 +311,69 @@ clean_data <- function(con, verbose) {
 
 index_and_clean <- function(con, verbose) {
     message_if_verbose("Adding SQL indexes", verbose)
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_zip')      # buy_zip_index
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sell_zip')     # sell_zip_index
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'auction_zip')  # auction_zip_index
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buyer_id')     # buyer_id_index
-    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')    # sale_date_index
+    message_if_verbose("  - buy_state_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_state')      # buy_state_index
+    message_if_verbose("  - sell_state_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sell_state')     # sell_state_index
+    message_if_verbose("  - auction_state_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'auction_state')  # auction_state_index
+    message_if_verbose("  - buyer_id_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buyer_id')       # buyer_id_index
+    message_if_verbose("  - sale_date_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')      # sale_date_index
 
+    # You'd think we could make the random index unique, but there are collisions
+    message_if_verbose("  - rand_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'rand')           # rand_index
     # Not all of the zips are valid, but that's probably okay.
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'sell_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'auction_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'vin_pattern',
     #                    POSTGRES_VIN_DECODER_TABLE, 'vin_pattern')
+    message_if_verbose("  - vacuuming and analyzing", verbose)
     pg_vacuum(con, POSTGRES_CLEAN_TABLE)
 }
 
 
-replace_blanks_with_null <- function(con, verbose) {
-    message_if_verbose('Making blank strings NULL', verbose)
-    .replace_one_blank <- function(column_name, con) {
-        sql_cmd <- sprintf("UPDATE %s SET %s = NULL where %s = ''",
-                           POSTGRES_CLEAN_TABLE, column_name, column_name)
-        res <- DBI::dbSendStatement(con, sql_cmd)
-        stopifnot(DBI::dbHasCompleted(res))
-    }
-    vars_to_check <- c('buyer_id', 'seller_id', 'seller_type', 'slrdlr_type',
-                       'auction_code', 'make', 'model', 'sale_type', 'salvg_flg', 'cond')
-    # these could definitely be run in parallel:
-    lapply(vars_to_check, .replace_one_blank, con=con)
+# replace_blanks_with_null <- function(con, verbose) {
+#     message_if_verbose('Making blank strings NULL', verbose)
+#     .replace_one_blank <- function(column_name, con) {
+#         sql_cmd <- sprintf("UPDATE %s SET %s = NULL where %s = ''",
+#                            POSTGRES_CLEAN_TABLE, column_name, column_name)
+#         res <- dbSendStatement(con, sql_cmd)
+#         stopifnot(dbHasCompleted(res))
+#     }
+#     vars_to_check <- c('buyer_id', 'seller_id', 'seller_type', 'slrdlr_type',
+#                        'auction_code', 'make', 'model', 'sale_type', 'salvg_flg', 'cond')
+#     # these could definitely be run in parallel:
+#     lapply(vars_to_check, .replace_one_blank, con=con)
+#
+#     invisible()
+# }
 
-    invisible()
+
+delete_orig_table <- function(con, verbose) {
+    message_if_verbose("Dropping orignal table", verbose)
+    dbRemoveTable(con, POSTGRES_ORIG_TABLE)
 }
 
 
+# add_random_index <- function(con, verbose) {
+#
+#     set_seed_cmd <- "SET SEED 783164798234"
+#     add_column_cmd <- sprintf('ALTER TABLE %s ADD COLUMN random_index float8 NOT NULL '
+# }
+
+
 main <- function(verbose = TRUE) {
-    con <- DBI::dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
 
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
-    replace_blanks_with_null(con, verbose)
     index_and_clean(con, verbose)
-    DBI::dbDisconnect(con)
+    # delete_orig_table(con, verbose)
+    dbDisconnect(con)
 
     return(deleted_counts)
 }
