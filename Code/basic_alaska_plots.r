@@ -124,7 +124,7 @@ save_plot <- function(plt, name, scale_mult=1) {
 if (!exists('con')) {
     con <- src_postgres(POSTGRES_DB)
 }
-sales <- tbl(con, POSTGRES_CLEAN_TABLE)
+auctions <- tbl(con, POSTGRES_CLEAN_TABLE)
 zipcode <- tbl(con, 'zipcode')
 zipcode_state <- select(zipcode, zip, state)
 
@@ -132,25 +132,45 @@ zipcode_state <- select(zipcode, zip, state)
 thursdays <- first_thursday_in_october(seq(2002, 2014, by=1)) #%>%
     # as.Date(origin='1970-01-01')
 
-#first_thursday_in_october(unique(lubridate::year(sales$sale_date)))
+#first_thursday_in_october(unique(lubridate::year(auctions$sale_date)))
+
+
+if (!exists('auctions_with_state')) {
+    message('Making auctions_with_state (this takes a couple of minutes)')
+    auctions_with_state <- left_join(auctions, zipcode, by=c('buy_zip'='zip')) %>%
+        rename(buy_state = state) %>%
+        left_join(zipcode, by=c('sell_zip'='zip')) %>%
+        rename(sell_state = state) %>%
+        left_join(zipcode, by=c('auction_zip'='zip')) %>%
+        rename(auction_state = state) %>%
+        compute()  # run the command and make a temporary table in postgres
+}
 
 # Only to the expensive operation once
 if (!exists('daily_sales_totals_alaska_vs')) {
-    daily_sales_totals_alaska_vs <- select(sales, buy_zip, sale_date, sales_pr) %>%
-        filter(!is.na(buy_zip)) %>%
-        inner_join(zipcode_state, by=c('buy_zip'='zip')) %>%
-        mutate(alaskan_buyer = state == 'AK') %>%
+    daily_sales_totals_alaska_vs <- select(auctions_with_state,
+            buy_state, sale_date, sales_pr) %>%
+        filter(!is.na(buy_state)) %>%
+        mutate(alaskan_buyer = buy_state == 'AK') %>%
         group_by(alaskan_buyer, sale_date) %>%
-        summarize(sales_total_day = sum(sales_pr), sale_count = n())
+        summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
+        ungroup()
     explain(daily_sales_totals_alaska_vs)
     daily_sales_totals_alaska_vs <- collect(daily_sales_totals_alaska_vs) %>%
-        ungroup() %>%
         mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE),
                                       labels=c('Alaskan', 'Non-Alaskan')))
 }
 if (!exists('daily_sales_totals_by_state')) {
+    daily_sales_totals_by_state <- select(auctions_with_state, sale_date, sales_pr) %>%
+        filter(!is.na(buy_state)) %>%
+        group_by(buy_state, sale_date) %>%
+        summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
+        ungroup()
 
+    explain(daily_sales_totals_by_state)
+    daily_sales_totals_by_state <- collect(daily_sales_totals_by_state)
 }
+
 
 daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
     mutate(year = lubridate::year(sale_date)) %>%
@@ -175,7 +195,7 @@ sales_comparison_2004_plot <- ggplot(daily_sales_totals,
 save_plot(sales_comparison_2004_plot, 'auctions_2004_alaska_vs_other.pdf', scale_mult=1.5)
 
 count_comparison_2004_plot <- filter(daily_sales_totals,
-    (sale_count > 100 & alaskan_buyer == 'Non-Alaskan') |
+    (sale_count > 10000 & alaskan_buyer == 'Non-Alaskan') |
     (sale_count > 5   & alaskan_buyer == 'Alaskan')) %>%
     ggplot(aes(x = sale_date, y = sale_count)) +
     geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function

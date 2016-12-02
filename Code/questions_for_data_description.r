@@ -18,68 +18,81 @@ if (!exists('con')) {
 auctions <- tbl(con, 'auctions_cleaned')
 zipcode <- tbl(con, 'zipcode') %>% select(zip, state)
 
-if (!exists('auctions_with_state')) {
-    message('Making auctions_with_state (this takes a couple of minutes)')
-    auctions_with_state <- left_join(auctions, zipcode, by=c('buy_zip'='zip')) %>%
-        rename(buy_state = state) %>%
-        left_join(zipcode, by=c('sell_zip'='zip')) %>%
-        rename(sell_state = state) %>%
-        left_join(zipcode, by=c('auction_zip'='zip')) %>%
-        rename(auction_state = state) %>%
-        compute()  # run the command and make a temporary table in postgres
-}
-
+# 51,461,995 obs total (post-cleaning)
 row_count <- summarize(auctions, count=n()) %>% collect() %$% count
 
-# How many buyers are there?
+# How many buyers are there? -- 308,185
 buyer_count <- distinct(auctions, buyer_id) %>%
-    filter(buyer_id != NA) %>%
-    summarize(count = n()) %>%
-    collect()
+    filter(! is.na(buyer_id)) %>%
+    summarize(count = n()) %>% collect() %$% count
 
-# What fraction of buyer zips are missing?
+# What fraction of buyer zips are missing?  2,375,581 missing obs
 sales_no_buyer_zip <- filter(auctions, is.na(buy_zip)) %>%
     summarize(count=n()) %>% collect() %$% count
-# What fraction of seller zips are missing?
+# What fraction of seller zips are missing?  11,039,857 missing obs
 sales_no_seller_zip <- filter(auctions, is.na(sell_zip)) %>%
     summarize(count=n()) %>% collect() %$% count
-# What fraction of auction zips are missing?
+# What fraction of auction zips are missing?  3,744,460 missing
 sales_no_auction_zip <- filter(auctions, is.na(auction_zip)) %>%
-    summarize(count=n()) %>% collect() %$% count  # 8386
-# What fraction of rows have no missing zips?
+    summarize(count=n()) %>% collect() %$% count  #
+# What fraction of rows have no missing zips?  37,658,283 non-missing
 sales_complete_zips <- filter(auctions,
     ! (is.na(buy_zip) | is.na(sell_zip) | is.na(auction_zip))) %>%
     summarize(count=n()) %>% collect() %$% count
 
-# How many zip codes are the buyers from?
+# How many zip codes are the buyers from?  21,178
 buyer_zip_count <- distinct(auctions, buy_zip) %>%
-    filter(buy_zip != NA) %>%
+    filter(! is.na(buy_zip)) %>%
     summarize(count = n()) %>%
-    collect()
+    collect() %$% count
 
-# How many Alaskan buyers are there?
-buyer_count_by_state <- distinct(auctions_with_state, buyer_id, buy_state) %>%
-    filter(buy_state != NA) %>%
+# How many Alaskan buyers are there?  247
+buyer_count_by_state <- distinct(auctions, buyer_id, buy_state) %>%
+    filter(! is.na(buy_state)) %>%
     group_by(buy_state) %>%
     summarize(count = n()) %>%
     collect()
 
 # Where do Alaskan buyers get their vehicles?
-alaska_buyer_auction_locations <- filter(auctions_with_state, buy_state == 'AK') %>%
-    filter(auction_state != NA) %>%
+alaska_buyer_auction_locations <- filter(auctions, buy_state == 'AK') %>%
+    filter(! is.na(auction_state)) %>%
     group_by(auction_state) %>%
     summarize(count = n()) %>%
     collect()
+# Top 10:
+#    auction_state count
+# 1             WA 13397
+# 2             NV  3332
+# 3             OR  2287
+# 4             CA  1697
+# 5             AZ   774
+# 6             UT   306
+# 7             CO   239
+# 8             MN   181
+# 9             TX   159
+# 10            FL   107
 
-alaska_buyer_seller_locations <- filter(auctions_with_state, buy_state == 'AK') %>%
-    filter(sell_state != NA) %>%
+alaska_buyer_seller_locations <- filter(auctions, buy_state == 'AK') %>%
+    filter(! is.na(sell_state)) %>%
     group_by(sell_state) %>%
     summarize(count = n()) %>%
     collect()
+# Top 10:
+#    sell_state count
+# 1          WA  4058
+# 2          CA  2439
+# 3          OR  2342
+# 4          NV  1048
+# 5          AZ  1046
+# 6          AK   937
+# 7          TX   922
+# 8          VA   808
+# 9          OK   775
+# 10         NY   618
 
 
 # Can I track individual buyers over time?
-buyer_permanence <- filter(auctions, buyer_id != NA) %>%
+buyer_permanence <- filter(auctions, ! is.na(buyer_id)) %>%
     group_by(buyer_id, sale_date) %>%
     summarize(count = n()) %>%
     collect(n=Inf)
