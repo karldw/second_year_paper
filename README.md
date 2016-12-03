@@ -1,5 +1,12 @@
 # Karl's second year paper
 
+
+## TODO:
+- Adjust things per-capita
+- Bring all the other to-do lists in here.
+- Clean this readme
+
+
 ## 1. Smog pricing
 Are cars that are subject to smog checks less valuable?
 
