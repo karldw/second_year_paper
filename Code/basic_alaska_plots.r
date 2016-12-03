@@ -5,7 +5,7 @@ install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
-
+VERBOSE <- TRUE
 library(ggplot2)
 library(dplyr)
 library(magrittr)
@@ -108,8 +108,6 @@ first_thursday_in_october <- function(years) {
 #disconnect_all()  # for repeted sourcing
 
 
-
-
 save_plot <- function(plt, name, scale_mult=1) {
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir))
@@ -117,8 +115,6 @@ save_plot <- function(plt, name, scale_mult=1) {
     file.path(plot_dir, name) %>%
     ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult)
 }
-
-
 
 
 if (!exists('con')) {
@@ -135,39 +131,31 @@ thursdays <- first_thursday_in_october(seq(2002, 2014, by=1)) #%>%
 #first_thursday_in_october(unique(lubridate::year(auctions$sale_date)))
 
 
-if (!exists('auctions_with_state')) {
-    message('Making auctions_with_state (this takes a couple of minutes)')
-    auctions_with_state <- left_join(auctions, zipcode, by=c('buy_zip'='zip')) %>%
-        rename(buy_state = state) %>%
-        left_join(zipcode, by=c('sell_zip'='zip')) %>%
-        rename(sell_state = state) %>%
-        left_join(zipcode, by=c('auction_zip'='zip')) %>%
-        rename(auction_state = state) %>%
-        compute()  # run the command and make a temporary table in postgres
-}
-
 # Only to the expensive operation once
 if (!exists('daily_sales_totals_alaska_vs')) {
-    daily_sales_totals_alaska_vs <- select(auctions_with_state,
+    daily_sales_totals_alaska_vs <- select(auctions,
             buy_state, sale_date, sales_pr) %>%
         filter(!is.na(buy_state)) %>%
         mutate(alaskan_buyer = buy_state == 'AK') %>%
         group_by(alaskan_buyer, sale_date) %>%
         summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
         ungroup()
-    explain(daily_sales_totals_alaska_vs)
+    if (VERBOSE) {
+        explain(daily_sales_totals_alaska_vs)
+    }
     daily_sales_totals_alaska_vs <- collect(daily_sales_totals_alaska_vs) %>%
         mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE),
                                       labels=c('Alaskan', 'Non-Alaskan')))
 }
 if (!exists('daily_sales_totals_by_state')) {
-    daily_sales_totals_by_state <- select(auctions_with_state, sale_date, sales_pr) %>%
+    daily_sales_totals_by_state <- select(auctions, sale_date, sales_pr, buy_state) %>%
         filter(!is.na(buy_state)) %>%
         group_by(buy_state, sale_date) %>%
         summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
         ungroup()
-
-    explain(daily_sales_totals_by_state)
+    if (VERBOSE) {
+        explain(daily_sales_totals_by_state)
+    }
     daily_sales_totals_by_state <- collect(daily_sales_totals_by_state)
 }
 
@@ -208,4 +196,5 @@ count_comparison_2004_plot <- filter(daily_sales_totals,
     labs(x='Sale date', y='Daily sale count',
          title='Wholesale car auctions, 2004')
 
-# save_plot(count_comparison_2004_plot, 'auctions_2004_alaska_vs_other.pdf', scale_mult=1.5)
+save_plot(count_comparison_2004_plot,
+          'auctions_2004_alaska_vs_other_counts.pdf', scale_mult=1.5)
