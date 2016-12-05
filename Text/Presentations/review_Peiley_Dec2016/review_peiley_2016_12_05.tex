@@ -1,0 +1,139 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb,amsmath,amsthm}
+%\usepackage{enumitem}
+\usepackage[osf]{libertine}
+%\usepackage{carlito}
+\usepackage{inconsolata}
+%\usepackage{sectsty}
+
+%\allsectionsfont{\sffamily\mdseries}
+\usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
+\microtypecontext{spacing=nonfrench}
+% Set color theme
+
+\newcommand{\proofsep}{\vspace{-0.75em}}
+\usepackage{booktabs}
+
+\usepackage{graphicx}
+% Improve math spacing around |,\left and \right
+% See: https://tex.stackexchange.com/questions/2607/spacing-around-left-and-right/
+\let\originalleft\left
+\let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+\renewcommand{\right}{\aftergroup\egroup\originalright}
+
+% Remove section numbering
+\makeatletter
+% we use \prefix@<level> only if it is defined
+\renewcommand{\@seccntformat}[1]{%
+	\ifcsname prefix@#1\endcsname
+	\csname prefix@#1\endcsname
+	\else
+	\csname the#1\endcsname\quad
+	\fi}
+% define \prefix@section
+\newcommand\prefix@section{}
+\newcommand\prefix@subsection{}
+\newcommand\prefix@subsubsection{}
+\makeatother
+
+% Define new commands for "such that", the blackboard-bold letters and "closure".
+\newcommand{\st}{\textit{ s.t.\ }}
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
+\newcommand{\cl}{\ensuremath{\text{cl\hspace{0.1em}}}}
+\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
+
+\DeclareMathOperator{\blackboardE}{\mathbb{E}}
+\newcommand{\expected}[1]{\blackboardE\left[#1\right]}
+\newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
+\newlength{\postparenlength}
+\setlength{\postparenlength}{0.14em}
+\newcommand{\postparen}{\hspace{\postparenlength}}
+\usepackage{url}
+\usepackage{xcolor}
+
+\usepackage{embrac}
+\usepackage{siunitx}
+\sisetup{
+	group-separator={,},
+	group-digits = integer,
+	input-ignore = {,},
+	input-decimal-markers = {.}
+}
+
+
+
+
+\usetheme{Szeged}
+\usecolortheme{dove}
+\beamertemplatenavigationsymbolsempty
+\title[Peiley]{Comments on Peiley's Project}
+\author{Karl Dunkle Werner}
+\institute{}
+\date{December 5, 2016}
+%\usefonttheme{structuresmallcapsserif}
+\usefonttheme{serif}
+
+
+\usepackage[overlay,absolute]{textpos}
+\setlength{\TPHorizModule}{\textwidth}
+\setlength{\TPVertModule}{\textwidth}
+
+%\usepackage{footnote}
+\usepackage{hyperref}
+\hypersetup{colorlinks,
+	linkcolor=darkgray,
+	filecolor=black,
+	urlcolor=gray,
+	citecolor=darkgray,
+	pdfpagemode=UseNone,
+	pdftoolbar=false,
+	pdftitle={Class Presentation -- Review of Peiley},
+	pdfauthor={Karl Dunkle Werner},
+	pdfsubject={},
+	pdfcreator={},
+	pdfproducer={},
+	pdflang=en,
+	unicode=true
+}
+\graphicspath{{../../Plots/}}
+\begin{document}
+\begin{frame}[plain]
+	\maketitle
+\end{frame}
+
+\begin{frame}{Looks good!}
+	\begin{itemize}
+		\item Has the data necessary to address the question
+		\item IV is always tricky, but a county's temperature sequence is plausibly exogenous and as good as randomly assigned, conditional on county and year
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Other  things to consider}
+	
+	How should we think about these margins?
+	\begin{itemize}
+		\item Pesticide choice
+		\item Crop choice
+	\end{itemize}
+	
+	
+	Should we worry about dynamics in space and time?
+	\begin{itemize}
+		\item Spillover from neighboring counties
+			\begin{itemize}
+				\item See Chris Costello's “Private Eradication of Mobile Public Bads”
+			\end{itemize}
+		\item Ecological dynamics of last year's pest density on this year's
+	\end{itemize}
+\end{frame}
+
+
+
+
+\end{document}
