@@ -142,7 +142,7 @@ copy_orig_table <- function(con, verbose){
 }
 
 
-excecute_deletion <- function(con, delete_conditions) {
+execute_deletion <- function(con, delete_conditions) {
     delete_command <- paste("DELETE FROM", POSTGRES_CLEAN_TABLE, "WHERE",
                             delete_conditions)
     rows_deleted <- dbExecute(con, delete_command)
@@ -189,7 +189,7 @@ filter_bad_odo <- function(con) {
                 regex_odo, regex_odo_exclude),
         sep=' OR ')
 
-    rows_deleted <- excecute_deletion(con, delete_conditions)
+    rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
 }
 
@@ -220,7 +220,7 @@ filter_damaged <- function(con) {
         sprintf("(comments ~ '%s')", regex_combo_damage),
         sep=' OR ')
 
-    rows_deleted <- excecute_deletion(con, delete_conditions)
+    rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
 }
 
@@ -236,7 +236,7 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
     # Here's what the code would look like if msrp was already a column in the table:
     # delete_conditions <- sprintf("sales_pr NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
     #                              sales_pr_min, sales_pr_max, msrp_factor)
-    # rows_deleted <- excecute_deletion(con, delete_conditions)
+    # rows_deleted <- execute_deletion(con, delete_conditions)
 
     # The VIN match data has VIN positions 1-8, 10 and 11 (position 9 is a check digit)
 
@@ -270,7 +270,7 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
 
 filter_canadian <- function(con) {
     delete_conditions <- sprintf("comments ~ '%s'", "CAND|CANAD|CNAD")
-    rows_deleted <- excecute_deletion(con, delete_conditions)
+    rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
 }
 
@@ -279,8 +279,52 @@ filter_weird_vehicles <- function(con) {
     # In order, these are: trailers, boats, air compressors (?), golf carts, vehicles
     # with incomplete bodies, ATVs and RVs.
     delete_conditions <- "veh_type IN ('A', 'B', 'C', 'G', 'I', 'P', 'R')"
-    rows_deleted <- excecute_deletion(con, delete_conditions)
+    rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
+}
+
+
+filter_multistate <- function(con) {
+    # not yet tested...
+    # buy_state
+    delete_cmd_buyers <- paste(
+        "DELETE FROM",
+        POSTGRES_CLEAN_TABLE,
+        "AS auctions",
+        "USING (",
+            "SELECT buyer_id",
+            "FROM (SELECT buyer_id, buy_state,",
+                  "COUNT(*) OVER (PARTITION BY buyer_id) AS state_count",
+            "FROM (SELECT buyer_id, buy_state",
+            "FROM (SELECT buyer_id, buy_state",
+            "FROM auctions_cleaned",
+            "WHERE ((NOT((buyer_id) IS NULL)) AND (NOT((buy_state) IS NULL)))) gcbljb",
+            "GROUP BY buyer_id, buy_state) cwlvmtvtlb) mwglxvbdut",
+            "WHERE (state_count > 1.0)",
+        ") AS bad_buyer_ids",
+        "WHERE bad_buyer_ids.buyer_id = auctions.buyer_id"
+        )
+    # sell_state:
+    delete_cmd_sellers <- paste(
+        "DELETE FROM",
+        POSTGRES_CLEAN_TABLE,
+        "AS auctions",
+        "USING (",
+            "SELECT seller_id",
+            "FROM (SELECT seller_id, sell_state,",
+                  "COUNT(*) OVER (PARTITION BY seller_id) AS state_count",
+            "FROM (SELECT seller_id, sell_state",
+            "FROM (SELECT seller_id, sell_state",
+            "FROM auctions_cleaned",
+            "WHERE ((NOT((seller_id) IS NULL)) AND (NOT((sell_state) IS NULL)))) ksxnpl",
+            "GROUP BY seller_id, sell_state) mmqkuetnjn) tlhxdtjxpr",
+            "WHERE (state_count > 1.0)",
+        ") AS bad_seller_ids",
+        "WHERE bad_seller_ids.seller_id = auctions.seller_id")
+
+    buyer_rows_deleted  <- dbExecute(con, delete_cmd_buyers)   # ~39 buyers
+    seller_rows_deleted <- dbExecute(con, delete_cmd_sellers)  # ~12 sellers
+    return(buyer_rows_deleted + seller_rows_deleted)
 }
 
 
@@ -300,17 +344,21 @@ clean_data <- function(con, verbose) {
     message_if_verbose("Dropping Canadian cars", verbose)
     rows_deleted_canadian <- filter_canadian(con)  # 132118
 
+    message_if_verbose("Dropping obs with multiple buy/sell states", verbose)
+    rows_deleted_multistate <- filter_multistate(con)
+
     deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
                         'bad odometer'   = rows_deleted_bad_odo,
                         'damaged'        = rows_deleted_damaged,
                         'price'          = rows_deleted_price,
-                        'canadian'       = rows_deleted_canadian)
+                        'canadian'       = rows_deleted_canadian,
+                        'multiple states'= rows_deleted_multistate)
     return(deleted_counts)
 }
 
 
 index_and_clean <- function(con, verbose) {
-    message_if_verbose("Adding SQL indexes", verbose)
+    message_if_verbose("Adding SQL indexes (ignore the messages about 'does not exist, skipping')", verbose)
     message_if_verbose("  - buy_state_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_state')      # buy_state_index
     message_if_verbose("  - sell_state_index", verbose)
