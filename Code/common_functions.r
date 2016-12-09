@@ -180,3 +180,19 @@ clear_all <- function() {
     }
     rm(list = ls(envir = .GlobalEnv, all.names = TRUE, sorted = FALSE), envir = .GlobalEnv)
 }
+
+
+save_plot <- function(plt, name, scale_mult=1) {
+    plot_dir <- '../Text/Plots'
+    stopifnot(dir.exists(plot_dir))
+
+    file.path(plot_dir, name) %>%
+    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult)
+}
+
+
+tag_alaskan_buyer <- function(df) {
+    mutated <- mutate(df, alaskan_buyer = ifelse(buy_state == 'AK',
+                                                 'Alaskan', 'Non-Alaskan'))
+    return(mutated)
+}

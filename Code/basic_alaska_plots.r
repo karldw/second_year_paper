@@ -108,15 +108,6 @@ first_thursday_in_october <- function(years) {
 #disconnect_all()  # for repeted sourcing
 
 
-save_plot <- function(plt, name, scale_mult=1) {
-    plot_dir <- '../Text/Plots'
-    stopifnot(dir.exists(plot_dir))
-
-    file.path(plot_dir, name) %>%
-    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult)
-}
-
-
 if (!exists('con')) {
     con <- src_postgres(POSTGRES_DB)
 }

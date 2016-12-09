@@ -75,11 +75,17 @@ first_thursday_in_october <- function(years) {
 }
 
 
-tbl_has_rows <- function(a_tbl) {
-    nrow_head1 <- ungroup(a_tbl) %>% head(1) %>% collect() %>% nrow()
-    return(nrow_head1 > 0)
+tbl_has_rows <- function(df) {
+    # Works for both local tables and remote databases
+    nrow_df <- nrow(df)
+    if (is.na(nrow_df)) {  # nrow() is NA for remote tables
+        head1 <- ungroup(df) %>% head(1) %>% collect()
+        has_rows <- nrow(head1) > 0
+    } else {
+        has_rows <-  nrow_df > 0
+    }
+    return(has_rows)
 }
-
 
 pull_data_one_year <- function(year, days_before=60L, days_after=days_before,
                                top_n_auction_states=NULL) {
@@ -105,13 +111,16 @@ pull_data_one_year <- function(year, days_before=60L, days_after=days_before,
                             buyer_id, seller_id)
         # mutate(alaskan_buyer = buy_state == 'AK',
         #        post_dividend = sale_date >= dividend_day)
+    # data_one_year <- compute(data_one_year)
+    # explain(data_one_year)
+    data_one_year <- collapse(data_one_year)
+    # explain(data_one_year)
     stopifnot(tbl_has_rows(data_one_year))
     return(data_one_year)
 }
 
-run_dd_one_year <- function(year) {
-    stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
-    df_base <- pull_data_one_year(year)
+
+get_sales_counts <- function(df_base) {
     # dplyr bug means this doesn't work:
     # See https://github.com/hadley/dplyr/issues/2290
     # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
@@ -122,46 +131,164 @@ run_dd_one_year <- function(year) {
     #               post_dividend = first(post_dividend)) %>%
     #     collect()
     # Instead, do the aggregation, then join buy_state back in.
+    # (the collapse() here tells dplyr to think hard about the sql query (but not
+    # actually go and process in the database), preventing it from getting confused in
+    # the merge any trying to rename sale_date to sale_date.y.)
+
     sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
-        summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>% collect(n=Inf)
-    buyer_info <- df_base %>% distinct(buyer_id, buy_state) %>% collect(n=Inf)
-    # TODO: if I don't have collect() in the previous lines, I get an error because
-    # dplyr is renaming sale_date to sale_date.y.  Report this.
+        summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>% collapse()
+    buyer_info <- df_base %>% distinct(buyer_id, buy_state) %>% collapse()
+    sales_counts <- inner_join(sales_counts, buyer_info, by='buyer_id') %>% collapse()
+    return(sales_counts)
+        # %>%
+        #
+        # mutate(alaskan_buyer = factor(buy_state == 'AK', levels=c(TRUE, FALSE),
+        #                               labels=c('Alaskan', 'Non-Alaskan')),
+        #
+        #        post_dividend = factor(sale_date >= dividend_day))
+}
+
+
+run_dd_one_year <- function(year) {
+    stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
+    df_base <- pull_data_one_year(year)
     dividend_day <- first_thursday_in_october(year)
-    sales_counts <- inner_join(sales_counts, buyer_info, by='buyer_id') %>% # collect()
-        mutate(alaskan_buyer = buy_state == 'AK',
-               post_dividend = sale_date >= dividend_day)
-    # TODO: start here:
-    # DD with LHS of daily sale_count, buyer_id FE and buy_state clusters
-    sales_counts_formula <- (sale_count ~ alaskan_buyer:post_dividend | buyer_id | 0 |
-                                          buy_state)
-    reg_sales_counts <- felm(formula=sales_counts_formula, data=sales_counts)
-    return(reg_sales_counts)
-    # felm(buyer_id + seller_id + buy_state + sell_state + auction_state, data=df)
+    # calculate sales counts (in sql), don't retrieve more than 10 million results
+    sales_counts <- get_sales_counts(df_base) %>%
+        mutate(alaskan_buyer_post = buy_state == 'AK' & sale_date >= dividend_day) %>%
+        collect(n=1e7)
+    # DD with LHS of daily sale_count, buyer_id and sale_date FE and buy_state clusters
+    sales_counts_formula <- (sale_count ~ alaskan_buyer_post |
+                             buyer_id + sale_date | 0 | buy_state)
+    sales_counts_reg <- felm(formula=sales_counts_formula, data=sales_counts)
+    print(summary(sales_counts_reg))
+
+    fixed_effects <- getfe(sales_counts_reg) %>% as.tbl()
+    # To graph fixed effects:
+    # fixed_effects <- getfe(sales_counts_reg, se=TRUE) %>% as.tbl()
+    # to_graph <- filter(fixed_effects, fe == 'sale_date') %>% mutate(sale_date = as.Date(idx))
+    # ggplot(to_graph, aes(x=sale_date, y=effect)) + geom_point() +
+    #     geom_vline(xintercept = as.integer(dividend_day)) +
+    #     geom_errorbar(aes(ymin=effect - 1.96*clusterse, ymax = effect + 1.96*clusterse)) +
+    #     PLOT_THEME + ylim(-1, 1)
+
+
+    # get the residuals
+    # sales_counts_formula2 <- (sale_count ~ 1 | buyer_id)
+    # sales_counts_reg2 <- felm(formula=sales_counts_formula2, data=sales_counts)
+    # sales_counts_resid2 <- residuals(sales_counts_reg2) %>% as.numeric()
+    # print(head(sales_counts_resid2))
+    # sales_counts <- mutate(sales_counts, resid_buyer_fe = sales_counts_resid2)
+    return(sales_counts)
+}
+
+
+quality_control_graphs <- function() {
+    year <- 2014
+    event_year <- pull_data_one_year(year)
+    total_days <- event_year %>% ungroup() %>% distinct(sale_date) %>%
+        tally() %>% collect() %>% %$% n
+    to_plot <- event_year %>% ungroup() %>% distinct(sale_date, buyer_id) %>%
+        group_by(buyer_id) %>% summarize(buyer_id_days = n()) %>%
+        collect(n=Inf)
+    buyer_id_count_plot <- ggplot(to_plot, aes(x=buyer_id_days)) +
+        geom_histogram(bins=30) +
+        labs(x=sprintf('Number of days each buyer is present (%s day period)', total_days),
+             y='Count', title=sprintf('Buyer counts for %s')) +
+        PLOT_THEME
+
+    total_sales_by_day <- auctions %>% group_by(sale_date) %>%
+        summarize(daily_sales = sum(sales_pr)) %>% collect(n=Inf)
+    sales_by_month_plt <- total_sales_by_day %>%
+        mutate(sale_year  = lubridate::year(sale_date),
+               sale_month = lubridate::month(sale_date)) %>%
+        group_by(sale_year, sale_month) %>%
+        summarize(total_sales = sum(daily_sales)/1e9, sale_date = first(sale_date)) %>%
+        ggplot(aes(x=sale_date, y=total_sales)) +
+        geom_line() +
+        labs(x='Date', y='Monthly total ($ billions)') +
+        ylim(c(0, NA)) +
+        PLOT_THEME
+
+    sales_by_week_plt <- total_sales_by_day %>%
+        mutate(sale_year = lubridate::year(sale_date),
+               sale_week = lubridate::week(sale_date)) %>%
+        group_by(sale_year, sale_week) %>%
+        summarize(total_sales = sum(daily_sales)/1e9, sale_date = first(sale_date)) %>%
+        ggplot(aes(x=sale_date, y=total_sales)) +
+        geom_line() +
+        labs(x='Date', y='Weekly total ($ billions)') +
+        ylim(c(0, NA)) +
+        PLOT_THEME
+
+    total_sales_by_day_ak_vs <- auctions %>%
+        filter(! is.na(buy_state)) %>%
+        tag_alaskan_buyer() %>%
+        group_by(sale_date, alaskan_buyer) %>%
+        summarize(daily_sales = sum(sales_pr)) %>% collect(n=Inf)
+    thursdays_int <- total_sales_by_day_ak_vs %$% sale_date %>%
+        lubridate::year() %>% unique() %>% sort() %>%
+        first_thursday_in_october() %>%
+        as.integer()
+    sales_by_month_plt_ak_vs <- total_sales_by_day_ak_vs %>%
+        mutate(sale_year  = lubridate::year(sale_date),
+               sale_month = lubridate::month(sale_date)) %>%
+        group_by(sale_year, sale_month, alaskan_buyer) %>%
+        summarize(total_sales = sum(daily_sales)/1e6, sale_date = first(sale_date)) %>%
+        ggplot(aes(x=sale_date, y=total_sales)) +
+        geom_line() +
+        geom_vline(xintercept=thursdays_int, color='red', alpha=0.3) +
+        facet_grid(alaskan_buyer ~ ., scales='free_y') +
+        labs(x='Date', y='Monthly total ($ millions)') +
+        ylim(c(0, NA)) +
+        PLOT_THEME
+    save_plot(sales_by_month_plt_ak_vs, 'total_sales_monthly_total_AK_vs.pdf')
+    sales_by_week_plt_ak_vs <- total_sales_by_day_ak_vs %>%
+        mutate(sale_year = lubridate::year(sale_date),
+               sale_week = lubridate::week(sale_date)) %>%
+        group_by(sale_year, sale_week, alaskan_buyer) %>%
+        summarize(total_sales = sum(daily_sales)/1e6, sale_date = first(sale_date)) %>%
+        ggplot(aes(x=sale_date, y=total_sales)) +
+        geom_line() +
+        geom_vline(xintercept=thursdays_int, color='red') +
+        facet_grid(alaskan_buyer ~ ., scales='free_y') +
+        labs(x='Date', y='Weekly total ($ millions)') +
+        ylim(c(0, NA)) +
+        PLOT_THEME
+
 }
 
 
 verify_constant_ids <- function() {
-    # TODO: figure out why these have dups!
-    distinct_state_count <- auctions %>%
+    # TODO: verify that these are gone after re-cleaning
+    buyers_with_multiple_states <- auctions %>%
+        filter(! is.na(buyer_id), ! is.na(buy_state)) %>%
         distinct(buyer_id, buy_state) %>%
         group_by(buyer_id) %>%
-        tally() %>%
-        filter(n > 1)
-    if (tbl_has_rows(distinct_state_count)) {
+        collapse() %>%
+        mutate(state_count = n()) %>%
+        filter(state_count > 1) %>%
+        collect(n=Inf)
+    if (tbl_has_rows(buyers_with_multiple_states)) {
         message("ERROR:")
-        print(distinct_state_count)
+        print(buyers_with_multiple_states)
     }
 
-    distinct_state_count <- auctions %>%
+    sellers_with_multiple_states <- auctions %>%
+        filter(! is.na(seller_id), ! is.na(sell_state)) %>%
         distinct(seller_id, sell_state) %>%
         group_by(seller_id) %>%
-        tally()
-    if (tbl_has_rows(distinct_state_count)) {
+        collapse() %>%
+        mutate(state_count = n()) %>%
+        filter(state_count > 1) %>%
+        collect(n=Inf)
+    if (tbl_has_rows(sellers_with_multiple_states)) {
         message("ERROR:")
-        print(distinct_state_count)
+        print(sellers_with_multiple_states)
     }
 }
 
-# Doesn't work:
-run_dd_one_year(2014)
+quality_control_graphs()
+
+# df <- run_dd_one_year(2014)
+# df <- run_dd_one_year(2014)
