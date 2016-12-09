@@ -28,7 +28,7 @@ load_regs_data <- function() {
                       quarter = as.integer(substring(tp, 10, 10)),
                       date = as.Date(sprintf("%s-%s-01", year, ((quarter - 1) * 3 + 1))),
                       state = state.abb[match(state_name, toupper(state.name))],
-                      state = ifelse(state_name == 'DISTRICT OF COLUMBIA', 'DC', state),
+                      state = if_else(state_name == 'DISTRICT OF COLUMBIA', 'DC', state),
                       alaska = factor(state == 'AK', levels=c(TRUE, FALSE), labels=c('Alaska', 'Other states'))
                      ) %>%
         dplyr::select(-year, -quarter, -tp) %>%

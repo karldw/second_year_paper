@@ -187,7 +187,7 @@ quality_control_graphs <- function() {
     year <- 2014
     event_year <- pull_data_one_year(year)
     total_days <- event_year %>% ungroup() %>% distinct(sale_date) %>%
-        tally() %>% collect() %>% %$% n
+        tally() %>% collect() %$% n
     to_plot <- event_year %>% ungroup() %>% distinct(sale_date, buyer_id) %>%
         group_by(buyer_id) %>% summarize(buyer_id_days = n()) %>%
         collect(n=Inf)
@@ -288,7 +288,7 @@ verify_constant_ids <- function() {
     }
 }
 
-quality_control_graphs()
+# quality_control_graphs()
 
 # df <- run_dd_one_year(2014)
 # df <- run_dd_one_year(2014)

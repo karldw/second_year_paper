@@ -111,7 +111,7 @@ is_valid_vin <- function(vins) {
         }
 
         vin_check_value <- mod(vin_check_value, 11L)
-        vin_check_str <- ifelse(vin_check_value < 10L, as.character(vin_check_value), 'X')
+        vin_check_str <- if_else(vin_check_value < 10L, as.character(vin_check_value), 'X')
         return(vin_check_str == actual_check_digit)
     }
 
@@ -127,7 +127,7 @@ is_valid_vin <- function(vins) {
         weights_vec <- c(8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2)
         vin_vec <- strsplit(vin, "", fixed=TRUE)[[1]]
         check_value <- sum(transliterate(vin_vec) * weights_vec) %% 11
-        check_str <- ifelse(check_value < 10, as.character(check_value), 'X')
+        check_str <- if_else(check_value < 10, as.character(check_value), 'X')
         return(check_str)
     }
     is_valid_vin_once <- function(vin) {
@@ -168,10 +168,10 @@ load_df <- function(dta_file, con) {
     dplyr::filter(sales_pr > 0,
                   # between() ranges include both endpoints
                   dplyr::between(sale_date, sale_date_min, sale_date_max)) %>%
-    dplyr::mutate(sell_zip = ifelse(is_valid_zip(sell_zip), sell_zip, NA_character_),
-                  buy_zip  = ifelse(is_valid_zip(buy_zip),  buy_zip,  NA_character_),
-                  auction_zip = ifelse(is_valid_zip(auction_zip), auction_zip, NA_character_),
-                  vin      = ifelse(is_valid_vin(vin),      vin,      NA_character_),
+    dplyr::mutate(sell_zip = if_else(is_valid_zip(sell_zip), sell_zip, NA_character_),
+                  buy_zip  = if_else(is_valid_zip(buy_zip),  buy_zip,  NA_character_),
+                  auction_zip = if_else(is_valid_zip(auction_zip), auction_zip, NA_character_),
+                  vin      = if_else(is_valid_vin(vin),      vin,      NA_character_),
                   sale_date = lubridate::ymd(sale_date)) %>%
     make_names_legal_sql(con) %>%
     return()

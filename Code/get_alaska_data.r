@@ -88,9 +88,9 @@ adjust_pfd_payments <- function() {
     bonus_2008 <- 1200
     pfd_payments <- download_summary_table() %>%
         mutate(n_ = total_disbursed / amount,
-               total_disbursed = ifelse(year == 2008, total_disbursed + bonus_2008 * n_,
+               total_disbursed = if_else(year == 2008, total_disbursed + bonus_2008 * n_,
                                         total_disbursed),
-               amount = ifelse(year == 2008, amount + bonus_2008, amount))
+               amount = if_else(year == 2008, amount + bonus_2008, amount))
 
     cpi <- load_cpi()
 

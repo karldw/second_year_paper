@@ -78,7 +78,7 @@ stopifnot(dir.exists(CSV_DIR))
         # gas_guzzler_tax = col_integer()
     )
     df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
-        dplyr::mutate(msrp = ifelse(msrp == 0, NA, msrp))
+        dplyr::mutate(msrp = if_else(msrp == 0, NA, msrp))
     return(df)
 }
 
@@ -113,9 +113,9 @@ stopifnot(dir.exists(CSV_DIR))
         dplyr::filter(! (temp_group_size > 1 & fuel_grade == "Premium")) %>%
         dplyr::select(-temp_group_size, -fuel_grade) %>%
         dplyr::rename(trans_id = transmission_id) %>%
-        dplyr::mutate(fuel_type = ifelse(
+        dplyr::mutate(fuel_type = if_else(
             fuel_type == "Gasoline (Mid Grade Unleaded Required)", 'Gasoline', fuel_type),
-            fuel_type = ifelse(fuel_type == "CNG", "Natural Gas", fuel_type)
+            fuel_type = if_else(fuel_type == "CNG", "Natural Gas", fuel_type)
         ) %>%
         ensure(nrow(dplyr::distinct(., vehicle_id, engine_id, trans_id, fuel_type)) ==
                nrow(.))

@@ -31,7 +31,7 @@ get_years <- function() {
 		as.numeric() %>%
 		ensure(! anyNA(.))
 	# add centuries
-	data_years <- ifelse(data_years > 96, 1900 + data_years, 2000 + data_years)
+	data_years <- if_else(data_years > 96, 1900 + data_years, 2000 + data_years)
 	return(data_years)
 }
 
@@ -134,22 +134,22 @@ downloaded_files <- lapply(years_of_data, download_one_year)
 # 				# rename fields so they merge cleanly
 # 				names( thresh_merge ) <- c( 'family_type' , 'num_kids' , 'poverty_threshold' )
 #
-# 				x$num_kids <- ifelse( x$perslt18 > 8 , 8 , x$perslt18 )
-# 				x$num_kids <- ifelse( x$num_kids == x$fam_size , x$fam_size - 1 , x$num_kids )
+# 				x$num_kids <- if_else( x$perslt18 > 8 , 8 , x$perslt18 )
+# 				x$num_kids <- if_else( x$num_kids == x$fam_size , x$fam_size - 1 , x$num_kids )
 #
 # 				# re-categorize family sizes to match census groups
 # 				x$family_type <-
-# 					ifelse( x$fam_size == 1 & x$age_ref < 65 , "Under 65 years" ,
-# 					ifelse( x$fam_size == 1 & x$age_ref >= 65 , "65 years and over" ,
-# 					ifelse( x$fam_size == 2 & x$age_ref < 65 , "Householder under 65 years" ,
-# 					ifelse( x$fam_size == 2 & x$age_ref >= 65 , "Householder 65 years and over" ,
-# 					ifelse( x$fam_size == 3 , "Three people" ,
-# 					ifelse( x$fam_size == 4 , "Four people" ,
-# 					ifelse( x$fam_size == 5 , "Five people" ,
-# 					ifelse( x$fam_size == 6 , "Six people" ,
-# 					ifelse( x$fam_size == 7 , "Seven people" ,
-# 					ifelse( x$fam_size == 8 , "Eight people" ,
-# 					ifelse( x$fam_size >= 9 , "Nine people or more" , NA ) ) ) ) ) ) ) ) ) ) )
+# 					if_else( x$fam_size == 1 & x$age_ref < 65 , "Under 65 years" ,
+# 					if_else( x$fam_size == 1 & x$age_ref >= 65 , "65 years and over" ,
+# 					if_else( x$fam_size == 2 & x$age_ref < 65 , "Householder under 65 years" ,
+# 					if_else( x$fam_size == 2 & x$age_ref >= 65 , "Householder 65 years and over" ,
+# 					if_else( x$fam_size == 3 , "Three people" ,
+# 					if_else( x$fam_size == 4 , "Four people" ,
+# 					if_else( x$fam_size == 5 , "Five people" ,
+# 					if_else( x$fam_size == 6 , "Six people" ,
+# 					if_else( x$fam_size == 7 , "Seven people" ,
+# 					if_else( x$fam_size == 8 , "Eight people" ,
+# 					if_else( x$fam_size >= 9 , "Nine people or more" , NA ) ) ) ) ) ) ) ) ) ) )
 #
 # 				# merge on the `poverty_threshold` variable while
 # 				# confirming no records were tossed

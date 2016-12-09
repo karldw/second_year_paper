@@ -192,7 +192,7 @@ save_plot <- function(plt, name, scale_mult=1) {
 
 
 tag_alaskan_buyer <- function(df) {
-    mutated <- mutate(df, alaskan_buyer = ifelse(buy_state == 'AK',
+    mutated <- mutate(df, alaskan_buyer = if_else(buy_state == 'AK',
                                                  'Alaskan', 'Non-Alaskan'))
     return(mutated)
 }
