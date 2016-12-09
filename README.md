@@ -1,35 +1,33 @@
-# Karl's second year paper
+# Cars in Alaska
 
 
-## TODO:
+## To do:
 - Adjust things per-capita
-- Bring all the other to-do lists in here.
-- Clean this readme
+- Estimate the whole event study (with year FE)
+- See if I can correlate the year FE to the dividend amount (not causal)
+- Merge in state gdp as a control
+- Check how unbalanced the panel is when I do buyer-by-day
+    - Consider filling out the panel by adding zeros for buyers who don't trade
+- Auctions happen much more on some days than others. Consider splitting the sample for days with nothing going on.
+- Plot the within-event day FE (to look for anticipation)
+- Make a more formal model of dealer anticipation
+- Run a zero-inflated Poisson model for sale counts?
+- Run synthetic controls
+- Run generalized synthetic controls
+- Write an explanation about why the announcements are not likely to be informative
+- Get announcement dates to test anyway
+- Improve data cleaning table
+    - Automate numbers (avoid copy-paste)
+    - Add counts of rows dropped for unintelligible date
+- Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
+    - Use county pop to estimate county APF dividend income
+- Get answers from Harrison
+- Re-run the `clean_car_auctions.r` script (once I pause adding additional cleaning)
 
-
-## 1. Smog pricing
-Are cars that are subject to smog checks less valuable?
-
-Identification would be off some combination of geography (since not all counties are subject to smog checks) and time (since the rules and exemptions are discontinuous and have changed over time).
-However, the main exemption is for cars 1975, but there aren't any in the
-
-Related: the [vehicle buy-back program](https://www.arb.ca.gov/msprog/avrp/avrp.htm).
-
-## 2. Re-analyze the Muller-Mendelsohn (APEEP)  model
-Aggregation matters, and a lot of the analysis in Muller and Mendelsohn's (MM) paper is done at the county-year level.
-County-year is a huge improvement from what had been done before, but because health effects of pollution are convex, these averages may still understate the true health effects.
-Berkeley Earth has hourly grid cell data on concentrations -- it should be possible to use those, whatever emissions data MM used and
-a little atmospheric chemistry to back out emissions at a higher time frequency, then use the same marginal damages as MM (Klemm and Mason 2003).
-
-Side note: I think the data in Klemm and Mason are about long term exposures, contrary to MM's claim that they represent short-term damages.
-That's still an important number, but it seems like it tells us more about a marginal change in concentrations, not necessarily a change in emissions.
-Would should be possible to use a strategy like Wolfram and Reed's airport paper to find the effects of a marginal increase in PM?
-(Side side note: Wolfram and Reed don't examine PM in their paper.  Is it possible that the effects they find are due to other pollutants, not ozone?)
-Of course, that will only give the short-term effect of a marginal increase in emissions, which isn't ideal.
-
-
-## 3. Alaska car prices
-**Update:** There are only auctions in 32 states, and Alaska isn't one of them, but there are Alaskan buyers and sellers.
+## To read:
+- Original synthetic controls paper
+- Papers on anticipation of welfare checks
+- More background on consumption smoothing
 
 
 Hsieh (2003) looked at the Alaska Permanent Wealth Fund to see how consumers smooth their income and found that their consumption _was_ smooth for Permanent Fund payments, but not tax refunds.

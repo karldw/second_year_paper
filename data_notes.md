@@ -25,7 +25,7 @@ The data could be useful, but the ones I want are restricted.
 ## National Ambulatory Medical Care Survey (NAMCS and NHAMCS)
 Not usable. The data are physician-patient encounters (which seems great), but don't have the geographic coverage I need.
 Pre-2012, sampling was only valid in four sub-national regions.
-Post-2012, the 34 most populus states can be identified. ()
+Post-2012, the 34 most populous states can be identified. ()
 
 ##  National Hospital Discharge Survey (NHDS)
 No good, just combining NHAMCS with data I don't need.
@@ -45,3 +45,16 @@ https://www.cms.gov/Research-Statistics-Data-and-Systems/Files-for-Order/Limited
 - Provider of Services Current Files
 - Ambulatory Surgical Center (ASC) Payment System
 - Denominator File
+
+
+# State and County Data
+See `Code/download_state_data.r`
+## County-by-year population
+- 2000-2010 data:
+http://www.census.gov/popest/data/intercensal/county/county2010.html
+- 2010-2015 data (2015 vintage)
+http://www.census.gov/popest/data/counties/totals/2015/index.html
+
+## State GDP
+- http://www.bea.gov/regional/zip/gsp/gsp_naics_all_PC.zip (1997 and onward)
+- http://www.bea.gov/regional/zip/gsp/gsp_sic_all_PC.zip (before 1997)
