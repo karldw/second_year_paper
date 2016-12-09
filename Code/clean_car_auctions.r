@@ -345,7 +345,7 @@ clean_data <- function(con, verbose) {
     rows_deleted_canadian <- filter_canadian(con)  # 132118
 
     message_if_verbose("Dropping obs with multiple buy/sell states", verbose)
-    rows_deleted_multistate <- filter_multistate(con)
+    rows_deleted_multistate <- filter_multistate(con)  # 85764
 
     deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
                         'bad odometer'   = rows_deleted_bad_odo,

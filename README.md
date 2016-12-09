@@ -2,6 +2,7 @@
 
 
 ## To do:
+### Analysis to-do
 - Adjust things per-capita
 - Estimate the whole event study (with year FE)
 - See if I can correlate the year FE to the dividend amount (not causal)
@@ -22,13 +23,15 @@
 - Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
     - Use county pop to estimate county APF dividend income
 - Get answers from Harrison
-- Re-run the `clean_car_auctions.r` script (once I pause adding additional cleaning)
+
+### Data cleaning to-do
+- For observations that have no valid state, bring in the state from other observations of the same buyer/seller/auction (as long as there's a unique other state).
 
 ## To read:
 - Original synthetic controls paper
 - Papers on anticipation of welfare checks
 - More background on consumption smoothing
-
+- [Doudchenko and Imbens](https://www.nber.org/papers/w22791)
 
 Hsieh (2003) looked at the Alaska Permanent Wealth Fund to see how consumers smooth their income and found that their consumption _was_ smooth for Permanent Fund payments, but not tax refunds.
 
