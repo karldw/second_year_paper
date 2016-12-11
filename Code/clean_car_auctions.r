@@ -369,7 +369,8 @@ index_and_clean <- function(con, verbose) {
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buyer_id')       # buyer_id_index
     message_if_verbose("  - sale_date_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'sale_date')      # sale_date_index
-
+    message_if_verbose("  - vin_index", verbose)
+    pg_add_index(con, POSTGRES_CLEAN_TABLE, 'vin')      # sale_date_index
     # You'd think we could make the random index unique, but there are collisions
     message_if_verbose("  - rand_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'rand')           # rand_index
