@@ -187,12 +187,171 @@ save_plot <- function(plt, name, scale_mult=1) {
     stopifnot(dir.exists(plot_dir))
 
     file.path(plot_dir, name) %>%
-    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult)
+    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult, device=cairo_pdf)
 }
 
 
-tag_alaskan_buyer <- function(df) {
-    mutated <- mutate(df, alaskan_buyer = if_else(buy_state == 'AK',
-                                                 'Alaskan', 'Non-Alaskan'))
+tag_alaskan_buyer <- function(df, as_factor) {
+    if (as_factor) {
+        if ('tbl_lazy' %in% class(df)) {
+            stop("Can't make a factor in a a remote table.")
+        }
+        mutated <- mutate(df, alaskan_buyer = factor(buy_state == 'AK',
+            levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
+    } else {
+        mutated <- mutate(df, alaskan_buyer = if_else(buy_state == 'AK',
+                                                     'Alaskan', 'Non-Alaskan'))
+    }
     return(mutated)
+}
+
+
+ensure_id_vars_ <- function(df, claimed_id_vars) {
+    not_found_vars <- setdiff(claimed_id_vars, names(df))
+    if (length(not_found_vars) > 0) {
+        err_msg <- sprintf("Claimed ID vars not in dataset: %s", paste(not_found_vars, collapse=', '))
+        stop(err_msg)
+    }
+    df_id_cols_only <- dplyr::select_(df, .dots=claimed_id_vars)
+    if (anyNA(df_id_cols_only)) {
+        stop("ID variables cannot be NA.")
+    }
+    # nrow is NA for databases (not an issue here, but I may want this code later)
+    # (should be rare enough that it's not worth forcing a database to count all rows)
+    if ((! is.na(nrow(df))) && (nrow(df) == 0)) {
+        stop("No rows!")
+    }
+    # anyDuplicated is faster than calling "distinct" then counting rows
+    if (anyDuplicated(df_id_cols_only)) {
+        err_msg <- sprintf("The variables '%s' do not uniquely identify rows.",
+                           paste(claimed_id_vars, collapse="', '"))
+        stop(err_msg)
+    }
+    # return so we can pipe this
+    return(df)
+}
+
+
+ensure_id_vars <- function(df, ...) {
+    lzydots <- lazyeval::lazy_dots(...)
+    claimed_id_vars <- vapply(seq_along(lzydots),
+                              function(i) {as.character(lzydots[[i]]$expr)},
+                              character(1))
+    ensure_id_vars_(df, claimed_id_vars) %>% return()
+}
+
+
+is_id <- function(df, claimed_id_vars) {
+    # Note: it's probably a good idea to force computation on df, if it's a remote table
+    stopifnot(is.character(claimed_id_vars) && length(claimed_id_vars) > 0)
+    # select one row to get variable names
+    if ('tbl_lazy' %in% class(df)) {
+        df_head1 <- head(df, 1) %>% dplyr::collect(df_head1)
+        df_is_local <- FALSE
+    } else {
+        df_head1 <- head(df, 1)
+        df_is_local <- TRUE
+    }
+
+    not_found_vars <- setdiff(claimed_id_vars, names(df_head1))
+    if (length(not_found_vars) > 0) {
+        err_msg <- sprintf("Claimed ID vars not in dataset: %s",
+                           paste(not_found_vars, collapse=', '))
+        warning(err_msg)
+        return(FALSE)
+    }
+
+    df_id_cols_only <- dplyr::select_(df, .dots=claimed_id_vars)
+    if (df_is_local) {
+        ids_have_na <- anyNA(df_id_cols_only)
+    } else {
+        ids_have_na <- df_id_cols_only %>%
+            dplyr::ungroup() %>%
+            dplyr::summarise_all(dplyr::funs(any(is.na(.)))) %>%
+            collect() %>% unlist() %>% any()
+    }
+    if (ids_have_na) {
+        warning("ID variables cannot be NA.")
+        return(FALSE)
+    }
+
+    if (df_is_local) {
+        # anyDuplicated is faster than calling "distinct" then counting rows, but
+        # remote tables don't support anyDuplicated, so do it manually there.
+        ids_are_unique <- anyDuplicated(df_id_cols_only) == 0
+    } else {
+        distinct_row_count <- dplyr::ungroup(df_id_cols_only) %>%
+            dplyr::distinct() %>%
+            force_nrow()
+        total_row_count <- force_nrow(df_id_cols_only)
+        ids_are_unique <- total_row_count == distinct_row_count
+    }
+    return(ids_are_unique)
+}
+
+
+make_join_safer <- function(join_fn) {
+    # before doing the join, make sure that the by variables uniquely identify rows in
+    # at least one of the tables
+    output_fn <- function(x, y, by, ..., allow.cartesian=FALSE) {
+        if (missing(by) || is.null(by) || is.na(by)) {
+            stop("Please specify your 'by' variables explicitly.")
+        }
+        by_y <- unname(by)
+        if (! is.null(names(by))) {
+            by_x <- names(by)
+        } else {
+            by_x <- by_y
+        }
+
+        if (! allow.cartesian) {
+            # force computation on x because it'll help is_id() a lot
+            if ('tbl_lazy' %in% class(x)) {
+                x <- dplyr::compute(x)
+            }
+            if (! is_id(x, by_x)) {
+                # iff x isn't IDed by the by_x variables, then turn to y
+                # force computation on y too
+                if ('tbl_lazy' %in% class(y)) {
+                    y <- dplyr::compute(y)
+                }
+                if (! is_id(y, by_y)) {
+                    err_msg <- "Neither table is uniquely identified by their 'by' variables!"
+                    stop(err_msg)
+                }
+            }
+        }
+
+        join_results <- join_fn(x=x, y=y, by=by, ...)
+        ## A faster, but less complete way would be to count rows and throw and error
+        ## if the number of results was larger than the sum of input rows.
+        # nrow_x <- force_nrow(x)
+        # nrow_y <- force_nrow(y)
+        # nrow_join_results <- force_nrow(join_results)
+        # if (nrow_join_results > (nrow_x + nrow_y)) {
+        #     err_msg <- paste(
+        #         sprintf("Join results in %s rows; more than %s = nrow(x)+nrow(i).",
+        #                 nrow_join_results, nrow_x + nrow_y),
+        #         "Check for duplicate key values your by-variables in each table,",
+        #         "each of which join to the same values over and over again. If you",
+        #         "are sure you wish to proceed, rerun with allow.cartesian=TRUE.",
+        #         "Also see the help for data.table.")
+        #     stop(err_msg)
+        # }
+        return(join_results)
+    }
+    return(output_fn)
+}
+
+
+force_nrow <- function(df) {
+    library(magrittr)
+    # get the row count.
+    # for remote tables, force the row count.
+    nrow_df <- nrow(df)
+    if (is.na(nrow_df)) {
+        nrow_df <- ungroup(df) %>% summarize(n=n()) %>% collect() %$% n %>% as.integer()
+    }
+    stopifnot(! is.na(nrow_df))
+    return(nrow_df)
 }

@@ -1,10 +1,10 @@
 source('r_defaults.r')
 
-install_lazy(c('readxl', 'dplyr', 'ggplot2'), verbose = FALSE)
+install_lazy(c('readxl', 'dplyr', 'ggplot2', 'feather'), verbose = FALSE)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
-
+library(feather)
 
 try(
 EXCEL_DIR <- file.path(box_home()[1],
@@ -29,9 +29,9 @@ load_regs_data <- function() {
                       date = as.Date(sprintf("%s-%s-01", year, ((quarter - 1) * 3 + 1))),
                       state = state.abb[match(state_name, toupper(state.name))],
                       state = if_else(state_name == 'DISTRICT OF COLUMBIA', 'DC', state),
-                      alaska = factor(state == 'AK', levels=c(TRUE, FALSE), labels=c('Alaska', 'Other states'))
+                      alaska = factor(state == 'AK', levels=c(TRUE, FALSE), labels=c('Alaska', 'All others'))
                      ) %>%
-        dplyr::select(-year, -quarter, -tp) %>%
+        dplyr::select(-quarter, -tp) %>%
         dplyr::group_by(state, county_name) %>%
         dplyr::arrange(state, county_name, date) %>%
         dplyr::mutate(lag_cnt = dplyr::lag(cnt)) %>%
@@ -40,30 +40,55 @@ load_regs_data <- function() {
     return(df)
 }
 
-make_plots <- function(df) {
+make_plots <- function() {
+    df <- load_regs_data()
+    pop_df <- load_pop_data()
 
+    # check that we have complete coverage by state
+    stopifnot(nrow(dplyr::anti_join(df, pop_df, by=c('state_name', 'year'))) == 0)
     df_years <- sort(unique(lubridate::year(df$date)))
     q4_dates <- as.Date(sprintf("%s-10-01", df_years))
-    state_df <- dplyr::filter(df, ! is.na(state)) %>% dplyr::group_by(date, alaska) %>% dplyr::summarize(cnt = sum(cnt))
-    alaska_vs_other_states <- ggplot(state_df, aes(x=date, y=cnt/1000)) +
+    state_regs_df <- dplyr::filter(df, ! is.na(state)) %>%
+        dplyr::group_by(date, alaska) %>%
+        dplyr::summarize(cnt = sum(cnt)) %>%
+        dplyr::mutate(year = lubridate::year(date))
+    # Merge pop and cars data:
+    state_pop_df <- pop_df %>%
+        mutate(alaska = factor(state_name == 'ALASKA', levels=c(TRUE, FALSE),
+                               labels=c('Alaska', 'All others'))) %>%
+        dplyr::group_by(alaska, year) %>%
+        dplyr::summarize(population = sum(population))
+    state_df <- dplyr::left_join(state_regs_df, state_pop_df, by=c('alaska', 'year')) %>%
+        mutate(count_per_capita = cnt / population)
+
+    alaska_vs_other_states <- ggplot(state_df, aes(x=date, y=count_per_capita*1000,
+                                                   color=alaska)) +
         geom_line() +
-        geom_vline(xintercept = as.integer(q4_dates), color='red', linetype='dotted', alpha = 0.3) +
-        ylim(0,NA) +
-        facet_grid(alaska~., scales = 'free_y') +
-        labs(x='', y='Thousands of vehicles', title='') +
-        PLOT_THEME
+        geom_vline(xintercept = as.integer(q4_dates), color='black',
+                   linetype='dashed', alpha = 0.1, size=0.2) +
+        ylim(0, NA) +
+        labs(x='', y='New registrations per 1000 people', title='', color='') +
+        PLOT_THEME +
+        # Remove minor gridlines because we have so many vertical lines going on
+        theme(panel.grid.minor = element_blank(), legend.position = c(.9, .9))
 
-
-    plot_dir <- '../Text/Plots'
-    stopifnot(dir.exists(plot_dir))
-
-    file.path(plot_dir, 'vehicle_registrations_alaska_vs_notitle.pdf') %>%
-    ggsave(alaska_vs_other_states, width=6.3, height=3.54)
-
-
-
+    save_plot(alaska_vs_other_states, 'vehicle_registrations_alaska_vs_notitle.pdf')
 }
 
 
-df <- load_regs_data()
-make_plots(df)
+load_pop_data <- function() {
+    local_data_dir <- '../Data'
+    stopifnot(dir.exists(local_data_dir))
+    feather_filename <- file.path(local_data_dir, 'us_county_by_year_population.feather')
+    if (! file.exists(feather_filename)) {
+        err_msg <- "Error: county population data file doesn't exist. Please run parse_county_data.r"
+        stop(err_msg)
+    }
+    county_pop_data <- read_feather(feather_filename) %>%
+        mutate(state_name = toupper(stname)) %>%
+        select(-stname)
+    return(county_pop_data)
+}
+
+
+make_plots()

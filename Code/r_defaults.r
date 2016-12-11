@@ -19,6 +19,7 @@ PLOT_THEME <- ggplot2::theme(
     axis.text        = ggplot2::element_text(color = "black", size = 10),
     axis.title       = ggplot2::element_text(color = "black", size = 12),
     legend.key       = ggplot2::element_blank(),
+    legend.background= ggplot2::element_blank(),
     strip.background = ggplot2::element_blank()
 )
 

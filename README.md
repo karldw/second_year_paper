@@ -32,6 +32,7 @@
 - Papers on anticipation of welfare checks
 - More background on consumption smoothing
 - [Doudchenko and Imbens](https://www.nber.org/papers/w22791)
+- That article about natural experiments in macro.
 
 Hsieh (2003) looked at the Alaska Permanent Wealth Fund to see how consumers smooth their income and found that their consumption _was_ smooth for Permanent Fund payments, but not tax refunds.
 

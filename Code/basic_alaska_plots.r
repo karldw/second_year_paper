@@ -1,7 +1,8 @@
 
 source('r_defaults.r')
 
-install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr'), verbose = FALSE)
+install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'feather', 'lubridate'),
+             verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
@@ -9,7 +10,10 @@ VERBOSE <- TRUE
 library(ggplot2)
 library(dplyr)
 library(magrittr)
+library(feather)
 
+# provide the string "Non-Alaskan", but with a proper unicode hyphen
+NON_ALASKAN <- "Non\u2010Alaskan"
 
 # load_package_no_attach <- function(pkg_name) {
 #     load_successful <- requireNamespace(pkg_name, quietly = TRUE)
@@ -107,6 +111,25 @@ first_thursday_in_october <- function(years) {
 # }
 #disconnect_all()  # for repeted sourcing
 
+load_pop_data <- function() {
+    local_data_dir <- '../Data'
+    stopifnot(dir.exists(local_data_dir))
+    feather_filename <- file.path(local_data_dir, 'us_county_by_year_population.feather')
+    if (! file.exists(feather_filename)) {
+        err_msg <- "Error: county population data file doesn't exist. Please run parse_county_data.r"
+        stop(err_msg)
+    }
+    county_pop_data <- read_feather(feather_filename) %>%
+        mutate(alaskan = toupper(stname) == 'ALASKA') %>%
+        group_by(year, alaskan) %>%
+        summarize(population = sum(population))
+    return(county_pop_data)
+}
+
+bool_to_alaska_factor <- function(x, labels=c('Alaskan', 'Non-Alaskan')) {
+    factor(x, levels=c(TRUE, FALSE), labels=labels)
+}
+
 
 if (!exists('con')) {
     con <- src_postgres(POSTGRES_DB)
@@ -134,20 +157,38 @@ if (!exists('daily_sales_totals_alaska_vs')) {
     if (VERBOSE) {
         explain(daily_sales_totals_alaska_vs)
     }
-    daily_sales_totals_alaska_vs <- collect(daily_sales_totals_alaska_vs) %>%
-        mutate(alaskan_buyer = factor(alaskan_buyer, levels=c(TRUE, FALSE),
-                                      labels=c('Alaskan', 'Non-Alaskan')))
+    daily_sales_totals_alaska_vs <- collect(daily_sales_totals_alaska_vs)
 }
-if (!exists('daily_sales_totals_by_state')) {
-    daily_sales_totals_by_state <- select(auctions, sale_date, sales_pr, buy_state) %>%
+
+# Commented out for speed (not used for now)
+# if (!exists('daily_sales_totals_by_state')) {
+#     daily_sales_totals_by_state <- select(auctions, sale_date, sales_pr, buy_state) %>%
+#         filter(!is.na(buy_state)) %>%
+#         group_by(buy_state, sale_date) %>%
+#         summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
+#         ungroup()
+#     if (VERBOSE) {
+#         explain(daily_sales_totals_by_state)
+#     }
+#     daily_sales_totals_by_state <- collect(daily_sales_totals_by_state, n=Inf)
+# }
+
+# Figre out which VINs are resales and only take the last time it appears
+last_sale_dates <- auctions %>% group_by(vin) %>% summarize(sale_date = max(sale_date))
+auctions_no_resale <- semi_join(auctions, last_sale_dates, by=c('vin', 'sale_date'))
+if (!exists('daily_sales_totals_alaska_vs_no_resale')) {
+    daily_sales_totals_alaska_vs_no_resale <- select(auctions_no_resale,
+            buy_state, sale_date, sales_pr) %>%
         filter(!is.na(buy_state)) %>%
-        group_by(buy_state, sale_date) %>%
+        mutate(alaskan_buyer = buy_state == 'AK') %>%
+        group_by(alaskan_buyer, sale_date) %>%
         summarize(sales_total_day = sum(sales_pr), sale_count = n()) %>%
         ungroup()
     if (VERBOSE) {
-        explain(daily_sales_totals_by_state)
+        explain(daily_sales_totals_alaska_vs_no_resale)
     }
-    daily_sales_totals_by_state <- collect(daily_sales_totals_by_state)
+    daily_sales_totals_alaska_vs_no_resale <- daily_sales_totals_alaska_vs_no_resale %>%
+        collect(n=Inf)
 }
 
 
@@ -159,11 +200,12 @@ daily_sales_totals <- ungroup(daily_sales_totals_alaska_vs) %>%
     ungroup()
 
 
-sales_comparison_2004_plot <- ggplot(daily_sales_totals,
-              aes(x = sale_date, y = sales_total_day/10^6)) +
+sales_comparison_2004_plot <- daily_sales_totals %>%
+    mutate(alaskan_buyer = bool_to_alaska_factor(alaskan_buyer)) %>%
+    ggplot(aes(x = sale_date, y = sales_total_day/10^6)) +
     geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
     geom_point(alpha = 0.1) +
-    facet_grid(alaskan_buyer ~ ., scales='free_y') +
+    facet_grid(alaskan_buyer     ~ ., scales='free_y') +
     #labs(color = 'Alaskan buyer') +
     geom_vline(xintercept = thursdays) +
     xlim(as.Date(c('2004-06-01', '2005-03-01'))) +
@@ -174,8 +216,9 @@ sales_comparison_2004_plot <- ggplot(daily_sales_totals,
 save_plot(sales_comparison_2004_plot, 'auctions_2004_alaska_vs_other.pdf', scale_mult=1.5)
 
 count_comparison_2004_plot <- filter(daily_sales_totals,
-    (sale_count > 10000 & alaskan_buyer == 'Non-Alaskan') |
-    (sale_count > 5   & alaskan_buyer == 'Alaskan')) %>%
+    (sale_count > 10000 & (! alaskan_buyer)) |
+    (sale_count > 5   & alaskan_buyer)) %>%
+    mutate(alaskan_buyer = bool_to_alaska_factor(alaskan_buyer)) %>%
     ggplot(aes(x = sale_date, y = sale_count)) +
     geom_smooth(span=0.1, method='loess') +  # plot the smooth of the whole function
     geom_point(alpha = 0.1) +
@@ -189,3 +232,27 @@ count_comparison_2004_plot <- filter(daily_sales_totals,
 
 save_plot(count_comparison_2004_plot,
           'auctions_2004_alaska_vs_other_counts.pdf', scale_mult=1.5)
+
+
+# Plot sales counts per capita
+daily_sales_totals_alaska_vs_no_resale_with_pop <- daily_sales_totals_alaska_vs_no_resale %>%
+    mutate(year = lubridate::year(sale_date), month=lubridate::month(sale_date)) %>%
+    group_by(year, month, alaskan_buyer) %>%
+    summarize(sale_count = sum(sale_count), sales_total = sum(sales_total_day)) %>%
+    ungroup() %>%
+    left_join(load_pop_data(), by=c('alaskan_buyer'='alaskan', 'year'='year')) %>%
+    ensure_id_vars(alaskan_buyer, year, month) %>%
+    mutate(sale_count_per_capita = sale_count / population,
+           sales_total_per_capita = sales_total / population,
+           sale_date_month = lubridate::make_date(year, month, 1))
+
+
+sale_count_per_capita_plot <- ggplot(daily_sales_totals_alaska_vs_no_resale_with_pop,
+    aes(x=sale_date_month, y=sale_count_per_capita * 1000 * 3,
+        color=bool_to_alaska_factor(alaskan_buyer))) +
+    geom_line() +
+    labs(x='', y='Monthly sales per 1000 people\n(quarterly rate)', color='') +
+    PLOT_THEME +
+    theme(legend.position = c(.9, .9))
+save_plot(sale_count_per_capita_plot,
+         'auction_sales_counts_per_capita_alaska_vs_no_resale_monthly_qtr_rate_notitle.pdf')
