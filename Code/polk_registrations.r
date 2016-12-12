@@ -29,8 +29,7 @@ load_regs_data <- function() {
                       date = as.Date(sprintf("%s-%s-01", year, ((quarter - 1) * 3 + 1))),
                       state = state.abb[match(state_name, toupper(state.name))],
                       state = if_else(state_name == 'DISTRICT OF COLUMBIA', 'DC', state),
-                      alaska = factor(state == 'AK', levels=c(TRUE, FALSE), labels=c('Alaska', 'All others'))
-                     ) %>%
+                      alaska = state == 'AK') %>%
         dplyr::select(-quarter, -tp) %>%
         dplyr::group_by(state, county_name) %>%
         dplyr::arrange(state, county_name, date) %>%
@@ -54,8 +53,7 @@ make_plots <- function() {
         dplyr::mutate(year = lubridate::year(date))
     # Merge pop and cars data:
     state_pop_df <- pop_df %>%
-        mutate(alaska = factor(state_name == 'ALASKA', levels=c(TRUE, FALSE),
-                               labels=c('Alaska', 'All others'))) %>%
+        mutate(alaska = state_name == 'ALASKA') %>%
         dplyr::group_by(alaska, year) %>%
         dplyr::summarize(population = sum(population))
     state_df <- dplyr::left_join(state_regs_df, state_pop_df, by=c('alaska', 'year')) %>%
@@ -70,7 +68,8 @@ make_plots <- function() {
         labs(x='', y='New registrations per 1000 people', title='', color='') +
         PLOT_THEME +
         # Remove minor gridlines because we have so many vertical lines going on
-        theme(panel.grid.minor = element_blank(), legend.position = c(.9, .9))
+        theme(panel.grid.minor = element_blank(), legend.position = c(.9, .9)) +
+        scale_color_manual(values=BLUE_AND_YELLOW)
 
     save_plot(alaska_vs_other_states, 'vehicle_registrations_alaska_vs_notitle.pdf')
 }
@@ -91,4 +90,4 @@ load_pop_data <- function() {
 }
 
 
-make_plots()
+# make_plots()

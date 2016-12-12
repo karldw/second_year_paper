@@ -75,7 +75,7 @@
 \usetheme{Szeged}
 \usecolortheme{dove}
 \beamertemplatenavigationsymbolsempty
-\title[Cars in Alaska]{EI Research in Progress\\Car markets and the Alaska Permanent Fund}
+\title[Cars in Alaska]{EI Research in Progress\\Car Markets and the Alaska Permanent Fund}
 \author{Karl Dunkle Werner}
 \institute{}
 \date{December 12, 2016}
@@ -169,7 +169,9 @@
 
 
 \begin{frame}
-	\large Residents of Alaska get a big check every fall.
+	\begin{itemize}
+		\item Residents of Alaska get a large check every fall.
+	\end{itemize}
 	% NOTE Joke here: not enough to buy a fireplace insert, but still a substantial amount of money.
 \end{frame}
 
@@ -182,47 +184,50 @@
 }
 
 \begin{frame}
-	\large People in Alaska buy cars.
+	\begin{itemize}
+		\item People in Alaska buy cars.
+		\item I observe a large fraction of wholesale used car market sales.
+	\end{itemize}
 \end{frame}
 
-% TODO: graph here of aggregate alaska car registrations
-
-{  % full-slide plot of the Polk registrations, Alaska vs the rest of the country
+{  % full-slide plot of the Polk registrations and auction quarterly counts, Alaska vs the rest of the country
 \usebackgroundtemplate{
-	\includegraphics{vehicle_registrations_alaska_vs_notitle.pdf}
+	% \includegraphics{vehicle_registrations_alaska_vs_notitle.pdf}
+	\includegraphics{combined_regs_sales_counts_per_capita_alaska_vs_no_resale_quarterly_notitle.pdf}
 }
 \begin{frame}[plain]
+	% NOTE: Some cars are sold multiple times. This graph only includes the last sale of each VIN.
 \end{frame}
 }
-
-\begin{frame}
-	\large I observe a large fraction of wholesale used car market sales.
-	% Note here: Manheim data, ~50 million sales, 2002-2014.
-	% TODO: how many sales to Alaskans?
-\end{frame}
-
-{  % full-slide plot of the Manheim auction counts, Alaska vs.
-
-\usebackgroundtemplate{
-	\includegraphics{auction_sales_counts_per_capita_alaska_vs_no_resale_monthly_qtr_rate_notitle.pdf}
-% NOTE: These are monthly sums of counts, made into quarterly rates by multiplying by 3 (to compare with the quarterly Polk data)
-% NOTE: Some cars are sold multiple times. This graph only includes the last sale of each VIN.
-}
-\begin{frame}[plain]
-\end{frame}
-}
+%
+% \begin{frame}
+%
+% 	% Note here: Manheim data, ~50 million sales, 2002-2014.
+% 	% TODO: how many sales to Alaskans?
+% \end{frame}
+%
+% {  % full-slide plot of the Manheim auction counts, Alaska vs.
+%
+% \usebackgroundtemplate{
+% 	\includegraphics{auction_sales_counts_per_capita_alaska_vs_no_resale_monthly_qtr_rate_notitle.pdf}
+% % NOTE: These are monthly sums of counts, made into quarterly rates by multiplying by 3 (to compare with the quarterly Polk data)
+% % NOTE: Some cars are sold multiple times. This graph only includes the last sale of each VIN.
+% }
+% \begin{frame}[plain]
+% \end{frame}
+% }
 
 % Outline page
 \begin{frame}{Outline}
 	\tableofcontents
 \end{frame}
 
-\section[Cars]{Why Cars?}
+\section[Cars]{Why cars?}
 
 \begin{frame}{Why Cars and the APF: Energy}
 	\begin{itemize}
-		\item They're how we consume gasoline
-		\item Energy efficiency gap
+		\item They're how we consume gasoline.
+		\item Energy efficiency gap:
 		\begin{itemize}
 			\item Does relaxing income constraint matter for the composition of cars people buy?
 			\item Do people treat money from this kind of dividend differently than money from work?
@@ -235,7 +240,7 @@
 		\item Cars are expensive and economically important.
 		\item Refunding resource wealth to citizens.
 		% NOTE: The APF is a rare example of a government taking resource wealth and refunding it directly to citizens, which is interesting to examine, even aside from considerations of energy use.
-		\item Permanent income hypothesis \parencite{hsieh2003}
+		\item Permanent income hypothesis \parencite{hsieh2003}.
 		% NOTE: the strongest form of the PIH says that we should see no effect in composition or volume of car sales -- maybe interesting. (People have previously used the APF to support the PIH, see Hsieh)
 	\end{itemize}
 \end{frame}
@@ -250,7 +255,7 @@
 		\item Fund established in 1976 to hold oil lease revenue.
 		\item<.-> Dividends paid in \textsc{q}4 every year since 1984.
 		\begin{itemize}
-			\item And recently
+			\item More recently, the first Thursday in October.
 		\end{itemize}
 		% NOTE: Paid in 1982 and 1983 more erratically
 		\item Dividend is 10.5\% of the past five years' investment income, divided evenly.
@@ -292,12 +297,12 @@
 \begin{frame}{Identification: difference-in-differences}
 	% Some flavor of difference-in-differences.
 	\begin{itemize}
-		\item In a window around each dividend payment
+		\item In a window around each dividend payment.
 		\begin{itemize}
 			\item (Accounting for dealer anticipation)
 		\end{itemize}
-		\item DD in states where Alaskan buyers are active
-		\item Something fancier, maybe synthetic controls
+		\item DD in states where Alaskan buyers are active.
+		\item Something fancier, maybe synthetic controls.
 	\end{itemize}
 \end{frame}
 \begin{frame}{Identification assumptions}
@@ -314,16 +319,28 @@
 \section{Data}
 \begin{frame}{Data!}
 	\begin{itemize}
-		\item Manheim wholesale auction data
+		\item Manheim wholesale auction data.
 		\begin{itemize}
-			\item Transaction level, \textasciitilde 50 million sales (incl.\ 8m resales)
+			\item Transaction level, \textasciitilde 50 million sales (8 million resales)
 		\end{itemize}
-		\item Polk county-by-quarter vehicle registrations
-		\item Consumer expenditure survey
+		\item Polk county-by-quarter vehicle registrations.
+		\item Consumer expenditure survey.
 		% NOTE: the consumer expenditure survey is fine, this isn't what it's designed for.  They don't have many people in Alaska, and the survey weights aren't calculated to give a representative sample at the state level.
 		% NOTE: It would certainly be useful to have more fine-grained data on car purchases, but that's the identification is a bigger concern for this project anyway, so I'm not focusing on that.
 	\end{itemize}
 \end{frame}
+
+\begin{frame}{Next steps}
+	\begin{itemize}
+		\item Price, quantity and composition effects.
+		\item Dealer anticipation.
+		\item Consumer side?
+	\end{itemize}
+\end{frame}
+\begin{frame}
+\LARGE Questions?
+\end{frame}
+
 % \begin{frame}{Data I'd like}
 % 	\begin{itemize}
 % 		\item Customer car purchases

@@ -22,6 +22,8 @@ PLOT_THEME <- ggplot2::theme(
     legend.background= ggplot2::element_blank(),
     strip.background = ggplot2::element_blank()
 )
-
+# Colors from http://haas.berkeley.edu/style-guide/colors.html
+# BLUE_AND_YELLOW <- c('#003A70', '#FFBD17')
+BLUE_AND_YELLOW <- c('#0066CC', '#FFBD17')
 
 source('common_functions.r')

@@ -191,18 +191,20 @@ save_plot <- function(plt, name, scale_mult=1) {
 }
 
 
-tag_alaskan_buyer <- function(df, as_factor) {
+tag_alaskan_buyer <- function(df, as_factor=FALSE) {
+    mutated <- mutate(df, alaskan_buyer = buy_state == 'AK')
     if (as_factor) {
         if ('tbl_lazy' %in% class(df)) {
             stop("Can't make a factor in a a remote table.")
         }
-        mutated <- mutate(df, alaskan_buyer = factor(buy_state == 'AK',
-            levels=c(TRUE, FALSE), labels=c('Alaskan', 'Non-Alaskan')))
-    } else {
-        mutated <- mutate(df, alaskan_buyer = if_else(buy_state == 'AK',
-                                                     'Alaskan', 'Non-Alaskan'))
+        mutated <- mutate(mutated, alaskan_buyer = bool_to_alaska_factor(alaskan_buyer))
     }
     return(mutated)
+}
+
+
+bool_to_alaska_factor <- function(x, labels=c('Alaskan', 'Non-Alaskan')) {
+    factor(x, levels=c(TRUE, FALSE), labels=labels)
 }
 
 

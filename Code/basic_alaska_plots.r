@@ -1,19 +1,19 @@
 
 source('r_defaults.r')
-
+source('polk_registrations.r')
 install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'feather', 'lubridate'),
              verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
-VERBOSE <- TRUE
+VERBOSE <- FALSE
 library(ggplot2)
 library(dplyr)
 library(magrittr)
 library(feather)
 
 # provide the string "Non-Alaskan", but with a proper unicode hyphen
-NON_ALASKAN <- "Non\u2010Alaskan"
+# NON_ALASKAN <- "Non\u2010Alaskan"
 
 # load_package_no_attach <- function(pkg_name) {
 #     load_successful <- requireNamespace(pkg_name, quietly = TRUE)
@@ -124,10 +124,6 @@ load_pop_data <- function() {
         group_by(year, alaskan) %>%
         summarize(population = sum(population))
     return(county_pop_data)
-}
-
-bool_to_alaska_factor <- function(x, labels=c('Alaskan', 'Non-Alaskan')) {
-    factor(x, levels=c(TRUE, FALSE), labels=labels)
 }
 
 
@@ -253,6 +249,58 @@ sale_count_per_capita_plot <- ggplot(daily_sales_totals_alaska_vs_no_resale_with
     geom_line() +
     labs(x='', y='Monthly sales per 1000 people\n(quarterly rate)', color='') +
     PLOT_THEME +
-    theme(legend.position = c(.9, .9))
+    theme(legend.position = c(.9, .9)) +
+    scale_color_manual(values=BLUE_AND_YELLOW)
 save_plot(sale_count_per_capita_plot,
          'auction_sales_counts_per_capita_alaska_vs_no_resale_monthly_qtr_rate_notitle.pdf')
+
+
+# Do a bunch of manipulation to get conformable datasets
+polk_regs_data <- load_regs_data() %>% # from polk_registrations.r
+    dplyr::group_by(date, alaska) %>%
+    dplyr::summarize(cnt = sum(cnt)) %>%
+    ungroup() %>%
+    dplyr::mutate(year = lubridate::year(date), quarter = lubridate::quarter(date)) %>%
+    select(-date) %>%
+    ensure_id_vars(year, quarter, alaska) %>%
+    mutate(count_type = 'registrations')
+
+pop_data <- load_pop_data() %>%  # defined above
+    rename(alaska = alaskan) %>%
+    ensure_id_vars(year, alaska)
+
+quarter_sales_totals_alaska_vs_no_resale <- daily_sales_totals_alaska_vs_no_resale %>%
+    rename(alaska = alaskan_buyer) %>%
+    mutate(year = lubridate::year(sale_date),
+           quarter = lubridate::quarter(sale_date)) %>%
+    select(-sale_date) %>%
+    group_by(year, quarter, alaska) %>%
+    summarise(cnt = sum(sale_count)) %>%
+    mutate(count_type = 'auctions')
+
+combined_regs_auctions <- bind_rows(polk_regs_data,
+    quarter_sales_totals_alaska_vs_no_resale) %>%
+    left_join(pop_data,  by=c('alaska', 'year')) %>%
+    ensure_id_vars(alaska, count_type, year, quarter) %>%
+    mutate(
+         # make a variable for the quarterly date
+           sale_date_quarter = lubridate::make_date(year, quarter * 3 - 2, 1),
+           alaska_by_count_type = factor(paste(bool_to_alaska_factor(alaska), count_type),
+            levels=c('Non-Alaskan registrations', 'Alaskan registrations',
+            'Non-Alaskan auctions', 'Alaskan auctions'))
+    )
+
+combined_regs_auctions_count_per_capita_plot <- ggplot(combined_regs_auctions,
+    aes(x = sale_date_quarter, y = cnt / population * 1000,
+        color = alaska_by_count_type)) +
+    geom_line() +
+    labs(x='', y='Quarterly sales per 1000 people', color='') +
+    PLOT_THEME +
+    theme(legend.position = c(.85, .88)) +
+    # pick four colors for Non-Alaskan registrations, Alaskan registrations,
+    # Non-Alaskan auctions and Alaskan auctions, respectively
+    # scale_color_manual(values=brewer.pal(9, 'RdYlBu')[c(3,1,8,9)])
+    # scale_color_manual(values=brewer.pal(9, 'RdYlBu')[c(3,8,1,9)])
+    scale_color_manual(values=brewer.pal(4, 'RdYlBu')[c(2,3,1,4)])
+save_plot(combined_regs_auctions_count_per_capita_plot,
+         'combined_regs_sales_counts_per_capita_alaska_vs_no_resale_quarterly_notitle.pdf')
