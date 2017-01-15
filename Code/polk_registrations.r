@@ -1,10 +1,9 @@
 source('r_defaults.r')
 
-install_lazy(c('readxl', 'dplyr', 'ggplot2', 'feather'), verbose = FALSE)
+install_lazy(c('readxl', 'dplyr', 'ggplot2'), verbose = FALSE)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
-library(feather)
 
 try(
 EXCEL_DIR <- file.path(box_home()[1],
@@ -78,12 +77,12 @@ make_plots <- function() {
 load_pop_data <- function() {
     local_data_dir <- '../Data'
     stopifnot(dir.exists(local_data_dir))
-    feather_filename <- file.path(local_data_dir, 'us_county_by_year_population.feather')
-    if (! file.exists(feather_filename)) {
+    pop_filename <- file.path(local_data_dir, 'us_county_by_year_population.rda')
+    if (! file.exists(pop_filename)) {
         err_msg <- "Error: county population data file doesn't exist. Please run parse_county_data.r"
         stop(err_msg)
     }
-    county_pop_data <- read_feather(feather_filename) %>%
+    county_pop_data <- readRDS(pop_filename) %>%
         mutate(state_name = toupper(stname)) %>%
         select(-stname)
     return(county_pop_data)

@@ -1,7 +1,7 @@
 
 source('r_defaults.r')
 source('polk_registrations.r')
-install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'feather', 'lubridate'),
+install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'lubridate'),
              verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
@@ -10,7 +10,6 @@ VERBOSE <- FALSE
 library(ggplot2)
 library(dplyr)
 library(magrittr)
-library(feather)
 
 # provide the string "Non-Alaskan", but with a proper unicode hyphen
 # NON_ALASKAN <- "Non\u2010Alaskan"
@@ -114,12 +113,12 @@ first_thursday_in_october <- function(years) {
 load_pop_data <- function() {
     local_data_dir <- '../Data'
     stopifnot(dir.exists(local_data_dir))
-    feather_filename <- file.path(local_data_dir, 'us_county_by_year_population.feather')
-    if (! file.exists(feather_filename)) {
+    pop_filename <- file.path(local_data_dir, 'us_county_by_year_population.rda')
+    if (! file.exists(pop_filename)) {
         err_msg <- "Error: county population data file doesn't exist. Please run parse_county_data.r"
         stop(err_msg)
     }
-    county_pop_data <- read_feather(feather_filename) %>%
+    county_pop_data <- readRDS(pop_filename) %>%
         mutate(alaskan = toupper(stname) == 'ALASKA') %>%
         group_by(year, alaskan) %>%
         summarize(population = sum(population))

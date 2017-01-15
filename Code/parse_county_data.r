@@ -3,7 +3,6 @@
 source('r_defaults.r')
 library(dplyr)
 library(readr)
-library(feather)
 library(reshape2)
 
 try(
@@ -92,7 +91,7 @@ main <- function() {
         ensure_id_vars(stname, ctyname, year)
     out_dir <- '../Data'
     stopifnot(dir.exists(out_dir))
-    write_feather(combined_df, file.path(out_dir, 'us_county_by_year_population.feather'))
+    saveRDS(combined_df, file.path(out_dir, 'us_county_by_year_population.rda'))
 }
 
 
