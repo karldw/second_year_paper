@@ -1,0 +1,85 @@
+
+// dependency_map.gv
+// This is a graphviz file.
+// To create a pdf output, run `dot -o dependency_map.pdf -Tpdf dependency_map.gv`
+// Updated January 14, 2017
+
+
+strict digraph {
+r_defaults [label="r_defaults.r\n(used everywhere)"]
+common_functions [label="common_functions.r"]
+common_functions -> r_defaults
+
+load_zipcodes_into_postgres [label="load_zipcodes_into_postgres.r"]
+parse_county_data [label="parse_county_data.r"]
+questions_for_data_description [label="questions_for_data_description.r"]
+basic_dd_analysis [label="basic_dd_analysis.r"]
+load_vin_decoder_into_postgres [label="load_vin_decoder_into_postgres.r"]
+polk_registrations [label="polk_registrations.r"]
+
+/*
+r_defaults -> basic_alaska_plots
+r_defaults -> basic_dd_analysis
+r_defaults -> clean_car_auctions
+r_defaults -> load_manheim_into_postgres
+r_defaults -> load_vin_decoder_into_postgres
+r_defaults -> load_zipcodes_into_postgres
+r_defaults -> parse_county_data
+r_defaults -> polk_registrations
+r_defaults -> questions_for_data_description
+*/
+
+
+
+clean_car_auctions [label="clean_car_auctions.r"]
+
+stata_auction [label="Stata Manheim datasets", shape=box]
+// Note, cylinder (a nice shape for databases) doesn't work as of dot 2.38.0.
+// but the fallback, box, is fine.
+POSTGRES_ORIG_TABLE [label="all_years_all_sales", shape=cylinder]
+POSTGRES_CLEAN_TABLE [label="auctions_cleaned", shape=cylinder]
+POSTGRES_VIN_DECODER_TABLE [label="vin_decoder", shape=cylinder]
+POSTGRES_ZIPCODE_TABLE [label="zipcode", shape=cylinder]
+POSTGRES_STATES [label="states", shape=cylinder]
+
+load_manheim_into_postgres [label="load_manheim_into_postgres.r"]
+
+stata_auction -> load_manheim_into_postgres -> POSTGRES_ORIG_TABLE
+
+POSTGRES_ORIG_TABLE -> clean_car_auctions -> POSTGRES_CLEAN_TABLE
+POSTGRES_VIN_DECODER_TABLE -> clean_car_auctions
+POSTGRES_ZIPCODE_TABLE -> clean_car_auctions
+
+orig_vin_decoder [label="VIN decoder CSVs", shape=box]
+orig_vin_decoder -> load_vin_decoder_into_postgres -> POSTGRES_VIN_DECODER_TABLE
+load_zipcodes_into_postgres -> POSTGRES_ZIPCODE_TABLE
+
+us_county_by_year_population [label="us_county_by_year_population.rda", shape=box]
+downloaded_county_data [label="Downloaded county data", shape=box]
+downloaded_county_data -> parse_county_data -> us_county_by_year_population
+
+orig_polk_data [label="Polk Excel file", shape=box]
+orig_polk_data -> polk_registrations
+us_county_by_year_population -> polk_registrations
+
+
+POSTGRES_CLEAN_TABLE -> questions_for_data_description
+POSTGRES_CLEAN_TABLE -> basic_dd_analysis
+
+// State GDP and pop
+bea_state_gdp [label="BEA state GDP files", shape=box]
+us_state_gdp [label="us_state_gdp.rda", shape=box]  // parsed version of bea_state_gdp
+download_state_data [label="download_state_data.r"]
+load_states_into_postgres [label="load_states_into_postgres.r"]
+
+us_county_by_year_population -> load_states_into_postgres -> POSTGRES_STATES
+bea_state_gdp -> download_state_data -> us_state_gdp
+us_state_gdp -> load_states_into_postgres -> POSTGRES_STATES
+
+POSTGRES_STATES -> basic_dd_analysis
+
+// Force same level:
+{rank=same; stata_auction; orig_polk_data; downloaded_county_data; orig_vin_decoder
+bea_state_gdp;}
+
+}
