@@ -1,15 +1,18 @@
 
 
-.pg_assert_existence <- function(con, table_name, col_name=NULL) {
+.pg_assert_existence <- function(con, table_name, col_name = NULL) {
     if (! DBI::dbExistsTable(con, table_name)) {
         err_msg <- sprintf("Table name '%s' is not in the database", table_name)
         stop(err_msg)
     }
     if (! is.null(col_name)) {
         known_cols <- DBI::dbListFields(con, table_name)
-        if(! col_name %in% known_cols) {
-            err_msg <- sprintf("Column '%s' not found in table '%s'.",
-                               col_name, table_name)
+        if(! all(col_name %in% known_cols)) {
+            unknown_cols <- setdiff(col_name, known_cols)
+            column_columns <- if (length(unknown_cols) > 1) 'Columns' else 'Column'
+            unknown_cols_str <- paste(unknown_cols, collapse = ', ')
+            err_msg <- sprintf("%s '%s' not found in table '%s'.",
+                               column_columns, unknown_cols_str, table_name)
             stop(err_msg)
         }
     }
@@ -37,15 +40,14 @@ pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
 
 pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
     # This function is here so I don't have to remember the SQL index syntax and so I
-    # don't do anything too dumb.
+    # don't do anything too dumb. However, it definitely isn't safe or sanitized.
+    # Obviously don't expose it to anyone malicious.
     # Note, postgres is smart enough that you don't need to index a column that's already
     # unique, but if you want to ALTER TABLE to make a primary key, you have to start
     # with a unique index.
-    stopifnot(length(table_name) == 1 && length(indexed_col) == 1)
-
+    stopifnot(length(table_name) == 1, length(indexed_col) >= 1)
     .pg_assert_existence(con, table_name, indexed_col)
-
-    index_name <- paste0(indexed_col, '_index')
+    index_name <- paste0(paste(indexed_col, collapse = '_'), '_index')
 
     if (unique_index) {
         unique_cmd <- 'UNIQUE'
@@ -54,9 +56,11 @@ pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
     }
     drop_cmd <- sprintf("DROP INDEX IF EXISTS %s", index_name)
     DBI::dbSendStatement(con, drop_cmd)
+    # If there are multiple columns, make a comma-separated list
+    indexed_col_str <- paste(indexed_col, collapse = ', ')
     # fillfactor to 100 because I'm never adding rows to this table
     add_cmd <- sprintf("CREATE %s INDEX %s on %s (%s) WITH (fillfactor = 100)",
-                       unique_cmd, index_name, table_name, indexed_col)
+                       unique_cmd, index_name, table_name, indexed_col_str)
     res <- DBI::dbSendStatement(con, add_cmd)
     stopifnot(DBI::dbHasCompleted(res))
     return(index_name)
@@ -64,9 +68,12 @@ pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
 
 
 pg_add_primary_key <- function(con, table_name, key_col) {
-    stopifnot(length(table_name) == 1 && length(key_col) == 1)
+    # This function is here so I don't have to remember the SQL key syntax and so I
+    # don't do anything too dumb. However, it definitely isn't safe or sanitized.
+    # Obviously don't expose it to anyone malicious.
+    stopifnot(length(table_name) == 1, length(key_col) >= 1)
 
-    existing_index <- pg_add_index(con, table_name, key_col, unique_index=TRUE)
+    existing_index <- pg_add_index(con, table_name, key_col, unique_index = TRUE)
 
     sql_cmd <- sprintf("ALTER TABLE %s ADD PRIMARY KEY USING INDEX %s",
                        table_name, existing_index)
@@ -354,6 +361,19 @@ force_nrow <- function(df) {
     if (is.na(nrow_df)) {
         nrow_df <- ungroup(df) %>% summarize(n=n()) %>% collect() %$% n %>% as.integer()
     }
-    stopifnot(! is.na(nrow_df))
+    stopifnot(! anyNA(nrow_df))
     return(nrow_df)
+}
+
+
+tbl_has_rows <- function(df) {
+    # Works for both local tables and remote databases
+    nrow_df <- nrow(df)
+    if (is.na(nrow_df)) {  # nrow() is NA for remote tables
+        head1 <- ungroup(df) %>% head(1) %>% collect()
+        has_rows <- nrow(head1) > 0
+    } else {
+        has_rows <-  nrow_df > 0
+    }
+    return(has_rows)
 }
