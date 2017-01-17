@@ -416,7 +416,9 @@ delete_orig_table <- function(con, verbose) {
 
 
 main <- function(verbose = TRUE) {
-    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    pg_user <- Sys.info()[["user"]] %>% tolower()
+    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB,
+                     user = pg_user, password = pg_user)
 
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)

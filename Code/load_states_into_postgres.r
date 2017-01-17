@@ -100,8 +100,9 @@ main <- function(verbose = TRUE) {
         filter(between(year, 2002, 2014)) %>%
         ensure(! anyNA(.)) %>%
         as.data.frame()  # as.data.frame because dbWriteTable doesn't handle tbls
-
-    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    pg_user <- Sys.info()[["user"]] %>% tolower()
+    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB,
+                     user = pg_user, password = pg_user)
     if (DBI::dbExistsTable(con, POSTGRES_TABLE)) {
         if (verbose) {
             message('Deleting existing table.')

@@ -15,7 +15,9 @@ DATA_TYPES <- c(zip='char(5)', city='text', state='char(2)',
 main <- function(verbose = TRUE) {
     data('zipcode')
     stopifnot(all(names(zipcode) == names(DATA_TYPES)))
-    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB)
+    pg_user <- Sys.info()[["user"]] %>% tolower()
+    con <- dbConnect("PostgreSQL", dbname = POSTGRES_DB,
+                     user = pg_user, password = pg_user)
     if (DBI::dbExistsTable(con, POSTGRES_TABLE)) {
         if (verbose) {
             message('Deleting existing table.')
