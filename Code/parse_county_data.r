@@ -1,7 +1,7 @@
 
 
 source('r_defaults.r')
-library(dplyr)
+suppressPackageStartupMessages(library(dplyr))
 library(readr)
 library(reshape2)
 

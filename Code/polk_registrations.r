@@ -2,7 +2,7 @@ source('r_defaults.r')
 
 install_lazy(c('readxl', 'dplyr', 'ggplot2'), verbose = FALSE)
 library(magrittr)
-library(dplyr)
+suppressPackageStartupMessages(library(dplyr))
 library(ggplot2)
 
 try(

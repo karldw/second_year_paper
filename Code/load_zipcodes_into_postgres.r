@@ -4,6 +4,7 @@ source('r_defaults.r')
 install_lazy(c('zipcode', 'RPostgreSQL'), verbose = FALSE)
 library(RPostgreSQL)
 library(zipcode)
+library(magrittr)
 options(warn = 2)
 
 POSTGRES_DB <- 'second_year_paper'
