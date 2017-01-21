@@ -3,36 +3,38 @@
 
 ## To do:
 ### Analysis to-do
-- Adjust things per-capita
-- Estimate the whole event study (with year FE)
-- See if I can correlate the year FE to the dividend amount (not causal)
-- Merge in state gdp as a control
-- Check how unbalanced the panel is when I do buyer-by-day
+- [x] Adjust things per-capita
+- [x] Plot the daily FE within each event (to look for anticipation)
+    - Nothing much there -- just pick something based on the time-to-sell literature.
+- Note from the plot in overall_sale_count_ak_vs.pdf that AK sales in later years are way down.
+- [ ] Estimate the whole event study (with year FE)
+- [ ] See if I can correlate the year FE to the dividend amount (not causal)
+- [ ] Merge in state gdp as a control
+- [ ] Check how unbalanced the panel is when I do buyer-by-day
     - Consider filling out the panel by adding zeros for buyers who don't trade
-- Auctions happen much more on some days than others. Consider splitting the sample for days with nothing going on.
-- Plot the within-event day FE (to look for anticipation)
-- Make a more formal model of dealer anticipation
-- Run a zero-inflated Poisson model for sale counts?
-- Run synthetic controls
-- Run generalized synthetic controls
-- Write an explanation about why the announcements are not likely to be informative
-- Get announcement dates to test anyway
-- Improve data cleaning table
+- [ ] Auctions happen much more on some days than others. Consider splitting the sample for days with nothing going on.
+- [ ] Make a more formal model of dealer anticipation
+- [ ] Run a zero-inflated Poisson model for sale counts?
+- [ ] Run synthetic controls
+- [ ] Run generalized synthetic controls
+- [ ] Write an explanation about why the announcements are not likely to be informative
+- [ ] Get announcement dates to test anyway
+- [ ] Improve data cleaning table
     - Automate numbers (avoid copy-paste)
     - Add counts of rows dropped for unintelligible date
-- Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
+- [ ] Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
     - Use county pop to estimate county APF dividend income
-- Get answers from Harrison
+- [ ] Get answers from Harrison
 
 ### Data cleaning to-do
-- For observations that have no valid state, bring in the state from other observations of the same buyer/seller/auction (as long as there's a unique other state).
+- [ ] For observations that have no valid state, bring in the state from other observations of the same buyer/seller/auction (as long as there's a unique other state).
 
 ## To read:
-- Original synthetic controls paper
-- Papers on anticipation of welfare checks
-- More background on consumption smoothing
-- [Doudchenko and Imbens](https://www.nber.org/papers/w22791)
-- That article about natural experiments in macro.
+- [ ] Original synthetic controls paper
+- [ ] Papers on anticipation of welfare checks
+- [ ] More background on consumption smoothing
+- [x] [Doudchenko and Imbens](https://www.nber.org/papers/w22791)
+- [ ] That article about natural experiments in macro.
 
 Hsieh (2003) looked at the Alaska Permanent Wealth Fund to see how consumers smooth their income and found that their consumption _was_ smooth for Permanent Fund payments, but not tax refunds.
 
