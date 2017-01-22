@@ -377,3 +377,43 @@ tbl_has_rows <- function(df) {
     }
     return(has_rows)
 }
+
+
+lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
+    # just like lapply, but bind the results together at the end (plus parallelization)
+
+    # Error out early if any of these packages aren't available.
+    loadNamespace('parallel')  # requires parallel to be installed
+    loadNamespace('dplyr')
+    if (is.atomic(X)) {
+        loadNamespace('lazyeval')
+    }
+
+    # First, figure out how many cores to use.
+    # With windows, must use 1.
+    if (is.null(parallel_cores) || is.na(parallel_cores) || parallel_cores == 'auto') {
+        if (get_os() == 'win') {
+            parallel_cores <- 1
+        } else {
+            # Find how many cores the machine has, counting only physical (rather than
+            # logical) cores. That is, ignore hyperthreading.
+            parallel_cores <- parallel::detectCores(logical = FALSE)
+            if (is.na(parallel_cores)) {
+                parallel_cores <- 1
+            }
+        }
+    }
+    stopifnot(length(parallel_cores) == 1, parallel_cores == as.integer(parallel_cores))
+
+    list_results <- parallel::mclapply(X = X, FUN = FUN, mc.cores = parallel_cores, ...)
+
+    bound_df <- dplyr::bind_rows(list_results, .id = rbind_src_id)
+    if ((! is.null(rbind_src_id)) && is.atomic(X)) {
+        # Then mutate the values of rbind_src_id column to be the *values* of X, rather
+        # than the default, which is seq_along(X).
+        mutate_call <- list(lazyeval::interp(~ X[as.integer(rbind_src_id)],
+            rbind_src_id = as.name(rbind_src_id), X = X))
+        bound_df <- dplyr::mutate_(bound_df, .dots = setNames(mutate_call, rbind_src_id))
+    }
+    return(bound_df)
+}

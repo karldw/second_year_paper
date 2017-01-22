@@ -79,7 +79,7 @@
 	input-ignore = {,},
 	input-decimal-markers = {.}
 	}
-\usepackage[authordate,isbn=false,backend=biber,autopunct=true]{biblatex-chicago}
+\usepackage[authordate,isbn=false,backend=biber,autopunct=true,url=false]{biblatex-chicago}
 %\DefineBibliographyExtras{american}{\stdpunctuation}
 \renewcommand{\finalnamedelim}{\addspace \bibstring {and}\space}
 %\renewcommand*{\bibfont}{\footnotesize}
@@ -89,6 +89,11 @@
 \addbibresource{./papers.bib}
 \newcommand{\cex}{\textsc{cex}}
 \newcommand{\apf}{\textsc{apf}}
+\newcommand{\gpm}{\textsc{gpm}}
+\newcommand{\msrp}{\textsc{msrp}}
+\newcommand{\eitc}{\textsc{eitc}}
+\newcommand{\gdp}{\textsc{gdp}}
+
 
 %\usepackage{footnote}
 \usepackage{hyperref}
@@ -128,7 +133,15 @@
 \begin{itemize}
     \item Findings!
     \begin{itemize}
-        \item 
+        \item Sales counts per capita
+        \item Sales volumes per capita
+        \item Mean efficiency (gallons per mile)
+        \item Vehicle value
+        \begin{itemize}
+            \item \msrp{}
+            \item Model year age
+            \item Auction price
+        \end{itemize}
     \end{itemize}
     \item Contribute to some literature strands:
     \begin{itemize}
@@ -136,11 +149,12 @@
         \item Fuel efficiency choice
         \item IO of used auto markets
     \end{itemize}
-    \item Papers to compare against
+    \item Papers to compare
     \begin{itemize}
         \item Hsieh
         \item Pope, Pope et al about fickle car buying
         \item Presentation about subsidy in EVs
+        \item \eitc{} literature
     \end{itemize}
 \end{itemize}
 
@@ -149,6 +163,41 @@
 
 
 % TODO: talk about the APF dividend
+
+
+\section[DD Results]{DD Results (integrate this more later)}
+
+For each of the outcomes below:
+\begin{itemize}
+    \item Make a plot of the time trend of Alaska vs other states.
+    \item Drop vehicles that are sold again within a year
+\end{itemize}
+
+
+\subsection{Volume of cars sold}
+Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
+Use all years, use event time relative to the dividend day and don't take into account any anticipation.
+Control for either a year FE or state \gdp{}. Control for either daily or day-of-week FE.
+As a default, the cars sold in the set of states where Alaskan buyers are active (in a given year).
+Force the panel to be balanced by adding zeros (if necessary).
+
+This is theoretically ambiguous -- sales of \emph{used} cars could go up or down with an income shock, or be unchanged.
+
+\subsection{Efficiency of cars sold}
+Repeat the previous, but with the average \gpm{} of vehicles sold.
+
+\subsection{Quality of cars sold}
+Repeat the previous, but with the average \msrp{} of vehicles sold.
+
+Repeat the previous, but with the model-year-age (relative to auction date) of vehicles sold.
+
+
+\section{Synthetic results}
+Do the previous DD section again, but with synthetic controls or, maybe, the fancier frameworks of
+\textcite{DoudchenkoImbens2016DD} or \textcite{Xu2016}
+
+
+
 \section{Model}
 
 
@@ -247,10 +296,14 @@ The Manheim data are voluminous, and they include many kinds of sales outside th
 
 There are very few car sales in the CEX data,
 % TODO: how many?
-so
 
 
 
+
+
+\pagebreak
+% References
+\printbibliography
 
 
 
@@ -507,11 +560,6 @@ I've dropped these.
 \pagebreak
 % References
 \printbibliography
-
-
-
-
-\end{document}
 
 
 Other data sources I don't have, but might want:

@@ -2,9 +2,9 @@ source('r_defaults.r')
 # library(RPostgreSQL)
 install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'), verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))
-library(ggplot2)
+suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
-library(lfe)
+suppressPackageStartupMessages(library(lfe))
 library(memoise)
 
 POSTGRES_DB <- 'second_year_paper'
@@ -70,6 +70,7 @@ first_thursday_in_october <- function(years) {
         }
         return(current_date)
     }
+    first_thursday_in_october_one_year <- memoise(first_thursday_in_october_one_year)
     thursdays <- vapply(X = years, FUN = first_thursday_in_october_one_year,
                         FUN.VALUE = as.Date('1970-01-01')) %>%
                 as.Date(origin='1970-01-01')
@@ -84,6 +85,11 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
     dividend_day <- first_thursday_in_october(year)
     window_begin <- dividend_day - days_before
     window_end <- dividend_day + days_after
+    if (any(lubridate::year(c(window_begin, window_end)) != year)) {
+        stop("You've selected a window that spans more than one year. The code (not ",
+             "just in this function, but everywhere) wasn't designed for this and will ",
+             "probably have bugs.")
+    }
     # Write custom SQL because dplyr doesn't support this BETWEEN DATE business.
     date_filter_sql <- sprintf(
         "SELECT * FROM %s WHERE (sale_date BETWEEN DATE '%s' and DATE '%s')",
@@ -102,11 +108,11 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
                             buyer_id, seller_id)
         # mutate(alaskan_buyer = buy_state == 'AK',
         #        post_dividend = sale_date >= dividend_day)
-    data_one_year <- compute(data_one_year)
+    # data_one_year <- compute(data_one_year)
     # explain(data_one_year)
     # data_one_year <- collapse(data_one_year)
     # explain(data_one_year)
-    stopifnot(tbl_has_rows(data_one_year))
+    # stopifnot(tbl_has_rows(data_one_year))
     return(data_one_year)
 }
 
@@ -146,20 +152,8 @@ adjust_per_capita <- function(.data, one_year = NULL, na.rm = TRUE) {
         select(state, year, population) %>%
         mutate(population = population / 1e6)
 
-    if ('tbl_postgres' %in% class(.data)) {
-        # This is the case at the time of writing
-        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
-        # use some postgres-specific syntax
-        .data <- .data %>% mutate(sale_year = date_part('year', sale_date))
-    } else if ('data.frame' %in% class(.data)){
-        # this would be the case if I had collect()-ed the data.
-        .data <- .data %>% mutate(sale_year = lubridate::year(sale_date))
-    } else {
-        stop("Sorry, I don't know how to calculate sale_year here.")
-    }
-
-    out <- .data %>% left_join(state_pop,
-                               by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
+    out <- .data %>% add_sale_year() %>%
+        left_join(state_pop, by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
         mutate(sale_count_pc = sale_count / population,
                sale_tot_pc = sale_tot / population)
     if (na.rm) {
@@ -169,14 +163,13 @@ adjust_per_capita <- function(.data, one_year = NULL, na.rm = TRUE) {
 }
 
 
-sales_counts_one_year_unmemoized <- function(year) {
+sales_counts_one_year_unmemoized <- function(year, ...) {
     stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
-    df_base <- pull_data_one_year(year, 60)
-    dividend_day <- first_thursday_in_october(year)
 
+    dividend_day <- first_thursday_in_october(year)
     # calculate sales counts (in sql), don't retrieve more than 10 million results
     row_limit <- 1e7
-    sales_counts <- df_base %>%
+    sales_counts <- pull_data_one_year(year, ...) %>%
         get_sales_counts() %>%
         adjust_per_capita() %>%
         mutate(alaskan_buyer_post = buy_state == 'AK' & sale_date >= dividend_day) %>%
@@ -193,7 +186,7 @@ run_dd_one_year <- function(year) {
     stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
     dividend_day <- first_thursday_in_october(year)
 
-    sales_counts <- sales_counts_one_year(year) #%>% mutate(sale_week = lubridate::week(sale_date))
+    sales_counts <- sales_counts_one_year(year, days_before = 30) #%>% mutate(sale_week = lubridate::week(sale_date))
 
     # DD with LHS of daily sale_count, buyer_id and sale_date FE and buy_state clusters
     sales_counts_formula <- (sale_count_pc ~ 0 |
@@ -227,33 +220,59 @@ run_dd_one_year <- function(year) {
     # sales_counts <- mutate(sales_counts, resid_buyer_fe = sales_counts_resid2)
 
 
-    # Partial out day of week effects
-    sales_counts_ak_dow <- sales_counts %>%
+
+}
+
+
+plot_alaska_sales <- function() {
+    # I could just calculate sale volume/counts, but there are huge day-of-week effects
+    # So just partial those out, then work with the residuals.
+
+    years <- 2002:2014
+
+    aggregate_one_year <- function(.tbl) {
+        .tbl %>%
         filter(buy_state == 'AK') %>%
-        mutate(sale_dow = lubridate::wday(sale_date))
-    sales_counts_reg_dow_resid <- (sale_count_pc ~ 0 | sale_dow | 0 | buy_state) %>%
-        felm(data = sales_counts_ak_dow) %>%
+        group_by(sale_date) %>%
+        summarize(sale_count = n(), sale_volume = sum(sales_pr)) %>%
+        collect() %>%
+        mutate(sale_dow = lubridate::wday(sale_date)) %>%
+        return()
+    }
+
+    sales_near_windows <- lapply(years, pull_data_one_year, days_before = 60) %>%
+        lapply(aggregate_one_year) %>%
+        bind_rows() %>%
+        ungroup()
+    sale_count_reg_dow_resid <- (sale_count ~ 0 | sale_dow) %>%
+        felm(data = sales_near_windows) %>%
         residuals() %>%
         as.numeric()
-    stopifnot(length(sales_counts_reg_dow_resid) == nrow(sales_counts_ak_dow))
-    sales_counts_ak_dow$resid <- sales_counts_reg_dow_resid
+    sale_volume_reg_dow_resid <- (sale_volume ~ 0 | sale_dow) %>%
+        felm(data = sales_near_windows) %>%
+        residuals() %>%
+        as.numeric()
+    sales_resids_long <- sales_near_windows %>%
+        select(sale_date) %>%
+        mutate(sale_volume_resid = sale_volume_reg_dow_resid / 1e3,
+               sale_count_resid  = sale_count_reg_dow_resid) %>%
+        reshape2::melt(id.vars = 'sale_date') %>%
+        as.tbl() %>%
+        mutate(variable = as.character(variable),
+               variable = if_else(variable == 'sale_volume_resid',
+                                  'Volume residual ($1000s)',
+                                  if_else(variable == 'sale_count_resid',
+                                  'Count residual', NA_character_)))
 
-    my_mean <- pryr::partial(mean, na.rm = TRUE)
-    my_sd <- pryr::partial(sd, na.rm = TRUE)
-    resid_means_plot <- sales_counts_ak_dow %>%
-        # ungroup() %>%
-        # mutate(resid = sales_counts_reg_dow_resid) %>%
-        group_by(sale_date) %>%
-        summarize(resid = my_mean(resid), resid_sd = my_sd(resid)) %>%
-        ungroup() %>%
-        ggplot(aes(x = sale_date, y = resid)) +
-            geom_point() +
-            geom_vline(xintercept = as.integer(dividend_day), color = 'red3') +
-            geom_errorbar(aes(ymin = resid - conf_mult * resid_sd,
-                              ymax = resid + conf_mult * resid_sd)) +
-            PLOT_THEME
-    save_plot(resid_means_plot, 'sale_date_resids_wday_adj.pdf')
-    return(sales_counts)
+    sale_volume_resid_plot <- ggplot(sales_resids_long, aes(x = sale_date, y = value)) +
+        geom_point(alpha = 0.5) +
+        geom_smooth(span = 0.2) +
+        facet_grid(variable ~ ., scales = 'free_y') +
+        geom_vline(xintercept = as.integer(first_thursday_in_october(years)),
+                   color = 'red3', alpha = 0.4) +
+        labs(x = '', y = '', title = 'Sales in Alaska, residualized by day-of-week') +
+        PLOT_THEME
+    save_plot(sale_volume_resid_plot, 'sale_date_resids_wday_adj.pdf', scale_mult = 2)
 }
 
 
@@ -401,6 +420,112 @@ verify_constant_ids <- function() {
 
 }
 
-quality_control_graphs()
 
-# df <- run_dd_one_year(2014)
+add_sale_year <- function(.data) {
+    if ('tbl_postgres' %in% class(.data)) {
+        # This is the case at the time of writing
+        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
+        # use some postgres-specific syntax
+        out <- .data %>%
+            mutate(sale_year = date_part('year', sale_date))
+    } else if ('data.frame' %in% class(.data)){
+        stopifnot('sale_date' %in% names(.data))
+        # this would be the case if I had collect()-ed the data.
+        out <- .data %>% mutate(sale_year = lubridate::year(sale_date))
+    } else {
+        stop("Sorry, I don't know how to calculate sale_year here.")
+    }
+    return(out)
+}
+
+
+add_event_time <- function(.data) {
+    # First, make a table mapping sale_date to event_time for this input .data
+    # Then merge back in.
+    # .data can be local or in postgres.
+
+    dates_tbl <- .data %>%
+        select(sale_date) %>%  # avoid dplyr bug that tries to select all cols
+        distinct(sale_date) %>%
+        add_sale_year() %>%
+        collect() %>%
+        # Note: doing it like this, based on the sale_year, assumes that my window
+        # fits entirely within the year.
+        mutate(dividend_day = first_thursday_in_october(sale_year),
+               event_time = as.integer(sale_date - dividend_day)) %>%
+        select(sale_date, event_time)
+
+    max_event_time <- max(abs(dates_tbl$event_time))
+    if (max_event_time > 85) {
+        # 85 because October 7 (the latest possible first Thursday) to
+        # December 31 is 85 days.
+        stop(sprintf("Largest magnitude of event_time is %s. ", max_event_time),
+             "Values larger than 85 can span years, which is a problem as the code is ",
+             "currently written.")
+    }
+    # take the calculated event times back to the original table.
+    # copy = TRUE will copy the local dates_tbl back to postgres
+    # (copy = TRUE copies the second table to the location of the first)
+    out <- left_join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
+    return(out)
+}
+
+
+adjust_by_weekday <- function(.data, varname) {
+    # Run a regression to demean by weekday, return the demeaned variable
+    # in the same dataframe.
+    df <- .data %>% collect() %>% ungroup()
+    if (! 'sale_dow' %in% names(df)) {
+        added_sale_dow <- TRUE
+        df <- df %>% mutate(sale_dow = lubridate::wday(sale_date))
+    } else {
+        added_sale_dow <- FALSE
+    }
+    reg_formula <- as.formula(paste(varname, '~ 0 | sale_dow'))
+    resid <- felm(reg_formula, df) %>%
+        residuals() %>% as.numeric()
+
+    df[[varname]] <- resid
+
+    if (added_sale_dow) {
+        df <- df %>% select(-sale_dow)
+    }
+    return(df)
+}
+
+
+plot_dd_sales <- function(years = 2002:2014) {
+
+    sales_near_windows <- lapply_bind_rows(years, sales_counts_one_year,
+            days_before = 60, top_n_auction_states = 10) %>%
+        tag_alaskan_buyer(as_factor = TRUE) %>%
+        select(sale_date, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
+        group_by(sale_date, alaskan_buyer) %>%
+        summarise_all(mean) %>%
+        ungroup() %>%  # avoid dplyr grouping error
+        add_event_time() %>%
+        mutate(sale_year = lubridate::year(sale_date))
+
+    sales_near_windows_avg <- sales_near_windows %>%
+        select(event_time, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
+        group_by(event_time, alaskan_buyer) %>%
+        summarise_all(mean)
+
+    # TODO: some of the plots here are way too high.  Why?
+    sales_count_year_facet_plot <- sales_near_windows %>%
+        ggplot(aes(x = event_time, y = sale_count_pc, color = alaskan_buyer)) +
+        geom_point() +
+        facet_grid(sale_year ~ .) +
+        labs(x = 'Event time', y = 'Sales counts per capita') +
+        PLOT_THEME
+
+    save_plot(sales_count_year_facet_plot, 'dd_plot_sales_counts_year_facet.pdf',
+              scale_mult = 2)
+}
+
+
+# quality_control_graphs()
+# plot_dd_sales(2002)
+
+# plot_alaska_sales()
+# df <- run_dd_one_year(2003)
