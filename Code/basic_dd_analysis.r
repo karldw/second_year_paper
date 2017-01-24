@@ -95,23 +95,17 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
         "SELECT * FROM %s WHERE (sale_date BETWEEN DATE '%s' and DATE '%s')",
         POSTGRES_CLEAN_TABLE, window_begin, window_end)
     data_one_year <- tbl(con, sql(date_filter_sql)) %>%
-        filter(! is.na(buy_state))
+        filter(! is.na(buy_state)) %>%
+        select(sale_date, model_yr, sales_pr, bid_ct,
+               veh_type, buy_state, sell_state, auction_state,
+               # seller_type, slrdlr_type,
+               buyer_id, seller_id)
 
     if (! is.null(top_n_auction_states)) {
         top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')
         data_one_year <- semi_join(data_one_year, top_states_table, by = 'auction_state')
     }
 
-    data_one_year <- select(data_one_year, sale_date, model_yr, sales_pr, bid_ct,
-                            veh_type, buy_state, sell_state, auction_state,
-                            # seller_type, slrdlr_type,
-                            buyer_id, seller_id)
-        # mutate(alaskan_buyer = buy_state == 'AK',
-        #        post_dividend = sale_date >= dividend_day)
-    # data_one_year <- compute(data_one_year)
-    # explain(data_one_year)
-    # data_one_year <- collapse(data_one_year)
-    # explain(data_one_year)
     # stopifnot(tbl_has_rows(data_one_year))
     return(data_one_year)
 }
@@ -147,13 +141,14 @@ get_sales_counts <- function(df_base) {
 }
 
 
-adjust_per_capita <- function(.data, one_year = NULL, na.rm = TRUE) {
+adjust_per_capita <- function(.data, na.rm = TRUE) {
     state_pop <- states %>%
         select(state, year, population) %>%
-        mutate(population = population / 1e6)
-
+        mutate(population = population / 1e6) %>%
+        compute()
     out <- .data %>% add_sale_year() %>%
         left_join(state_pop, by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
+        # NB: This is sale count and sale total per *million* people
         mutate(sale_count_pc = sale_count / population,
                sale_tot_pc = sale_tot / population)
     if (na.rm) {
@@ -167,13 +162,14 @@ sales_counts_one_year_unmemoized <- function(year, ...) {
     stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
 
     dividend_day <- first_thursday_in_october(year)
-    # calculate sales counts (in sql), don't retrieve more than 10 million results
-    row_limit <- 1e7
+    # calculate sales counts (in sql)
+    row_limit <- Inf
     sales_counts <- pull_data_one_year(year, ...) %>%
         get_sales_counts() %>%
+        # NB: This is sale count and sale total per *million* people
         adjust_per_capita() %>%
         mutate(alaskan_buyer_post = buy_state == 'AK' & sale_date >= dividend_day) %>%
-        select(alaskan_buyer_post, sale_count_pc, sale_tot_pc, sale_date, buy_state) %>%
+        select(alaskan_buyer_post, sale_count, sale_tot, sale_count_pc, sale_tot_pc, sale_date, buy_state) %>%
         collect(n = row_limit)
     return(sales_counts)
 }
@@ -439,6 +435,30 @@ add_sale_year <- function(.data) {
 }
 
 
+add_sale_dow <- function(.data) {
+    if ('tbl_postgres' %in% class(.data)) {
+        # This is the case at the time of writing
+        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
+        # use some postgres-specific syntax
+        # Note the + 1 because postgres defines numeric weekday differently than lubridate
+        out <- .data %>%
+            mutate(sale_dowr = date_part('dow', sale_date) + 1)
+    } else if ('data.frame' %in% class(.data)){
+        # this would be the case if I had collect()-ed the data.
+        stopifnot('sale_date' %in% names(.data))
+        # Don't recalculate if it's unnecessary.
+        if (! 'sale_dow' %in% names(.data)) {
+            out <- .data %>% mutate(sale_dow = lubridate::wday(sale_date))
+        } else {
+            out <- .data
+        }
+    } else {
+        stop("Sorry, I don't know how to calculate sale_dow here.")
+    }
+    return(out)
+}
+
+
 add_event_time <- function(.data) {
     # First, make a table mapping sale_date to event_time for this input .data
     # Then merge back in.
@@ -471,25 +491,45 @@ add_event_time <- function(.data) {
 }
 
 
-adjust_by_weekday <- function(.data, varname) {
-    # Run a regression to demean by weekday, return the demeaned variable
-    # in the same dataframe.
-    df <- .data %>% collect() %>% ungroup()
-    if (! 'sale_dow' %in% names(df)) {
-        added_sale_dow <- TRUE
-        df <- df %>% mutate(sale_dow = lubridate::wday(sale_date))
-    } else {
-        added_sale_dow <- FALSE
+regression_adjust <- function(.data, varname, formula_rhs) {
+    # e.g.
+    # regression_adjust(sales_counts, sale_count_pc, ~ buy_state + sale_dow)
+    if (! is.character(formula_rhs)) {
+        formula_rhs <- deparse(substitute(formula_rhs))
     }
-    reg_formula <- as.formula(paste(varname, '~ 0 | sale_dow'))
+    df <- .data %>% collect() %>% ungroup()
+    stopifnot(length(varname) == 1,
+              is.character(formula_rhs),
+              length(formula_rhs) == 1,
+              tbl_has_rows(df),
+              varname %in% names(df))
+
+    reg_formula <- as.formula(paste(varname, formula_rhs))
     resid <- felm(reg_formula, df) %>%
         residuals() %>% as.numeric()
-
+    stopifnot(length(resid) == nrow(df))
     df[[varname]] <- resid
+    return(df)
+}
 
-    if (added_sale_dow) {
-        df <- df %>% select(-sale_dow)
-    }
+
+adjust_by_weekday <- function(.data, varname) {
+    stop('Not used!')
+    # Run a regression to demean by weekday, return the demeaned variable
+    # in the same dataframe.
+    varname <- as.character(substitute(varname))
+    df <- .data %>% ungroup() %>% add_sale_dow() %>%
+        regression_adjust(varname, '~ 0 | sale_dow')
+    return(df)
+}
+
+
+adjust_by_state_and_weekday <- function(.data, varname) {
+    # Run a regression to demean by weekday and buy_state (but not the interaction).
+    # Return the demeaned variable in the same dataframe.
+    varname <- as.character(substitute(varname))
+    df <- .data %>% ungroup() %>% add_sale_dow() %>%
+        regression_adjust(varname, '~ 0 | sale_dow + buy_state')
     return(df)
 }
 
@@ -499,7 +539,14 @@ plot_dd_sales <- function(years = 2002:2014) {
     sales_near_windows <- lapply_bind_rows(years, sales_counts_one_year,
             days_before = 60, top_n_auction_states = 10) %>%
         tag_alaskan_buyer(as_factor = TRUE) %>%
-        select(sale_date, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
+        # Regression-adjust for weekly patterns. sale_tot_pc and sale_count_pc become
+        # the residuals after regressing on dummies for day of week across all included
+        # states. NB: This is sale count and sale total per *million* people (otherwise
+        # the numbers are really small and R struggles with numerical precision)
+        adjust_by_state_and_weekday(sale_count) %>%
+        adjust_by_state_and_weekday(sale_tot) %>%
+        select(sale_date, alaskan_buyer, sale_count, sale_count_pc,
+               sale_tot, sale_tot_pc) %>%
         group_by(sale_date, alaskan_buyer) %>%
         summarise_all(mean) %>%
         ungroup() %>%  # avoid dplyr grouping error
@@ -511,15 +558,20 @@ plot_dd_sales <- function(years = 2002:2014) {
         group_by(event_time, alaskan_buyer) %>%
         summarise_all(mean)
 
-    # TODO: some of the plots here are way too high.  Why?
-    sales_count_year_facet_plot <- sales_near_windows %>%
-        ggplot(aes(x = event_time, y = sale_count_pc, color = alaskan_buyer)) +
+    sale_count_year_facet_plot <- sales_near_windows %>%
+        ggplot(aes(x = event_time, y = sale_count, color = alaskan_buyer)) +
         geom_point() +
         facet_grid(sale_year ~ .) +
-        labs(x = 'Event time', y = 'Sales counts per capita') +
+        labs(x = 'Event time', y = 'Sales counts (residualized)') +
+        PLOT_THEME
+    sale_tot_year_facet_plot <- sales_near_windows %>%
+        ggplot(aes(x = event_time, y = sale_tot, color = alaskan_buyer)) +
+        geom_point() +
+        facet_grid(sale_year ~ .) +
+        labs(x = 'Event time', y = 'Sales volume ($, residualized)') +
         PLOT_THEME
 
-    save_plot(sales_count_year_facet_plot, 'dd_plot_sales_counts_year_facet.pdf',
+    save_plot(sale_count_year_facet_plot, 'dd_plot_sales_counts_year_facet.pdf',
               scale_mult = 2)
 }
 

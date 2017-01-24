@@ -3,7 +3,7 @@ source('r_defaults.r')
 install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
-library(magrittr)
+library(dplyr)
 options(warn = 2)
 set.seed(198872394)
 
@@ -62,10 +62,12 @@ stopifnot(dir.exists(CSV_DIR))
         # country_of_mfr = col_character(),
         # plant =  = col_character()
     )
-    df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
-        dplyr::rename(model_yr = year)
+    df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
+        dplyr::rename(model_yr = year) %>%
+        ensure_id_vars(vehicle_id, vin_pattern)
     return(df)
 }
+
 
 .load_veh_price <- function() {
     csv_filename <- file.path(CSV_DIR, 'VEH_PRICE.csv')
@@ -78,12 +80,14 @@ stopifnot(dir.exists(CSV_DIR))
         # gas_guzzler_tax = col_integer()
     )
     df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
-        dplyr::mutate(msrp = dplyr::if_else(msrp == 0, NA_integer_, msrp))
+        dplyr::mutate(msrp = dplyr::if_else(msrp == 0, NA_integer_, msrp)) %>%
+        ensure_id_vars(vehicle_id)
     return(df)
 }
 
+
 .load_lkp_veh_mpg <- function() {
-    stop("not used, not complete")
+    # Load MPG info
 
     csv_filename <- file.path(CSV_DIR, 'LKP_VEH_MPG.csv')
     load_cols <- cols_only(
@@ -101,7 +105,6 @@ stopifnot(dir.exists(CSV_DIR))
         combined = col_integer()
     )
 
-
     df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
         dplyr::sample_frac(1, replace = FALSE) %>%
         dplyr::group_by(vehicle_id,engine_id, transmission_id, fuel_type) %>%
@@ -111,20 +114,20 @@ stopifnot(dir.exists(CSV_DIR))
         # each duplicated group, making sure not to select "Premium" as that one row.
         dplyr::mutate(temp_group_size = n()) %>%
         dplyr::filter(! (temp_group_size > 1 & fuel_grade == "Premium")) %>%
-        dplyr::select(-temp_group_size, -fuel_grade) %>%
+        dplyr::select(-temp_group_size) %>%
         dplyr::rename(trans_id = transmission_id) %>%
+        dplyr::ungroup() %>%
         dplyr::mutate(fuel_type = dplyr::if_else(
             fuel_type == "Gasoline (Mid Grade Unleaded Required)", 'Gasoline', fuel_type),
-            fuel_type = dplyr::if_else(fuel_type == "CNG", "Natural Gas", fuel_type)
-        ) %>%
-        ensure(nrow(dplyr::distinct(., vehicle_id, engine_id, trans_id, fuel_type)) ==
-               nrow(.))
+            fuel_type = dplyr::if_else(fuel_type == "CNG", "Natural Gas", fuel_type)) %>%
+        # ensure_id_vars(vehicle_id, engine_id, trans_id, fuel_type)
+        ensure_id_vars(vehicle_id, engine_id, trans_id, fuel_type)
     return(df)
 }
 
 
 .load_def_transmission <- function() {
-    stop("not used, not complete")
+    # Load transmission info (required for MPG merge)
     csv_filename <- file.path(CSV_DIR, 'DEF_TRANSMISSION.csv')
     load_cols <- cols_only(
         trans_id = col_integer(),
@@ -135,20 +138,23 @@ stopifnot(dir.exists(CSV_DIR))
         # trans_gears = col_integer()
     )
     mpg_df <- .load_lkp_veh_mpg()
-    df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
+    df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
         dplyr::right_join(mpg_df, by='trans_id') %>%
         dplyr::group_by(vehicle_id, engine_id, fuel_type) %>%
         # within groups defined by the variables above, if there are duplicates,
         # keep only the automatic transmission
         dplyr::mutate(temp_group_size = n()) %>%
         dplyr::filter(! (temp_group_size > 1 & fuel_grade == "Premium")) %>%
+        ensure_id_vars(trans_id)
     return(df)
 }
+
 
 merge_files <- function() {
     vin_reference <- .load_vin_reference()
     veh_price <- .load_veh_price()
-    dplyr::inner_join(vin_reference, veh_price, by='vehicle_id') %>%
+    veh_mpg <- .load_lkp_veh_mpg()
+    dplyr::inner_join(vin_reference, veh_price, by = 'vehicle_id') %>%
         dplyr::select(-vehicle_id) %>%
         # allow for random ordering to avoid bias if there's something weird about the
         # row ordering and they don't all have the same model_yr/fuel_type.
@@ -188,4 +194,4 @@ main <- function(verbose = TRUE) {
 
 
 # Run things:
-main()
+# main()
