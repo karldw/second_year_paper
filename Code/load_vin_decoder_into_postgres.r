@@ -20,6 +20,11 @@ if (! (exists('CSV_DIR') & dir.exists(CSV_DIR))) {
 stopifnot(dir.exists(CSV_DIR))
 
 
+shuffle <- function(.data) {
+    dplyr::sample_frac(.data, 1, replace = FALSE)
+}
+
+
 .load_vin_reference <- function() {
     csv_filename <- file.path(CSV_DIR, 'VIN_REFERENCE.csv')
 
@@ -36,12 +41,12 @@ stopifnot(dir.exists(CSV_DIR))
         # mfr_package_code = col_character(),
         # doors = col_integer(),
         # drive_type = col_character(),
-        # vehicle_type = col_character(),
+        vehicle_type = col_character(),
         # rear_axle = col_character(),
         # body_type = col_character(),
         # body_subtype = col_character(),
         # bed_length = col_character(),
-        # engine_id = col_integer(),
+        engine_id = col_integer(),
         # engine_name = col_character(),
         # engine_size = col_double(),
         # engine_block = col_character(),
@@ -62,10 +67,29 @@ stopifnot(dir.exists(CSV_DIR))
         # country_of_mfr = col_character(),
         # plant =  = col_character()
     )
+    # Harmonize the fuel types with LKP_VEH_MPG.csv, where the categories are Diesel,
+    # Ethanol, Gasoline, Hydrogen, Natural Gas and Propane.
+    fuel_types <- c(
+        "B" = "Diesel",  # Biodiesel
+        "D" = "Diesel",
+        "F" = "Ethanol",  # flex fuel
+        "G" = "Gasoline",
+        "H" = "Hydrogen",
+        "I" = "Gasoline",  # Plug-in hybrid
+        "N" = "Natural Gas",
+        "P" = "Propane",
+        "Y" = "Gasoline"  # Hybrid
+    )
+    fuel_type_translation <- data_frame(fuel_code = names(fuel_types),
+                                        fuel_type = unname(fuel_types))
     df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
-        dplyr::rename(model_yr = year) %>%
+        dplyr::rename(model_yr = year, fuel_code = fuel_type) %>%
+        dplyr::filter(! fuel_code %in% c("L", "", NA)) %>%
+        dplyr::full_join(fuel_type_translation, by = 'fuel_code') %>%
         ensure_id_vars(vehicle_id, vin_pattern)
-    return(df)
+    stopifnot(! anyNA(df))
+    # drop fuel_code here because I want to check for NAs in it.
+    df %>% select(-fuel_code) %>% return()
 }
 
 
@@ -106,15 +130,17 @@ stopifnot(dir.exists(CSV_DIR))
     )
 
     df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
-        dplyr::sample_frac(1, replace = FALSE) %>%
-        dplyr::group_by(vehicle_id,engine_id, transmission_id, fuel_type) %>%
+        # shuffle the rows so the filtering is random
+        shuffle() %>%
+        dplyr::group_by(vehicle_id, engine_id, transmission_id, fuel_type) %>%
         # within groups defined by the variables above, if there are duplicates,
         # keep only the non-premium fuel grade
         # First tag groups with duplicates and provide an index to select one row from
-        # each duplicated group, making sure not to select "Premium" as that one row.
+        # each duplicated group, making sure not to select "Premium" as that one row
+        # because I think non-premium versions of the car are more important.
         dplyr::mutate(temp_group_size = n()) %>%
         dplyr::filter(! (temp_group_size > 1 & fuel_grade == "Premium")) %>%
-        dplyr::select(-temp_group_size) %>%
+        dplyr::select(-temp_group_size, -fuel_grade) %>%
         dplyr::rename(trans_id = transmission_id) %>%
         dplyr::ungroup() %>%
         dplyr::mutate(fuel_type = dplyr::if_else(
@@ -139,35 +165,50 @@ stopifnot(dir.exists(CSV_DIR))
     )
     mpg_df <- .load_lkp_veh_mpg()
     df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
-        dplyr::right_join(mpg_df, by='trans_id') %>%
+        ensure_id_vars(trans_id) %>%
+        dplyr::right_join(mpg_df, by = 'trans_id') %>%
         dplyr::group_by(vehicle_id, engine_id, fuel_type) %>%
         # within groups defined by the variables above, if there are duplicates,
         # keep only the automatic transmission
         dplyr::mutate(temp_group_size = n()) %>%
-        dplyr::filter(! (temp_group_size > 1 & fuel_grade == "Premium")) %>%
-        ensure_id_vars(trans_id)
+        dplyr::filter(! (temp_group_size > 1 & trans_type == "A")) %>%
+        dplyr::select(vehicle_id, engine_id, fuel_type, city, highway, combined) %>%
+        # Collapse by these variables, casewise.  Equivalent Stata would be:
+        # collapse (mean) city highway combined, by(vehicle_id engine_id fuel_type) cw
+        dplyr::group_by(vehicle_id, engine_id, fuel_type) %>%
+        na.omit() %>%
+        dplyr::summarize_all(mean) %>%
+        ensure_id_vars(vehicle_id, engine_id, fuel_type)
     return(df)
 }
 
 
 merge_files <- function() {
     vin_reference <- .load_vin_reference()
-    veh_price <- .load_veh_price()
-    veh_mpg <- .load_lkp_veh_mpg()
-    dplyr::inner_join(vin_reference, veh_price, by = 'vehicle_id') %>%
-        dplyr::select(-vehicle_id) %>%
-        # allow for random ordering to avoid bias if there's something weird about the
-        # row ordering and they don't all have the same model_yr/fuel_type.
-        dplyr::mutate(random = runif(n())) %>%
+    veh_price <- .load_veh_price() %>% ensure_id_vars(vehicle_id)
+    veh_trans_mpg <- .load_def_transmission() %>%
+        ensure_id_vars(vehicle_id, engine_id, fuel_type)
+    not_na <- Negate(is.na)
+    df <- dplyr::inner_join(vin_reference, veh_price, by = 'vehicle_id') %>%
+        dplyr::full_join(veh_trans_mpg, by=c('vehicle_id', 'engine_id', 'fuel_type')) %>%
+        dplyr::filter(not_na(city), not_na(highway), not_na(combined), not_na(msrp),
+                      not_na(vehicle_type), not_na(fuel_type), not_na(model_yr),
+                      not_na(vin_pattern)) %>%
         dplyr::group_by(vin_pattern) %>%
         # But it turns out vin_pattern doesn't uniquelly identify rows,
-        # so we'll need to collapse down
-        dplyr::arrange(random) %>%
+        # so we'll need to collapse down.
+        # allow for random ordering to avoid bias if there's something weird about the
+        # row ordering and they don't all have the same model_yr/fuel_type.
+        shuffle() %>%
         dplyr::summarize(model_yr = first(model_yr),
                          fuel_type = first(fuel_type),
+                         city = first(city),
+                         highway = first(highway),
+                         combined  = first(combined),
+                         vehicle_type  = first(vehicle_type),
                          # max because we're using it to filter auction prices later
-                         msrp = max(msrp)) %>%
-        return()
+                         msrp = max(msrp))
+    return(df)
 }
 
 
@@ -194,4 +235,4 @@ main <- function(verbose = TRUE) {
 
 
 # Run things:
-# main()
+main()
