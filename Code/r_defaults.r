@@ -7,6 +7,27 @@ options(
     warnPartialMatchAttr = TRUE
 )
 
+source('common_functions.r')
+
+if (length(.libPaths()) < 2) {
+    if (get_os() == 'win') {
+        # get the major.minor, so 3.3.2 becomes 3.3
+        r_version <- paste(R.Version()$major,
+                           gsub('\\..*', '', R.Version()$minor, perl = TRUE),
+                           sep = '.')
+        my_library <- file.path(path.expand('~'), 'Documents', 'R', 'win-library',
+                                r_version)
+        .libPaths(my_library)
+        rm(my_library)
+    } else {
+        # It'll be similar to the windows version, but should probably include
+        # R.Version()$platform
+        stop('Not sure what to do here.')
+    }
+}
+
+
+install_lazy('ggplot2', verbose = FALSE)
 
 PLOT_THEME <- ggplot2::theme(
     panel.background = ggplot2::element_rect(fill = NA),
@@ -25,5 +46,3 @@ PLOT_THEME <- ggplot2::theme(
 # Colors from http://haas.berkeley.edu/style-guide/colors.html
 # BLUE_AND_YELLOW <- c('#003A70', '#FFBD17')
 BLUE_AND_YELLOW <- c('#0066CC', '#FFBD17')
-
-source('common_functions.r')

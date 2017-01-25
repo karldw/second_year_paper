@@ -10,7 +10,8 @@ library(memoise)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
 if (! exists('con')) {
-    con <- src_postgres(POSTGRES_DB)
+    pg_user <- Sys.info()[["user"]] %>% tolower()
+    con <- src_postgres(POSTGRES_DB, user = pg_user, password = pg_user)
 }
 auctions <-  tbl(con, POSTGRES_CLEAN_TABLE)
 states <- tbl(con, 'states')

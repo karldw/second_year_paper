@@ -1,5 +1,6 @@
 #!/bin/bash
 # make_all_databases.sh
+# Run in linux, or on Windows via git bash.
 
 set -euf -o pipefail
 
