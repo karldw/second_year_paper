@@ -391,80 +391,6 @@ verify_constant_ids <- function() {
 }
 
 
-add_sale_year <- function(.data) {
-    if ('tbl_postgres' %in% class(.data)) {
-        # This is the case at the time of writing
-        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
-        # use some postgres-specific syntax
-        out <- .data %>%
-            mutate(sale_year = date_part('year', sale_date))
-    } else if ('data.frame' %in% class(.data)){
-        stopifnot('sale_date' %in% names(.data))
-        # this would be the case if I had collect()-ed the data.
-        out <- .data %>% mutate(sale_year = lubridate::year(sale_date))
-    } else {
-        stop("Sorry, I don't know how to calculate sale_year here.")
-    }
-    return(out)
-}
-
-
-add_sale_dow <- function(.data) {
-    if ('tbl_postgres' %in% class(.data)) {
-        # This is the case at the time of writing
-        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
-        # use some postgres-specific syntax
-        # Note the + 1 because postgres defines numeric weekday differently than lubridate
-        out <- .data %>%
-            mutate(sale_dowr = date_part('dow', sale_date) + 1)
-    } else if ('data.frame' %in% class(.data)){
-        # this would be the case if I had collect()-ed the data.
-        stopifnot('sale_date' %in% names(.data))
-        # Don't recalculate if it's unnecessary.
-        if (! 'sale_dow' %in% names(.data)) {
-            out <- .data %>% mutate(sale_dow = lubridate::wday(sale_date))
-        } else {
-            out <- .data
-        }
-    } else {
-        stop("Sorry, I don't know how to calculate sale_dow here.")
-    }
-    return(out)
-}
-
-
-add_event_time <- function(.data) {
-    # First, make a table mapping sale_date to event_time for this input .data
-    # Then merge back in.
-    # .data can be local or in postgres.
-
-    dates_tbl <- .data %>%
-        select(sale_date) %>%  # avoid dplyr bug that tries to select all cols
-        distinct(sale_date) %>%
-        add_sale_year() %>%
-        collect() %>%
-        # Note: doing it like this, based on the sale_year, assumes that my window
-        # fits entirely within the year.
-        mutate(dividend_day = first_thursday_in_october(sale_year),
-               event_time = as.integer(sale_date - dividend_day)) %>%
-        select(sale_date, event_time)
-
-    max_event_time <- max(abs(dates_tbl$event_time))
-    if (max_event_time > 85) {
-        # 85 because October 7 (the latest possible first Thursday) to
-        # December 31 is 85 days.
-        stop(sprintf("Largest magnitude of event_time is %s. ", max_event_time),
-             "Values larger than 85 can span years, which is a problem as the code is ",
-             "currently written.")
-    }
-    # take the calculated event times back to the original table.
-    # copy = TRUE will copy the local dates_tbl back to postgres
-    # (copy = TRUE copies the second table to the location of the first)
-    out <- left_join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
-    return(out)
-}
-
-
 regression_adjust <- function(.data, varname, formula_rhs) {
     # e.g.
     # regression_adjust(sales_counts, sale_count_pc, ~ buy_state + sale_dow)
@@ -512,41 +438,50 @@ plot_dd_sales <- function(years = 2002:2014) {
 
     sales_near_windows <- lapply_bind_rows(years, sales_counts_one_year,
             days_before = 60, top_n_auction_states = 10) %>%
-        tag_alaskan_buyer(as_factor = TRUE) %>%
+        filter(buy_state %in% c('AK', 'WA', 'NV', 'OR')) %>%
+        # tag_alaskan_buyer(as_factor = TRUE) %>%
         # Regression-adjust for weekly patterns. sale_tot_pc and sale_count_pc become
         # the residuals after regressing on dummies for day of week across all included
         # states. NB: This is sale count and sale total per *million* people (otherwise
         # the numbers are really small and R struggles with numerical precision)
+        # winsorize(c('sale_count', 'sale_tot')) %>%
         adjust_by_state_and_weekday(sale_count) %>%
         adjust_by_state_and_weekday(sale_tot) %>%
-        select(sale_date, alaskan_buyer, sale_count, sale_count_pc,
+        select(sale_date, buy_state, sale_count, sale_count_pc,
                sale_tot, sale_tot_pc) %>%
-        group_by(sale_date, alaskan_buyer) %>%
+        group_by(sale_date, buy_state) %>%
         summarise_all(mean) %>%
         ungroup() %>%  # avoid dplyr grouping error
         add_event_time() %>%
-        mutate(sale_year = lubridate::year(sale_date))
+        add_sale_year()
 
-    sales_near_windows_avg <- sales_near_windows %>%
-        select(event_time, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
-        group_by(event_time, alaskan_buyer) %>%
-        summarise_all(mean)
+    # sales_near_windows_avg <- sales_near_windows %>%
+    #     select(event_time, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
+    #     group_by(event_time, alaskan_buyer) %>%
+    #     summarise_all(mean)
 
+    common_labs <- labs(x = 'Event time (days)', color = 'State')
     sale_count_year_facet_plot <- sales_near_windows %>%
-        ggplot(aes(x = event_time, y = sale_count, color = alaskan_buyer)) +
-        geom_point() +
-        facet_grid(sale_year ~ .) +
-        labs(x = 'Event time', y = 'Sales counts (residualized)') +
+        ggplot(aes(x = event_time, y = sale_count, color = buy_state)) +
+        geom_point(alpha = 0.3) +
+        geom_smooth(method = 'loess', span = 0.2, se = FALSE) +
+        facet_grid(sale_year ~ ., scales = 'free_y') +
+        common_labs +
+        labs(y = 'Sales counts (residualized by state and day of week)') +
         PLOT_THEME
     sale_tot_year_facet_plot <- sales_near_windows %>%
-        ggplot(aes(x = event_time, y = sale_tot, color = alaskan_buyer)) +
-        geom_point() +
-        facet_grid(sale_year ~ .) +
-        labs(x = 'Event time', y = 'Sales volume ($, residualized)') +
+        ggplot(aes(x = event_time, y = sale_tot/1000, color = buy_state)) +
+        geom_point(alpha = 0.3) +
+        geom_smooth(method = 'loess', span = 0.2, se = FALSE) +
+        facet_grid(sale_year ~ ., scales = 'free_y') +
+        common_labs +
+        labs(y = 'Sales volume ($1000s, residualized by state and day of week)') +
         PLOT_THEME
 
     save_plot(sale_count_year_facet_plot, 'dd_plot_sales_counts_year_facet.pdf',
-              scale_mult = 2)
+              scale_mult = 3)
+    save_plot(sale_tot_year_facet_plot, 'dd_plot_sales_volume_year_facet.pdf',
+              scale_mult = 3)
 }
 
 

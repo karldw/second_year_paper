@@ -436,7 +436,7 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
     stopifnot(length(parallel_cores) == 1, parallel_cores == as.integer(parallel_cores))
 
     list_results <- parallel::mclapply(X = X, FUN = FUN, mc.cores = parallel_cores, ...)
-
+    # TODO: implement dplyr::union_all for non-local sources.
     bound_df <- dplyr::bind_rows(list_results, .id = rbind_src_id)
     if ((! is.null(rbind_src_id)) && is.atomic(X)) {
         # Then mutate the values of rbind_src_id column to be the *values* of X, rather
@@ -469,20 +469,16 @@ first_thursday_in_october <- function(years) {
 
 
 filter_event_window <- function(.data, year, days_before = 30, days_after = days_before) {
-    # If force_compute is true (the default), dplyr::compute will be called on the data.
-    # This can be slow, and is unnecessary for tables that are already in the database,
-    # such as auctions_cleaned.
-    # It's true by default for safety, since setting it to false could look at the wrong
-    # table.
-    # ex.
-    # head(auctions)$ops$x == ''
+    stopifnot(length(year) == 1, length(days_before) == 1, length(days_after) == 1,
+              is.numeric(days_before), is.numeric(days_after), days_before > 0,
+              days_after > 0, between(year, 2002, 2014))
     dividend_day <- first_thursday_in_october(year)
     window_begin <- dividend_day - days_before
     window_end <- dividend_day + days_after
     if (any(lubridate::year(c(window_begin, window_end)) != year)) {
         stop("You've selected a window that spans more than one year. The code (not ",
-             "just in this function, but everywhere) wasn't designed for this and will ",
-             "probably have bugs.")
+             "just in this function, but everywhere) wasn't designed for this and ",
+             "will probably have bugs.")
     }
     if ('tbl_postgres' %in% class(.data)) {
         # First, borrow the existing SQL query (translated from the dplyr stuff)
@@ -506,4 +502,132 @@ filter_event_window <- function(.data, year, days_before = 30, days_after = days
         stop("Sorry, I don't know how to subset sale_date here.")
     }
     return(data_one_year)
+}
+
+
+explain_analyze <- function(x) {
+    # Just like dplyr::explain, but running the more detailed EXPLAIN ANALYZE
+    force(x)
+    stopifnot('tbl_postgres' %in% class(x))
+    dplyr::show_query(x)
+    message("\n")
+    exsql <- dplyr::build_sql("EXPLAIN ANALYZE ", dplyr::sql_render(x))
+    expl_raw <- RPostgreSQL::dbGetQuery(x$src$con, exsql)
+    expl <- paste(expl_raw[[1]], collapse = "\n")
+
+    message("<PLAN>\n", expl)
+    invisible(NULL)
+}
+
+
+winsorize <- function(df, vars_to_winsorize, quantiles=c(1, 99)) {
+    quantiles <- sort(quantiles)
+    if (! all(quantiles <= 1)) {
+        quantiles <- quantiles / 100
+    }
+    if ('data.frame' %in% class(df)) {
+        # can only check for local ones here
+        stopifnot(all(vars_to_winsorize %in% names(df)))
+    }
+
+    df <- ungroup(df) %>% compute()
+    orig_names <- head(df, 1) %>% collect() %>% names()
+
+    stopifnot(length(quantiles) == 2,
+              all(quantiles > 0 & quantiles < 1),
+              all(vars_to_winsorize %in% orig_names)
+              )
+    for (var in vars_to_winsorize) {
+        new_vec <- df %>% dplyr::select_(.dots = var) %>%
+            dplyr::collect(n = Inf) %>%
+            magrittr::extract2(var)
+        # 8 is apparently a good type of quantile
+        new_range <- unname(quantile(new_vec, quantiles, na.rm = TRUE, type = 8))
+        mutate_call <- lazyeval::interp(~ if_else(var < lower, lower,
+                                                  if_else(var > higher, higher, var)),
+            var = as.name(var), lower = new_range[1], higher = new_range[2])
+        df <- dplyr::mutate_(df, .dots = setNames(list(mutate_call), var))
+
+        # new_vec[new_vec < new_range[1]] <- new_range[1]
+        # new_vec[new_vec > new_range[2]] <- new_range[2]
+        # df[[var]] <- new_vec
+    }
+    # reset the column order to its original state
+    df %>% select_(.dots = orig_names) %>% return()
+}
+
+
+add_sale_year <- function(.data) {
+    if ('tbl_postgres' %in% class(.data)) {
+        # This is the case at the time of writing
+        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
+        # use some postgres-specific syntax
+        out <- .data %>%
+            mutate(sale_year = date_part('year', sale_date))
+    } else if ('data.frame' %in% class(.data)){
+        stopifnot('sale_date' %in% names(.data))
+        # this would be the case if I had collect()-ed the data.
+        out <- .data %>% mutate(sale_year = lubridate::year(sale_date))
+    } else {
+        stop("Sorry, I don't know how to calculate sale_year here.")
+    }
+    return(out)
+}
+
+
+add_sale_dow <- function(.data) {
+    if ('tbl_postgres' %in% class(.data)) {
+        # This is the case at the time of writing
+        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
+        # use some postgres-specific syntax
+        # Note the + 1 because postgres defines numeric weekday differently than lubridate
+        out <- .data %>%
+            mutate(sale_dowr = date_part('dow', sale_date) + 1)
+    } else if ('data.frame' %in% class(.data)){
+        # this would be the case if I had collect()-ed the data.
+        stopifnot('sale_date' %in% names(.data))
+        # Don't recalculate if it's unnecessary.
+        if (! 'sale_dow' %in% names(.data)) {
+            out <- .data %>% mutate(sale_dow = lubridate::wday(sale_date))
+        } else {
+            out <- .data
+        }
+    } else {
+        stop("Sorry, I don't know how to calculate sale_dow here.")
+    }
+    return(out)
+}
+
+
+add_event_time <- function(.data) {
+    # First, make a table mapping sale_date to event_time for this input .data
+    # Then merge back in.
+    # .data can be local or in postgres.
+
+    dates_tbl <- .data %>%
+        ungroup() %>%
+        select(sale_date) %>%  # avoid dplyr bug that tries to select all cols
+        distinct(sale_date) %>%
+
+        add_sale_year() %>%
+        collect() %>%
+        # Note: doing it like this, based on the sale_year, assumes that my window
+        # fits entirely within the year.
+        mutate(dividend_day = first_thursday_in_october(sale_year),
+               event_time = as.integer(sale_date - dividend_day)) %>%
+        select(sale_date, event_time)
+
+    max_event_time <- max(abs(dates_tbl$event_time))
+    if (max_event_time > 85) {
+        # 85 because October 7 (the latest possible first Thursday) to
+        # December 31 is 85 days.
+        stop(sprintf("Largest magnitude of event_time is %s. ", max_event_time),
+             "Values larger than 85 can span years, which is a problem as the code is ",
+             "currently written.")
+    }
+    # take the calculated event times back to the original table.
+    # copy = TRUE will copy the local dates_tbl back to postgres
+    # (copy = TRUE copies the second table to the location of the first)
+    out <- left_join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
+    return(out)
 }
