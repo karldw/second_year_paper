@@ -60,47 +60,20 @@ get_top_auction_states_table <- function(top_n, buy_state_code) {
         return()
 }
 
-# could this be more elegant? definitely
-first_thursday_in_october <- function(years) {
-    first_thursday_in_october_one_year <- function(year) {
-        stopifnot(length(year) == 1L)
-        current_date <- lubridate::make_date(year, 10, 1)
-        # Thursday is weekday 5
-        while (lubridate::wday(current_date) != 5) {
-            current_date <- current_date + 1
-        }
-        return(current_date)
-    }
-    first_thursday_in_october_one_year <- memoise(first_thursday_in_october_one_year)
-    thursdays <- vapply(X = years, FUN = first_thursday_in_october_one_year,
-                        FUN.VALUE = as.Date('1970-01-01')) %>%
-                as.Date(origin='1970-01-01')
-    return(thursdays)
-}
-
 
 pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
                                top_n_auction_states=NULL) {
     # top_n_auction_states limits the data returned to auction states in the top n,
     # for alaskan buyers (default of NULL doesn't limit)
-    dividend_day <- first_thursday_in_october(year)
-    window_begin <- dividend_day - days_before
-    window_end <- dividend_day + days_after
-    if (any(lubridate::year(c(window_begin, window_end)) != year)) {
-        stop("You've selected a window that spans more than one year. The code (not ",
-             "just in this function, but everywhere) wasn't designed for this and will ",
-             "probably have bugs.")
-    }
-    # Write custom SQL because dplyr doesn't support this BETWEEN DATE business.
-    date_filter_sql <- sprintf(
-        "SELECT * FROM %s WHERE (sale_date BETWEEN DATE '%s' and DATE '%s')",
-        POSTGRES_CLEAN_TABLE, window_begin, window_end)
-    data_one_year <- tbl(con, sql(date_filter_sql)) %>%
-        filter(! is.na(buy_state)) %>%
+
+    data_one_year <- auctions %>%
         select(sale_date, model_yr, sales_pr, bid_ct,
                veh_type, buy_state, sell_state, auction_state,
                # seller_type, slrdlr_type,
-               buyer_id, seller_id)
+               buyer_id, seller_id) %>%
+        filter_event_window(year = year, days_before = days_before,
+                            days_after = days_after) %>%
+        filter(! is.na(buy_state))
 
     if (! is.null(top_n_auction_states)) {
         top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')

@@ -375,6 +375,8 @@ index_and_clean <- function(con, verbose) {
     message_if_verbose("  - rand_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'rand')           # rand_index
     # Not all of the zips are valid, but that's probably okay.
+    # (that is, they look like a five-digit zip, but don't match POSTGRES_ZIPCODE_TABLE)
+
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'sell_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'auction_zip', POSTGRES_ZIPCODE_TABLE, 'zip')

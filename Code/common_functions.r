@@ -447,3 +447,63 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
     }
     return(bound_df)
 }
+
+
+# could this be more elegant? definitely
+first_thursday_in_october <- function(years) {
+    first_thursday_in_october_one_year <- function(year) {
+        stopifnot(length(year) == 1L)
+        current_date <- lubridate::make_date(year, 10, 1)
+        # Thursday is weekday 5
+        while (lubridate::wday(current_date) != 5) {
+            current_date <- current_date + 1
+        }
+        return(current_date)
+    }
+    first_thursday_in_october_one_year <- memoise(first_thursday_in_october_one_year)
+    thursdays <- vapply(X = years, FUN = first_thursday_in_october_one_year,
+                        FUN.VALUE = as.Date('1970-01-01')) %>%
+                as.Date(origin='1970-01-01')
+    return(thursdays)
+}
+
+
+filter_event_window <- function(.data, year, days_before = 30, days_after = days_before) {
+    # If force_compute is true (the default), dplyr::compute will be called on the data.
+    # This can be slow, and is unnecessary for tables that are already in the database,
+    # such as auctions_cleaned.
+    # It's true by default for safety, since setting it to false could look at the wrong
+    # table.
+    # ex.
+    # head(auctions)$ops$x == ''
+    dividend_day <- first_thursday_in_october(year)
+    window_begin <- dividend_day - days_before
+    window_end <- dividend_day + days_after
+    if (any(lubridate::year(c(window_begin, window_end)) != year)) {
+        stop("You've selected a window that spans more than one year. The code (not ",
+             "just in this function, but everywhere) wasn't designed for this and will ",
+             "probably have bugs.")
+    }
+    if ('tbl_postgres' %in% class(.data)) {
+        # First, borrow the existing SQL query (translated from the dplyr stuff)
+        existing_query <- dplyr::sql_render(.data, con = .data$src$con)
+        # Then write custom SQL because dplyr doesn't support BETWEEN DATE.
+        date_filter <- sprintf("sale_date BETWEEN DATE '%s' and DATE '%s'",
+                               window_begin, window_end)
+        # Combine the queries back together, giving the table a random name.
+        new_query <- paste0("SELECT * \n",
+                           "FROM (", existing_query,") ",
+                           '"', dplyr:::random_table_name(), '"\n',
+                           "WHERE (", date_filter, ")")
+        # This probably isn't the dplyr-sanctioned way to create this query,
+        # but I think it works.
+        data_one_year <- tbl(con, sql(new_query))
+    } else if ('data.frame' %in% class(.data)) {
+        # The local data case is easy:
+        data_one_year <- .data %>%
+            dplyr::filter(dplyr::between(sale_date, window_begin, window_end))
+    } else {
+        stop("Sorry, I don't know how to subset sale_date here.")
+    }
+    return(data_one_year)
+}
