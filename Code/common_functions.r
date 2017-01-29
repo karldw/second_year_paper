@@ -409,7 +409,7 @@ tbl_has_rows <- function(df) {
 }
 
 
-lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
+lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=NULL) {
     # just like lapply, but bind the results together at the end (plus parallelization)
 
     # Error out early if any of these packages aren't available.
@@ -421,7 +421,7 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
 
     # First, figure out how many cores to use.
     # With windows, must use 1.
-    if (is.null(parallel_cores) || is.na(parallel_cores) || parallel_cores == 'auto') {
+    if (is.null(parallel_cores) || is.na(parallel_cores)) {
         if (get_os() == 'win') {
             parallel_cores <- 1
         } else {
@@ -433,12 +433,22 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=1) {
             }
         }
     }
-    stopifnot(length(parallel_cores) == 1, parallel_cores == as.integer(parallel_cores))
+    stopifnot(length(parallel_cores) == 1, parallel_cores == as.integer(parallel_cores),
+              length(X) >= 1)
 
     list_results <- parallel::mclapply(X = X, FUN = FUN, mc.cores = parallel_cores, ...)
     # TODO: implement dplyr::union_all for non-local sources.
+
+
     bound_df <- dplyr::bind_rows(list_results, .id = rbind_src_id)
+
     if ((! is.null(rbind_src_id)) && is.atomic(X)) {
+        if (rbind_src_id %in% names(list_results[[1]])) {
+            err_msg <- sprintf("Name '%s' already exists, can't add it as an rbind ID.",
+                               rbind_src_id)
+            stop(err_msg)
+        }
+
         # Then mutate the values of rbind_src_id column to be the *values* of X, rather
         # than the default, which is seq_along(X).
         mutate_call <- list(lazyeval::interp(~ X[as.integer(rbind_src_id)],
@@ -605,17 +615,17 @@ add_event_time <- function(.data) {
     # .data can be local or in postgres.
 
     dates_tbl <- .data %>%
-        ungroup() %>%
-        select(sale_date) %>%  # avoid dplyr bug that tries to select all cols
+        ungroup() %>%  # avoid dplyr bug that adds a copy of the grouping column (#2109)
+        select(sale_date) %>%  # avoid dplyr bug that tries to select all cols (#2359)
         distinct(sale_date) %>%
-
         add_sale_year() %>%
         collect() %>%
         # Note: doing it like this, based on the sale_year, assumes that my window
         # fits entirely within the year.
         mutate(dividend_day = first_thursday_in_october(sale_year),
-               event_time = as.integer(sale_date - dividend_day)) %>%
-        select(sale_date, event_time)
+               event_time = as.integer(sale_date - dividend_day),
+               event_week = event_time %/% 7L) %>%
+        select(sale_date, event_time, event_week)
 
     max_event_time <- max(abs(dates_tbl$event_time))
     if (max_event_time > 85) {
@@ -630,4 +640,53 @@ add_event_time <- function(.data) {
     # (copy = TRUE copies the second table to the location of the first)
     out <- left_join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
     return(out)
+}
+
+
+is_varname_in <- function(.data, varname) {
+    # Pull one row to see for remote tables.
+    one_row <- head(.data, 1) %>% collect()
+    out <- varname %in% names(one_row)
+    return(out)
+}
+
+
+find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_states = 3) {
+    # Find what auction states Alaskan buyers buy in.
+    # Then look at what other states buy in those states.
+
+    stopifnot(length(n_auction_states) == 1, is.numeric(n_auction_states),
+              as.integer(n_auction_states) == n_auction_states, n_auction_states > 0,
+              length(n_buy_states) == 1, is.numeric(n_buy_states),
+              as.integer(n_buy_states) == n_buy_states, n_buy_states > 0)
+    counts_by_buy_auction_cross <- auctions %>%
+        select(buy_state, auction_state) %>%
+        filter(! is.na(buy_state), ! is.na(auction_state)) %>%
+        group_by(buy_state, auction_state) %>%
+        summarize(count = n()) %>%
+        group_by(buy_state) %>%
+        mutate(buy_pct = 100 * count / sum(count)) %>%
+        ungroup() %>%
+        compute()
+    top_alaska_auction_states <- counts_by_buy_auction_cross %>%
+        filter(buy_state == 'AK') %>%
+        arrange(-buy_pct) %>%
+        head(n_auction_states)
+    min_buy_pct <- top_alaska_auction_states %>% select(buy_pct) %>%
+        collect() %$% buy_pct %>% min()
+
+    top_buyer_states <- counts_by_buy_auction_cross %>%
+        filter(auction_state != buy_state, buy_state != 'AK', buy_pct > min_buy_pct) %>%
+        semi_join(top_alaska_auction_states, by = 'auction_state') %>%
+        arrange(-buy_pct) %>%
+        collect() %>%
+        # Now I'm relying on row order not changing:
+        distinct(buy_state) %>%
+        head(n_buy_states) %$%
+        buy_state
+    return(top_buyer_states)
+}
+if (! existsFunction('find_match_states_crude')) {
+    install_lazy('memoise', FALSE)
+    find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
 }

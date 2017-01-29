@@ -35,30 +35,71 @@ count_mpg_merge_matches <- function() {  # testing stuff, no need to run this.
 }
 
 
-if (! exists('state_day_mpg_avg')) {  # This is expensive; only do it once.
-    state_day_mpg_avg <- auctions %>%
+if (! exists('STATE_DAY_CONS_AVG')) {  # This is expensive; only do it once.
+    STATE_DAY_CONS_AVG <- auctions %>%
         filter(! is.na(buy_state)) %>%
         select(sale_date, buy_state, vin_pattern) %>%
         inner_join(vin_decoder, by = 'vin_pattern')  %>%
         select(sale_date, buy_state, combined) %>%
         group_by(sale_date, buy_state) %>%
         # important to take 1/combined before mean()
-        # combined highway and city efficiency
+        # combined is combined highway and city efficiency
         summarize(combined = mean(mpg_to_L100km_coef / combined), count = n()) %>%
+        ungroup() %>%
         collect(n = Inf)
 }
 
 
+control_states <- find_match_states_crude()
 
-efficiency_plot <- lapply_bind_rows(2002:2005, filter_event_window,
-                                    .data = state_day_mpg_avg) %>%
-    filter(buy_state %in% c('WA', 'AK', 'OR','NV')) %>%
-    add_event_time() %>%
-    add_sale_year() %>%
-    ggplot(aes(x = event_time, y = combined, color = factor(buy_state))) +
-    geom_point(alpha = 0.2) +
-    geom_smooth(method = 'loess', span = 0.2, se = FALSE) +
-    facet_grid(sale_year ~ .) +
-    labs(x = 'Event time (days)', y = 'Mean daily L/100km', color = 'State') +
-    PLOT_THEME
-save_plot(efficiency_plot, 'test_efficiency_plot.pdf', scale_mult = 3)
+make_fuel_cons_plot <- function(freq) {
+
+    base_df <- lapply_bind_rows(2002:2005, filter_event_window, days_before = 60,
+            .data = STATE_DAY_CONS_AVG, rbind_src_id = 'sale_year') %>%
+        filter(buy_state %in% c('AK', control_states)) %>%
+        add_event_time()
+
+    if (freq == 'daily') {
+        grouped_df <- base_df %>% group_by(buy_state, sale_year, event_time)
+    } else if (freq == 'weekly') {
+        grouped_df <- base_df %>% group_by(buy_state, sale_year, event_week) %>%
+            # aggregate from mean daily to mean weekly (weighted because unequal counts)
+            summarize(combined = weighted.mean(combined, w = count))
+    } else {
+        err_msg <- sprintf("Bad value of freq: '%s'", paste(freq, collapse = "', '"))
+        stop(err_msg)
+    }
+    # then standardize the daily or weekly mean within each state/year
+    to_plot <- grouped_df %>%
+        group_by(buy_state, sale_year) %>%
+        mutate(combined = scale(combined))
+
+    if (freq == 'daily') {
+        out_plot <- ggplot(to_plot, aes(x = event_time, y = combined,
+                           color = factor(buy_state)))
+        loess_span <- 0.15
+        lab_x <- 'Event time (days)'
+        lab_title <- 'Efficiency of cars sold in top Alaska-buyer states, daily averages'
+    } else if (freq == 'weekly') {
+        out_plot <- ggplot(to_plot, aes(x = event_week, y = combined,
+                           color = factor(buy_state)))
+        loess_span <- 0.25
+        lab_x <- 'Event time (weeks)'
+        lab_title <- 'Efficiency of cars sold in top Alaska-buyer states, weekly averages'
+    }
+
+    # Add common plot stuff
+    out_plot <- out_plot +
+        geom_point(alpha = 0.1)  +
+        geom_smooth(method = 'loess', span = loess_span, se = FALSE) +
+        facet_grid(sale_year ~ .) +
+        labs(x = lab_x, title = lab_title, y = 'Fuel consumption (standardized)',
+             color = 'State') +
+        PLOT_THEME
+    return(out_plot)
+}
+
+
+
+save_plot(make_fuel_cons_plot('daily'), 'test_efficiency_plot.pdf', scale_mult = 2)
+# save_plot(make_fuel_cons_plot('weekly'), 'test_efficiency_plot2.pdf', scale_mult = 2)

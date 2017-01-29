@@ -25,33 +25,33 @@ states <- tbl(con, 'states')
 #         collect(n=Inf)
 # }
 
-if (! existsFunction('get_top_auction_states_ak_buyers') ||
-    ! is.memoised(get_top_auction_states_ak_buyers)) {
-    get_top_auction_states_ak_buyers <- function(top_n) {
-        # Top 10:
-        #    auction_state count
-        # 1             WA 13397
-        # 2             NV  3332
-        # 3             OR  2287
-        # 4             CA  1697
-        # 5             AZ   774
-        # 6             UT   306
-        # 7             CO   239
-        # 8             MN   181
-        # 9             TX   159
-        # 10            FL   107
-        get_top_auction_states_table(top_n, 'AK') %>%
-            collect() %$%
-            auction_state %>%
-            return()
-    }
-
-    get_top_auction_states_ak_buyers <- memoise(get_top_auction_states_ak_buyers)
+get_top_auction_states_ak_buyers_unmemoized <- function(top_n) {
+    # Top 10:
+    #    auction_state count
+    # 1             WA 13397
+    # 2             NV  3332
+    # 3             OR  2287
+    # 4             CA  1697
+    # 5             AZ   774
+    # 6             UT   306
+    # 7             CO   239
+    # 8             MN   181
+    # 9             TX   159
+    # 10            FL   107
+    get_top_auction_states_table(top_n, 'AK') %>%
+        collect() %$%
+        auction_state %>%
+        return()
+}
+if (! existsFunction('get_top_auction_states_ak_buyers')) {
+    get_top_auction_states_ak_buyers <- memoize(get_top_auction_states_ak_buyers_unmemoized)
 }
 
 
 get_top_auction_states_table <- function(top_n, buy_state_code) {
-    filter(auctions, buy_state == buy_state_code) %>%
+    auctions %>% select(buy_state, auction_state) %>%
+        filter(buy_state == buy_state_code) %>%
+        select(auction_state) %>%
         filter(! is.na(auction_state)) %>%
         group_by(auction_state) %>%
         summarize(count = n()) %>%
@@ -61,8 +61,7 @@ get_top_auction_states_table <- function(top_n, buy_state_code) {
 }
 
 
-pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
-                               top_n_auction_states=NULL) {
+pull_data_one_year <- function(year, days_before=30L, days_after=days_before) {
     # top_n_auction_states limits the data returned to auction states in the top n,
     # for alaskan buyers (default of NULL doesn't limit)
 
@@ -75,17 +74,17 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before,
                             days_after = days_after) %>%
         filter(! is.na(buy_state))
 
-    if (! is.null(top_n_auction_states)) {
-        top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')
-        data_one_year <- semi_join(data_one_year, top_states_table, by = 'auction_state')
-    }
+    # if (! is.null(top_n_auction_states)) {
+    #     top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')
+    #     data_one_year <- semi_join(data_one_year, top_states_table, by = 'auction_state')
+    # }
 
     # stopifnot(tbl_has_rows(data_one_year))
     return(data_one_year)
 }
 
 
-get_sales_counts <- function(df_base) {
+get_sales_counts <- function(df_base, date_var = 'sale_date') {
     # dplyr bug means this doesn't work:
     # See https://github.com/hadley/dplyr/issues/2290
     # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
@@ -99,19 +98,20 @@ get_sales_counts <- function(df_base) {
     # (the collapse() here tells dplyr to think hard about the sql query (but not
     # actually go and process in the database), preventing it from getting confused in
     # the merge any trying to rename sale_date to sale_date.y.)
-
-    sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
-        summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>% collapse()
+    stopifnot(date_var %in% c('sale_date', 'event_date', 'event_week'))
+    if (startsWith(date_var, 'event')) {
+        df_base <- df_base %>% add_sale_year()
+        group_vars <- c('buyer_id', 'sale_year', date_var)
+    } else {
+        group_vars <- c('buyer_id', date_var)
+    }
+    sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
+        summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>%
+        ungroup() %>% collapse()
     # We've previously ensured that each buyer_id has at most one state.
-    buyer_info <- df_base %>% distinct(buyer_id, buy_state) %>% collapse()
+    buyer_info <- df_base %>% ungroup() %>% distinct(buyer_id, buy_state) %>% collapse()
     sales_counts <- inner_join(sales_counts, buyer_info, by = 'buyer_id') %>% collapse()
     return(sales_counts)
-        # %>%
-        #
-        # mutate(alaskan_buyer = factor(buy_state == 'AK', levels=c(TRUE, FALSE),
-        #                               labels=c('Alaskan', 'Non-Alaskan')),
-        #
-        #        post_dividend = factor(sale_date >= dividend_day))
 }
 
 
@@ -120,14 +120,19 @@ adjust_per_capita <- function(.data, na.rm = TRUE) {
         select(state, year, population) %>%
         mutate(population = population / 1e6) %>%
         compute()
-    out <- .data %>% add_sale_year() %>%
-        left_join(state_pop, by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
+
+    if (! is_varname_in(.data, 'sale_year')) {
+        .data <- add_sale_year(.data)
+    }
+    out <- left_join(.data, state_pop,
+                     by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
         # NB: This is sale count and sale total per *million* people
         mutate(sale_count_pc = sale_count / population,
                sale_tot_pc = sale_tot / population)
     if (na.rm) {
         out <- out %>% filter(! is.na(sale_count_pc), ! is.na(sale_tot_pc))
     }
+
     return(out)
 }
 
@@ -139,24 +144,31 @@ sales_counts_one_year_unmemoized <- function(year, ...) {
     # calculate sales counts (in sql)
     row_limit <- Inf
     sales_counts <- pull_data_one_year(year, ...) %>%
-        get_sales_counts() %>%
+        select(sale_date, buy_state, buyer_id, sales_pr) %>%
+
+        add_event_time() %>%
+        get_sales_counts('event_week') %>%
         # NB: This is sale count and sale total per *million* people
         adjust_per_capita() %>%
-        mutate(alaskan_buyer_post = buy_state == 'AK' & sale_date >= dividend_day) %>%
-        select(alaskan_buyer_post, sale_count, sale_tot, sale_count_pc, sale_tot_pc, sale_date, buy_state) %>%
+        # mutate(alaskan_buyer_post = buy_state == 'AK' & sale_date >= dividend_day) %>%
+        # select(alaskan_buyer_post, sale_count, sale_tot, sale_count_pc,
+        #        sale_tot_pc, sale_date, buy_state, event_week) %>%
+        select(sale_year, event_week, buy_state, sale_count, sale_tot,
+               sale_count_pc, sale_tot_pc) %>%
         collect(n = row_limit)
     return(sales_counts)
 }
 if (! existsFunction('sales_counts_one_year')) {
-    sales_counts_one_year <- memoise(sales_counts_one_year_unmemoized)
+    sales_counts_one_year <- memoize(sales_counts_one_year_unmemoized)
 }
 
 
-run_dd_one_year <- function(year) {
+run_dd_one_year_old <- function(year) {
     stopifnot( (! missing(year)) && (length(year) == 1) && (is.numeric(year)) )
     dividend_day <- first_thursday_in_october(year)
 
-    sales_counts <- sales_counts_one_year(year, days_before = 30) #%>% mutate(sale_week = lubridate::week(sale_date))
+    sales_counts <- sales_counts_one_year(year, days_before = 30)
+    #%>% mutate(sale_week = lubridate::week(sale_date))
 
     # DD with LHS of daily sale_count, buyer_id and sale_date FE and buy_state clusters
     sales_counts_formula <- (sale_count_pc ~ 0 |
@@ -188,9 +200,6 @@ run_dd_one_year <- function(year) {
     # sales_counts_resid2 <- residuals(sales_counts_reg2) %>% as.numeric()
     # print(head(sales_counts_resid2))
     # sales_counts <- mutate(sales_counts, resid_buyer_fe = sales_counts_resid2)
-
-
-
 }
 
 
@@ -434,49 +443,72 @@ adjust_by_state_and_weekday <- function(.data, varname) {
 }
 
 
-plot_dd_sales <- function(years = 2002:2014) {
+adjust_by_state <- function(.data, varname) {
+    # Run a regression to demean by weekday and buy_state (but not the interaction).
+    # Return the demeaned variable in the same dataframe.
+    varname <- as.character(substitute(varname))
+    df <- .data %>% ungroup() %>%
+        regression_adjust(varname, '~ 0 | buy_state')
+    return(df)
+}
 
+
+pick_maximizing_window <- function(years = 2002:2014) {
+    stop("not implemented yet")
+    # Eventually, write this to run the estimation, varying the anticipation window
+}
+
+
+plot_dd_sales <- function(years = 2002:2014) {
+    control_states <- find_match_states_crude()
+    # Iterate over the years, pulling and aggregating data for each.
+    # Use a window of 70 days before and after (but aggregate to weeks)
+    # Then add a column called sale year with the year variable.
     sales_near_windows <- lapply_bind_rows(years, sales_counts_one_year,
-            days_before = 60, top_n_auction_states = 10) %>%
-        filter(buy_state %in% c('AK', 'WA', 'NV', 'OR')) %>%
+                                           days_before = 70) %>%
+        filter(buy_state %in% c('AK', control_states)) %>%
         # tag_alaskan_buyer(as_factor = TRUE) %>%
         # Regression-adjust for weekly patterns. sale_tot_pc and sale_count_pc become
         # the residuals after regressing on dummies for day of week across all included
         # states. NB: This is sale count and sale total per *million* people (otherwise
         # the numbers are really small and R struggles with numerical precision)
         # winsorize(c('sale_count', 'sale_tot')) %>%
-        adjust_by_state_and_weekday(sale_count) %>%
-        adjust_by_state_and_weekday(sale_tot) %>%
-        select(sale_date, buy_state, sale_count, sale_count_pc,
+        # adjust_by_state_and_weekday(sale_count) %>%
+        # adjust_by_state_and_weekday(sale_tot) %>%
+        select(sale_year, event_week, buy_state, sale_count, sale_count_pc,
                sale_tot, sale_tot_pc) %>%
-        group_by(sale_date, buy_state) %>%
-        summarise_all(mean) %>%
-        ungroup() %>%  # avoid dplyr grouping error
-        add_event_time() %>%
-        add_sale_year()
+        group_by(sale_year, event_week, buy_state) %>%
+        summarise_all(sum) %>%
+        group_by(sale_year, buy_state) %>%
+        mutate_at(vars(sale_count, sale_count_pc, sale_tot, sale_tot_pc), scale)
+        # add_sale_year()
 
     # sales_near_windows_avg <- sales_near_windows %>%
     #     select(event_time, alaskan_buyer, sale_count_pc, sale_tot_pc) %>%
     #     group_by(event_time, alaskan_buyer) %>%
     #     summarise_all(mean)
+    # event_lines <- geom_vline(xintercept = as.integer(first_thursday_in_october(years)),
+    #                           color = 'red3', alpha = 0.4)
 
-    common_labs <- labs(x = 'Event time (days)', color = 'State')
+    add_common_plot_details <- function(plot_base) {
+        # take a base and add the common elements.
+        plot_base +
+        geom_point(alpha = 0.3) +
+        geom_smooth(method = 'loess', span = 0.3, se = FALSE) +
+        facet_grid(sale_year ~ ., scales = 'free_y')+
+        labs(x = 'Event time (weeks)', color = 'State') +
+        geom_vline(xintercept = 0, color = 'red3', alpha = 0.4) +
+        PLOT_THEME
+    }
     sale_count_year_facet_plot <- sales_near_windows %>%
-        ggplot(aes(x = event_time, y = sale_count, color = buy_state)) +
-        geom_point(alpha = 0.3) +
-        geom_smooth(method = 'loess', span = 0.2, se = FALSE) +
-        facet_grid(sale_year ~ ., scales = 'free_y') +
-        common_labs +
-        labs(y = 'Sales counts (residualized by state and day of week)') +
-        PLOT_THEME
+        ggplot(aes(x = event_week, y = sale_count, color = buy_state)) %>%
+        add_common_plot_details() +
+        labs(y = 'Sales counts (weekly total, standardized by state)')
+
     sale_tot_year_facet_plot <- sales_near_windows %>%
-        ggplot(aes(x = event_time, y = sale_tot/1000, color = buy_state)) +
-        geom_point(alpha = 0.3) +
-        geom_smooth(method = 'loess', span = 0.2, se = FALSE) +
-        facet_grid(sale_year ~ ., scales = 'free_y') +
-        common_labs +
-        labs(y = 'Sales volume ($1000s, residualized by state and day of week)') +
-        PLOT_THEME
+        ggplot(aes(x = event_week, y = sale_tot, color = buy_state)) %>%
+        add_common_plot_details() +
+        labs(y = 'Sales volume (weekly total, standardized by state)')
 
     save_plot(sale_count_year_facet_plot, 'dd_plot_sales_counts_year_facet.pdf',
               scale_mult = 3)
