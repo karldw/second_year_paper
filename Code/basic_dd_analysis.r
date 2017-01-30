@@ -70,13 +70,13 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before) {
                veh_type, buy_state, sell_state, auction_state,
                # seller_type, slrdlr_type,
                buyer_id, seller_id) %>%
-        filter_event_window(year = year, days_before = days_before,
+        filter_event_window_one_year(year = year, days_before = days_before,
                             days_after = days_after) %>%
         filter(! is.na(buy_state))
 
     # if (! is.null(top_n_auction_states)) {
     #     top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')
-    #     data_one_year <- semi_join(data_one_year, top_states_table, by = 'auction_state')
+    #     data_one_year <- semi.join(data_one_year, top_states_table, by = 'auction_state')
     # }
 
     # stopifnot(tbl_has_rows(data_one_year))
@@ -84,33 +84,46 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before) {
 }
 
 
-get_sales_counts <- function(df_base, date_var = 'sale_date') {
-    # dplyr bug means this doesn't work:
-    # See https://github.com/hadley/dplyr/issues/2290
-    # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
-    #     summarize(sale_count = n(),
-    #               sale_tot = sum(sales_pr),
-    #               buy_state = first(buy_state),
-    #               alaskan_buyer = first(alaskan_buyer),
-    #               post_dividend = first(post_dividend)) %>%
-    #     collect()
-    # Instead, do the aggregation, then join buy_state back in.
-    # (the collapse() here tells dplyr to think hard about the sql query (but not
-    # actually go and process in the database), preventing it from getting confused in
-    # the merge any trying to rename sale_date to sale_date.y.)
-    stopifnot(date_var %in% c('sale_date', 'event_date', 'event_week'))
+get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
+    # Aggregate sale counts and sales_pr at some level of date and ID.
+    stopifnot(length(date_var) == 1, length(id_var) == 1,
+              date_var %in% c('sale_date', 'event_time', 'event_week'),
+              # other IDs are possible, but haven't been written yet:
+              id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
+
     if (startsWith(date_var, 'event')) {
         df_base <- df_base %>% add_sale_year()
-        group_vars <- c('buyer_id', 'sale_year', date_var)
+        group_vars <- c(id_var, 'sale_year', date_var)
     } else {
-        group_vars <- c('buyer_id', date_var)
+        group_vars <- c(id_var, date_var)
     }
     sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
         summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>%
         ungroup() %>% collapse()
-    # We've previously ensured that each buyer_id has at most one state.
-    buyer_info <- df_base %>% ungroup() %>% distinct(buyer_id, buy_state) %>% collapse()
-    sales_counts <- inner_join(sales_counts, buyer_info, by = 'buyer_id') %>% collapse()
+
+    if (id_var == 'buyer_id') {  # Merge back in buy_state.
+        # We've previously ensured that each buyer_id has at most one state.
+
+        # dplyr bug (#2290) means this doesn't work:
+        # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
+        #     summarize(sale_count = n(),
+        #               sale_tot = sum(sales_pr),
+        #               buy_state = first(buy_state),
+        #               alaskan_buyer = first(alaskan_buyer),
+        #               post_dividend = first(post_dividend)) %>%
+        #     collect()
+        # Instead, do the aggregation, then join buy_state back in.
+        #
+        # (the collapse() here tells dplyr to think hard about the sql query (but not
+        # actually go and process in the database), preventing it from getting confused in
+        # the merge any trying to rename sale_date to sale_date.y.)
+        buyer_info <- df_base %>% ungroup() %>%
+            distinct(buyer_id, buy_state) %>% collapse()
+        sales_counts <- inner.join(sales_counts, buyer_info, by = 'buyer_id') %>%
+            collapse()
+    } else if (id_var == 'seller_id') {
+        stop("Not implemented yet.")
+    }
     return(sales_counts)
 }
 
@@ -124,7 +137,7 @@ adjust_per_capita <- function(.data, na.rm = TRUE) {
     if (! is_varname_in(.data, 'sale_year')) {
         .data <- add_sale_year(.data)
     }
-    out <- left_join(.data, state_pop,
+    out <- left.join(.data, state_pop,
                      by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
         # NB: This is sale count and sale total per *million* people
         mutate(sale_count_pc = sale_count / population,
@@ -514,6 +527,116 @@ plot_dd_sales <- function(years = 2002:2014) {
               scale_mult = 3)
     save_plot(sale_tot_year_facet_plot, 'dd_plot_sales_volume_year_facet.pdf',
               scale_mult = 3)
+}
+
+run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
+    aggregation_level = 'daily',
+    # How many days/weeks relative to the event day do we think dealers are anticipating?
+    # NB: if aggregation_level is daily, anticipation_window is in days. If
+    # aggregation_level is weekly, anticipation_window is in weeks. Zero is the day/week
+    # when the dividend is sent (so -1 is the last period before the dividend).
+    anticipation_window = NULL,
+    outcomes = c('sale_count', 'sale_tot'),
+    # controls, including DD vars, excluding fixed effects
+    controls = c('alaskan_buyer', 'anticipation', 'alaskan_buyer_anticipation', 'post', 'alaskan_buyer_post')
+    # Which fixed effects should we have?
+    fixed_effects = c('sale_year', 'buy_state'),
+    # what clusters should we have?
+    clusters = 'buy_state',
+    control_states = find_match_states_crude()
+    ) {
+
+    stopifnot(aggregation_level %in% c('daily', 'weekly'),
+              length(outcomes) >= 1,
+            #   length(controls) == 1,
+            #   length(fixed_effects) == 1,
+            #   length(clusters) == 1,
+              length(control_states) >= 1,
+              length(years) >= 1
+              )
+    if (is.null(anticipation_window)) {
+        if (aggregation_level == 'daily') {
+            anticipation_window <- c(-14, -1)
+        } else if (aggregation_level == 'weekly') {
+            anticipation_window <- c(-2, -1)
+        }
+    }
+    stopifnot(length(anticipation_window) == 2, all(anticipation_window <= 0),
+              anticipation_window[1] < anticipation_window[2])
+
+    # make_varlist <- function(x) {  # Make a vector of variables from a formula string.
+    #     stopifnot(length(x) == 1)
+    #     # strip out any whitespace or parentheses
+    #     out <- gsub('[\\s\\(\\)]', '', x, perl = TRUE) %>%
+    #         # strip out powers (things of the pattern "^ 2")
+    #         gsub('\\^\\s*\\d+', '', ., perl = TRUE) %>%
+    #         # split on formula characters:
+    #         strsplit("[\\|\\+\\*\\:\\-]", perl = TRUE) %>%
+    #         unlist()
+    #     # Require that all results start with a letter and are composed only of
+    #     # numbers letters and underscores.
+    #     stopifnot(length(out) > 0, all(grepl('^[a-zA-Z]+\\w*$', out, perl = TRUE)))
+    #     return(out)
+    # }
+
+
+    # Avoid collinearity
+    if ('buy_state' %in% fixed_effects) {
+            controls <- setdiff(controls, 'alaskan_buyer')
+    }
+
+    pull_dd_data <- function() {
+        # This is a sub-function for organizational ease, but it relies heavily on
+        # variables defined in the parent function. Be careful before moving it.
+
+        # look up varname (will error if aggregation_level is not in there)
+        agg_var <- c(daily = 'event_time', weekly = 'event_week')[[aggregation_level]]
+        grouping_vars <- c('sale_year', 'buy_state', agg_var)
+
+        # Set up mutate_ calls.
+        # Create two variables, anticipation_period and post_period.  anticipation_period
+        # will be true for rows where agg_var (event_time or event_week) is between
+        # within anticipation_window, and post_period is true when it's greater.
+        mutate_calls_time <- list(
+            anticipation = lazyeval::interp(~ between(agg_var, low, high),
+                agg_var = as.name(agg_var), low = anticipation_window[1],
+                high = anticipation_window[2]),
+            post = lazyeval::interp(~ agg_var > high,
+                agg_var = as.name(agg_var), high = anticipation_window[2])
+            )
+
+        df <- auctions %>%
+            select(sale_date, buy_state, sales_pr) %>%
+            filter_event_window(years = years, days_before = 70) %>%
+            filter(buy_state %in% c('AK', control_states)) %>%
+            add_event_time() %>%
+            get_sales_counts(date_var = agg_var, id_var = 'buy_state') %>%
+            # Make these variables even if they're not used (it's fast)
+            tag_alaskan_buyer() %>%  # Make TRUE/FALSE alaskan_buyer variable
+            mutate_(.dots = mutate_calls_time) %>% # Make anticipation and post
+            mutate(alaskan_buyer_anticipation = alaskan_buyer & anticipation,
+                   alaskan_buyer_post = alaskan_buyer & post)
+
+           explain(df)
+           df <- collect(df, n = Inf)
+
+           stopifnot(is_varname_in(df, controls),
+                     is_varname_in(df, fixed_effects),
+                     is_varname_in(df, clusters),
+                     is_varname_in(df, outcome)
+                     )
+            return(df)
+    }
+
+    df <- pull_dd_data()
+
+    reg_formula <- paste(paste(outcomes, collapse = ' | '), '~',
+                         paste(controls, collapse = ' + '), '|',
+                         paste(fixed_effects, collapse = ' + '),
+                         '| 0 |',  # no IV vars
+                         paste(clusters, collapse = ' + ')) %>% as.formula()
+    reg_results <- felm_strict(reg_formula, df)
+
 }
 
 
