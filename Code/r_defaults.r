@@ -9,6 +9,8 @@ options(
 
 source('common_functions.r')
 
+# Prevent R from forgetting about the user's home folder (when calling from the command
+# line in Windows)
 if (length(.libPaths()) < 2) {
     if (get_os() == 'win') {
         # get the major.minor, so 3.3.2 becomes 3.3
@@ -27,8 +29,25 @@ if (length(.libPaths()) < 2) {
 }
 
 
-install_lazy('ggplot2', verbose = FALSE)
+####     Memoise stuff from common_functions.r    ####
+if (! existsFunction('find_match_states_crude')) {
+    install_lazy('memoise', FALSE)
+    find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
+}
 
+
+####    Make joins better    ####
+# Unlike the dplyr versions, these don't (or at least shouldn't) allow many-to-many joins.
+install_lazy('dplyr', verbose = FALSE)
+left.join <- make_join_safer(dplyr::left_join)
+right.join <- make_join_safer(dplyr::right_join)
+full.join <- make_join_safer(dplyr::full_join)
+inner.join <- make_join_safer(dplyr::inner_join)
+anti.join <- dplyr::anti_join  # already safe, just doing this for consistency
+semi.join <- dplyr::semi_join  # already safe, just doing this for consistency
+
+####    Plotting stuff!    ####
+install_lazy('ggplot2', verbose = FALSE)
 PLOT_THEME <- ggplot2::theme(
     panel.background = ggplot2::element_rect(fill = NA),
     panel.border     = ggplot2::element_blank(),

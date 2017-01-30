@@ -81,11 +81,11 @@ first_thursday_in_october <- function(years) {
 #         select(sale_date, auction_zip, buy_zip, sell_zip, sales_pr) %>%
 #         filter(sales_pr > 0) %>% # only necessary when working with uncleaned data
 #         mutate(sale_date = lubridate::ymd(sale_date)) %>%
-#         left_join(zip_state_map, by = c('buy_zip' = 'zip')) %>%
+#         left.join(zip_state_map, by = c('buy_zip' = 'zip')) %>%
 #         rename(buy_state = state) %>%
-#         left_join(zip_state_map, by = c('sell_zip' = 'zip')) %>%
+#         left.join(zip_state_map, by = c('sell_zip' = 'zip')) %>%
 #         rename(sell_state = state) %>%
-#         left_join(zip_state_map, by = c('auction_zip' = 'zip')) %>%
+#         left.join(zip_state_map, by = c('auction_zip' = 'zip')) %>%
 #         rename(auction_state = state) %>%
 #         mutate(alaskan_buyer   = buy_state     == 'AK',
 #                alaskan_seller  = sell_state    == 'AK',
@@ -170,7 +170,7 @@ if (!exists('daily_sales_totals_alaska_vs')) {
 
 # Figre out which VINs are resales and only take the last time it appears
 last_sale_dates <- auctions %>% group_by(vin) %>% summarize(sale_date = max(sale_date))
-auctions_no_resale <- semi_join(auctions, last_sale_dates, by=c('vin', 'sale_date'))
+auctions_no_resale <- semi.join(auctions, last_sale_dates, by=c('vin', 'sale_date'))
 if (!exists('daily_sales_totals_alaska_vs_no_resale')) {
     daily_sales_totals_alaska_vs_no_resale <- select(auctions_no_resale,
             buy_state, sale_date, sales_pr) %>%
@@ -235,7 +235,7 @@ daily_sales_totals_alaska_vs_no_resale_with_pop <- daily_sales_totals_alaska_vs_
     group_by(year, month, alaskan_buyer) %>%
     summarize(sale_count = sum(sale_count), sales_total = sum(sales_total_day)) %>%
     ungroup() %>%
-    left_join(load_pop_data(), by=c('alaskan_buyer'='alaskan', 'year'='year')) %>%
+    left.join(load_pop_data(), by=c('alaskan_buyer'='alaskan', 'year'='year')) %>%
     ensure_id_vars(alaskan_buyer, year, month) %>%
     mutate(sale_count_per_capita = sale_count / population,
            sales_total_per_capita = sales_total / population,
@@ -279,7 +279,7 @@ quarter_sales_totals_alaska_vs_no_resale <- daily_sales_totals_alaska_vs_no_resa
 
 combined_regs_auctions <- bind_rows(polk_regs_data,
     quarter_sales_totals_alaska_vs_no_resale) %>%
-    left_join(pop_data,  by=c('alaska', 'year')) %>%
+    left.join(pop_data,  by=c('alaska', 'year')) %>%
     ensure_id_vars(alaska, count_type, year, quarter) %>%
     mutate(
          # make a variable for the quarterly date

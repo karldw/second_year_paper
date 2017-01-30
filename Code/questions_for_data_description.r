@@ -99,4 +99,4 @@ buyer_permanence <- filter(auctions, ! is.na(buyer_id)) %>%
 
 # Can I match buyer and seller IDs?
 # Think more about this one:
-# match_buyers_sellers <- inner_join(auctions, auctions, by=c('buyer_id'='seller_id')) %>%
+# match_buyers_sellers <- inner.join(auctions, auctions, by=c('buyer_id'='seller_id')) %>%

@@ -45,7 +45,7 @@ get_state_fips <- function() {
         as.tbl() %>%
         distinct(state, stname, .keep_all = FALSE) %>%  # explicit false
         rename(state_fips = state, state_full = stname) %>%
-        left_join(STATES_DF, by = 'state_full') %>%
+        left.join(STATES_DF, by = 'state_full') %>%
         ensure(! anyNA(.)) %>%
         ensure(nrow(.) == length(STATES)) %>%
         return()
@@ -59,7 +59,7 @@ get_pop_data <- function() {
     pop_df <- readRDS(pop_data_file) %>%
         as.tbl() %>%
         rename(state_fips = state) %>%
-        left_join(state_fips_df, by = 'state_fips') %>%
+        left.join(state_fips_df, by = 'state_fips') %>%
         select(state, year, population) %>%
         group_by(state, year) %>%
         # sum county pop to state-year
@@ -80,7 +80,7 @@ get_gdp_data <- function() {
     readRDS(gdp_data_file) %>%
         as.tbl() %>%
         rename(state_full = state) %>%
-        left_join(state_fips_df, by = 'state_full') %>%
+        left.join(state_fips_df, by = 'state_full') %>%
         select(state, year, gdp_pc, gdp_method) %>%
         ensure_id_vars(state, year) %>%
         ensure(! anyNA(.)) %>%
@@ -93,8 +93,8 @@ main <- function(verbose = TRUE) {
     pop_df <- get_pop_data()
     gdp_df <- get_gdp_data()
     state_fips_df <- get_state_fips()
-    combined_df <- full_join(pop_df, gdp_df, by = c('state', 'year')) %>%
-        left_join(state_fips_df, by = 'state')
+    combined_df <- full.join(pop_df, gdp_df, by = c('state', 'year')) %>%
+        left.join(state_fips_df, by = 'state')
         #
     auction_years_df <- combined_df %>%
         filter(between(year, 2002, 2014)) %>%

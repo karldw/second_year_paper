@@ -27,7 +27,7 @@ count_mpg_merge_matches <- function() {  # testing stuff, no need to run this.
     vin_decoder_msrp <- vin_decoder %>% select(vin_pattern, msrp)
     auctions_unmatched <- auctions %>%
         select(vin_pattern) %>%
-        dplyr::left_join(vin_decoder_msrp, by = 'vin_pattern') %>%
+        left.join(vin_decoder_msrp, by = 'vin_pattern') %>%
         select(msrp) %>%
         filter(is.na(msrp)) %>%
         force_nrow()
@@ -39,7 +39,7 @@ if (! exists('STATE_DAY_CONS_AVG')) {  # This is expensive; only do it once.
     STATE_DAY_CONS_AVG <- auctions %>%
         filter(! is.na(buy_state)) %>%
         select(sale_date, buy_state, vin_pattern) %>%
-        inner_join(vin_decoder, by = 'vin_pattern')  %>%
+        inner.join(vin_decoder, by = 'vin_pattern')  %>%
         select(sale_date, buy_state, combined) %>%
         group_by(sale_date, buy_state) %>%
         # important to take 1/combined before mean()
@@ -54,7 +54,7 @@ control_states <- find_match_states_crude()
 
 make_fuel_cons_plot <- function(freq) {
 
-    base_df <- lapply_bind_rows(2002:2005, filter_event_window, days_before = 60,
+    base_df <- lapply_bind_rows(2002:2005, filter_event_window_one_year, days_before = 60,
             .data = STATE_DAY_CONS_AVG, rbind_src_id = 'sale_year') %>%
         filter(buy_state %in% c('AK', control_states)) %>%
         add_event_time()

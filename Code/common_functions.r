@@ -329,55 +329,80 @@ is_id <- function(df, claimed_id_vars) {
 }
 
 
-make_join_safer <- function(join_fn) {
-    # before doing the join, make sure that the by variables uniquely identify rows in
-    # at least one of the tables
-    output_fn <- function(x, y, by, ..., allow.cartesian=FALSE) {
-        if (missing(by) || is.null(by) || is.na(by)) {
-            stop("Please specify your 'by' variables explicitly.")
-        }
-        by_y <- unname(by)
-        if (! is.null(names(by))) {
-            by_x <- names(by)
-        } else {
-            by_x <- by_y
+make_join_safer <- function(join_fn, fast = TRUE) {
+    # If fast == TRUE, do the join, then check that the number of rows is not greater than
+    # the max row count of the input tables.
+    # If fast == FALSE, make sure that the by variables uniquely identify rows in at least
+    # one of the tables before doing the join.
+
+    if (fast) {
+        force_nrow <- function(df) {
+            # get the row count.
+            # for remote tables, force the row count.
+            nrow_df <- nrow(df)
+            if (is.na(nrow_df)) {
+                nrow_df <- dplyr::collect(summarize(dplyr::ungroup(df), n = dplyr::n()))
+                nrow_df <- as.integer(nrow_df$n)
+            }
+            stopifnot(! anyNA(nrow_df))
+            return(nrow_df)
         }
 
-        if (! allow.cartesian) {
-            # force computation on x because it'll help is_id() a lot
-            if ('tbl_lazy' %in% class(x)) {
-                x <- dplyr::compute(x)
-            }
-            if (! is_id(x, by_x)) {
-                # iff x isn't IDed by the by_x variables, then turn to y
-                # force computation on y too
-                if ('tbl_lazy' %in% class(y)) {
-                    y <- dplyr::compute(y)
-                }
-                if (! is_id(y, by_y)) {
-                    err_msg <- "Neither table is uniquely identified by their 'by' variables!"
-                    stop(err_msg)
-                }
-            }
-        }
+        output_fn <- function(x, y, ..., allow.cartesian=FALSE) {
+            join_results <- join_fn(x = x, y = y, ...)
 
-        join_results <- join_fn(x=x, y=y, by=by, ...)
-        ## A faster, but less complete way would be to count rows and throw and error
-        ## if the number of results was larger than the sum of input rows.
-        # nrow_x <- force_nrow(x)
-        # nrow_y <- force_nrow(y)
-        # nrow_join_results <- force_nrow(join_results)
-        # if (nrow_join_results > (nrow_x + nrow_y)) {
-        #     err_msg <- paste(
-        #         sprintf("Join results in %s rows; more than %s = nrow(x)+nrow(i).",
-        #                 nrow_join_results, nrow_x + nrow_y),
-        #         "Check for duplicate key values your by-variables in each table,",
-        #         "each of which join to the same values over and over again. If you",
-        #         "are sure you wish to proceed, rerun with allow.cartesian=TRUE.",
-        #         "Also see the help for data.table.")
-        #     stop(err_msg)
-        # }
-        return(join_results)
+            # A faster, but less complete way would be to count rows and throw and error
+            # if the number of results was larger than the sum of input rows.
+            max_nrow_xy <- max(force_nrow(x), force_nrow(y))
+            nrow_join_results <- force_nrow(join_results)
+            if (nrow_join_results > max_nrow_xy) {
+                err_msg <- paste("Join results in",
+                    sprintf("%s rows; more than %s = max(nrow(x), nrow(y)).",
+                            nrow_join_results, max_nrow_xy),
+                    "Check for duplicate key values your by-variables in each table,",
+                    "each of which join to the same values over and over again. If you",
+                    "are sure you wish to proceed, rerun with allow.cartesian=TRUE.",
+                    "Also see the help for data.table.")
+                stop(err_msg)
+            }
+            return(join_results)
+        }
+    } else {
+        # You can also do it by actually checking uniqueness, but that's usually not
+        # necessary.
+        output_fn <- function(x, y, by, ..., allow.cartesian=FALSE) {
+            if (missing(by) || is.null(by) || is.na(by)) {
+                stop("Please specify your 'by' variables explicitly.")
+            }
+            if (! allow.cartesian) {
+                by_y <- unname(by)
+                if (! is.null(names(by))) {
+                    by_x <- names(by)
+                } else {
+                    by_x <- by_y
+                }
+
+                # force computation on x because it'll help is_id() a lot
+                if ('tbl_lazy' %in% class(x)) {
+                    x <- dplyr::compute(x)
+                }
+                if (! is_id(x, by_x)) {
+                    # iff x isn't IDed by the by_x variables, then turn to y
+                    # force computation on y too
+                    if ('tbl_lazy' %in% class(y)) {
+                        y <- dplyr::compute(y)
+                    }
+                    if (! is_id(y, by_y)) {
+                        err_msg <- paste("Neither table is uniquely identified by",
+                                         "their 'by' variables!")
+                        stop(err_msg)
+                    }
+                }
+            }
+
+            join_results <- join_fn(x=x, y=y, by=by, ...)
+            return(join_results)
+        }
     }
     return(output_fn)
 }
@@ -437,25 +462,50 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=NULL
               length(X) >= 1)
 
     list_results <- parallel::mclapply(X = X, FUN = FUN, mc.cores = parallel_cores, ...)
-    # TODO: implement dplyr::union_all for non-local sources.
+    list_results_class <- class(list_results[[1]])
 
+    if ('data.frame' %in% list_results_class) {
+        out <- dplyr::bind_rows(list_results, .id = rbind_src_id)
 
-    bound_df <- dplyr::bind_rows(list_results, .id = rbind_src_id)
-
-    if ((! is.null(rbind_src_id)) && is.atomic(X)) {
-        if (rbind_src_id %in% names(list_results[[1]])) {
-            err_msg <- sprintf("Name '%s' already exists, can't add it as an rbind ID.",
+        if ((! is.null(rbind_src_id)) && is.atomic(X)) {
+            # Then mutate the values of rbind_src_id column to be the *values* of X,
+            # rather than the default, which is seq_along(X).
+            if (rbind_src_id %in% names(list_results[[1]])) {
+                err <- sprintf("Name '%s' already exists, can't add it as an rbind ID.",
                                rbind_src_id)
-            stop(err_msg)
+                stop(err)
+            }
+            mutate_call <- list(lazyeval::interp(~ X[as.integer(rbind_src_id)],
+                rbind_src_id = as.name(rbind_src_id), X = X))
+            out <- dplyr::mutate_(out, .dots = setNames(mutate_call, rbind_src_id))
         }
-
-        # Then mutate the values of rbind_src_id column to be the *values* of X, rather
-        # than the default, which is seq_along(X).
-        mutate_call <- list(lazyeval::interp(~ X[as.integer(rbind_src_id)],
-            rbind_src_id = as.name(rbind_src_id), X = X))
-        bound_df <- dplyr::mutate_(bound_df, .dots = setNames(mutate_call, rbind_src_id))
+    } else if ('tbl_sql' %in% list_results_class){
+        # As above, we want to add an ID column.  The name of the column is provided by
+        # rbind_src_id.  Unlike bind_rows, we have to add it manually, even if X is not
+        # atomic.  So, the add_src_id function looks at X and picks either the value
+        # of X or the value of the index to add as the column name. The mutate_ call
+        # is relatively simple because I'm just adding a constant.
+        # Then we use union_all, which translates to SQL's UNION ALL, to bind the tables
+        # into one. union_all only takes two tables, so use Reduce to bring them all
+        # together.
+        if (! is.null(rbind_src_id)) {
+            add_src_id <- function(idx) {
+                if (is.atomic(X)) {
+                    X_val <- X[idx]
+                } else {
+                    X_val <- idx
+                }
+                list_item <- list_results[[idx]]
+                dots <- setNames(list(X_val), rbind_src_id)
+                dplyr::mutate_(list_item, .dots = dots) %>% return()
+            }
+            list_results <- lapply(seq_along(list_results), add_src_id)
+        }
+        out <- Reduce(dplyr::union_all, list_results)
+    } else {
+        stop('Sorry, not sure how to bind rows here.')
     }
-    return(bound_df)
+    return(out)
 }
 
 
@@ -478,7 +528,7 @@ first_thursday_in_october <- function(years) {
 }
 
 
-filter_event_window <- function(.data, year, days_before = 30, days_after = days_before) {
+filter_event_window_one_year <- function(.data, year, days_before = 30, days_after = days_before) {
     stopifnot(length(year) == 1, length(days_before) == 1, length(days_after) == 1,
               is.numeric(days_before), is.numeric(days_after), days_before > 0,
               days_after > 0, between(year, 2002, 2014))
@@ -490,6 +540,7 @@ filter_event_window <- function(.data, year, days_before = 30, days_after = days
              "just in this function, but everywhere) wasn't designed for this and ",
              "will probably have bugs.")
     }
+    .data <- ungroup(.data)
     if ('tbl_postgres' %in% class(.data)) {
         # First, borrow the existing SQL query (translated from the dplyr stuff)
         existing_query <- dplyr::sql_render(.data, con = .data$src$con)
@@ -512,6 +563,25 @@ filter_event_window <- function(.data, year, days_before = 30, days_after = days
         stop("Sorry, I don't know how to subset sale_date here.")
     }
     return(data_one_year)
+}
+
+
+filter_event_window <- function(.data, years = NULL, days_before=30L,
+        days_after = days_before) {
+    if (is.null(years)) {
+        years <- .data %>% ungroup() %>% select(sale_date) %>%
+            add_sale_year() %>% select(sale_year) %>% distinct(sale_year) %>%
+            collect() %$% sale_year
+    }
+    # rely on the union_all I've written into lapply_bind_rows
+    out <- lapply_bind_rows(years, filter_event_window_one_year,
+                            .data = .data,
+                            days_before = days_before, days_after = days_after,
+                            # Make a sale_year column
+                            rbind_src_id = 'sale_year',
+                            # this is all lazy; don't bother parallel
+                            parallel_cores = 1)
+    return(out)
 }
 
 
@@ -638,15 +708,16 @@ add_event_time <- function(.data) {
     # take the calculated event times back to the original table.
     # copy = TRUE will copy the local dates_tbl back to postgres
     # (copy = TRUE copies the second table to the location of the first)
-    out <- left_join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
+    out <- left.join(.data, dates_tbl, by = 'sale_date', copy = TRUE)
     return(out)
 }
 
 
 is_varname_in <- function(.data, varname) {
     # Pull one row to see for remote tables.
+    stopifnot(length(varname) >= 1)
     one_row <- head(.data, 1) %>% collect()
-    out <- varname %in% names(one_row)
+    out <- all(varname %in% names(one_row))
     return(out)
 }
 
@@ -654,6 +725,7 @@ is_varname_in <- function(.data, varname) {
 find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_states = 3) {
     # Find what auction states Alaskan buyers buy in.
     # Then look at what other states buy in those states.
+    # This is memoized in r_defaults.r
 
     stopifnot(length(n_auction_states) == 1, is.numeric(n_auction_states),
               as.integer(n_auction_states) == n_auction_states, n_auction_states > 0,
@@ -677,7 +749,7 @@ find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_state
 
     top_buyer_states <- counts_by_buy_auction_cross %>%
         filter(auction_state != buy_state, buy_state != 'AK', buy_pct > min_buy_pct) %>%
-        semi_join(top_alaska_auction_states, by = 'auction_state') %>%
+        semi.join(top_alaska_auction_states, by = 'auction_state') %>%
         arrange(-buy_pct) %>%
         collect() %>%
         # Now I'm relying on row order not changing:
@@ -686,7 +758,14 @@ find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_state
         buy_state
     return(top_buyer_states)
 }
-if (! existsFunction('find_match_states_crude')) {
-    install_lazy('memoise', FALSE)
-    find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
+
+
+felm_strict <- function(...) {
+    # Just like normal felm, but stricter about warnings.
+    # (these are almost always a serious problem and should be treated as errors)
+    orig_warn <- getOption('warn')
+    on.exit(options(warn = orig_warn), add = TRUE)
+
+    options(warn = 2)
+    return(lfe::felm(...))
 }

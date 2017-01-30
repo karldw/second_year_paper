@@ -85,7 +85,7 @@ shuffle <- function(.data) {
     df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
         dplyr::rename(model_yr = year, fuel_code = fuel_type) %>%
         dplyr::filter(! fuel_code %in% c("L", "", NA)) %>%
-        dplyr::full_join(fuel_type_translation, by = 'fuel_code') %>%
+        full.join(fuel_type_translation, by = 'fuel_code') %>%
         ensure_id_vars(vehicle_id, vin_pattern)
     stopifnot(! anyNA(df))
     # drop fuel_code here because I want to check for NAs in it.
@@ -166,7 +166,7 @@ shuffle <- function(.data) {
     mpg_df <- .load_lkp_veh_mpg()
     df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
         ensure_id_vars(trans_id) %>%
-        dplyr::right_join(mpg_df, by = 'trans_id') %>%
+        right.join(mpg_df, by = 'trans_id') %>%
         dplyr::group_by(vehicle_id, engine_id, fuel_type) %>%
         # within groups defined by the variables above, if there are duplicates,
         # keep only the automatic transmission
@@ -189,8 +189,8 @@ merge_files <- function() {
     veh_trans_mpg <- .load_def_transmission() %>%
         ensure_id_vars(vehicle_id, engine_id, fuel_type)
     not_na <- Negate(is.na)
-    df <- dplyr::inner_join(vin_reference, veh_price, by = 'vehicle_id') %>%
-        dplyr::full_join(veh_trans_mpg, by=c('vehicle_id', 'engine_id', 'fuel_type')) %>%
+    df <- inner.join(vin_reference, veh_price, by = 'vehicle_id') %>%
+        full.join(veh_trans_mpg, by=c('vehicle_id', 'engine_id', 'fuel_type')) %>%
         dplyr::filter(not_na(city), not_na(highway), not_na(combined), not_na(msrp),
                       not_na(vehicle_type), not_na(fuel_type), not_na(model_yr),
                       not_na(vin_pattern)) %>%

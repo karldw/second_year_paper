@@ -94,7 +94,7 @@ adjust_pfd_payments <- function() {
 
     cpi <- load_cpi()
 
-    merged <- left_join(pfd_payments, cpi, by='year') %>%
+    merged <- left.join(pfd_payments, cpi, by='year') %>%
         ensure(! anyNA(.$cpi_base_2016)) %>%
         mutate(amount_2016dollars = amount / cpi_base_2016,
                total_disbursed_2016dollars = total_disbursed / cpi_base_2016) %>%

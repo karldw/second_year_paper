@@ -43,7 +43,7 @@ make_plots <- function() {
     pop_df <- load_pop_data()
 
     # check that we have complete coverage by state
-    stopifnot(nrow(dplyr::anti_join(df, pop_df, by=c('state_name', 'year'))) == 0)
+    stopifnot(nrow(anti.join(df, pop_df, by=c('state_name', 'year'))) == 0)
     df_years <- sort(unique(lubridate::year(df$date)))
     q4_dates <- as.Date(sprintf("%s-10-01", df_years))
     state_regs_df <- dplyr::filter(df, ! is.na(state)) %>%
@@ -55,7 +55,7 @@ make_plots <- function() {
         mutate(alaska = state_name == 'ALASKA') %>%
         dplyr::group_by(alaska, year) %>%
         dplyr::summarize(population = sum(population))
-    state_df <- dplyr::left_join(state_regs_df, state_pop_df, by=c('alaska', 'year')) %>%
+    state_df <- left.join(state_regs_df, state_pop_df, by=c('alaska', 'year')) %>%
         mutate(count_per_capita = cnt / population)
 
     alaska_vs_other_states <- ggplot(state_df, aes(x=date, y=count_per_capita*1000,
