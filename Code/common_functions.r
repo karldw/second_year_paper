@@ -336,18 +336,6 @@ make_join_safer <- function(join_fn, fast = TRUE) {
     # one of the tables before doing the join.
 
     if (fast) {
-        force_nrow <- function(df) {
-            # get the row count.
-            # for remote tables, force the row count.
-            nrow_df <- nrow(df)
-            if (is.na(nrow_df)) {
-                nrow_df <- dplyr::collect(summarize(dplyr::ungroup(df), n = dplyr::n()))
-                nrow_df <- as.integer(nrow_df$n)
-            }
-            stopifnot(! anyNA(nrow_df))
-            return(nrow_df)
-        }
-
         output_fn <- function(x, y, ..., allow.cartesian=FALSE) {
             join_results <- join_fn(x = x, y = y, ...)
 
