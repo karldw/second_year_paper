@@ -219,12 +219,13 @@ clear_all <- function() {
 }
 
 
-save_plot <- function(plt, name, scale_mult=1) {
+save_plot <- function(plt, name, scale_mult = 1) {
     plot_dir <- '../Text/Plots'
-    stopifnot(dir.exists(plot_dir))
+    stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
+              grepl('.+\\.pdf', name, perl = TRUE, ignore.case = TRUE))
 
-    file.path(plot_dir, name) %>%
-    ggsave(plt, width=6.3 * scale_mult, height=3.54 * scale_mult, device=cairo_pdf)
+    ggplot2::ggsave(file.path(plot_dir, name), plt, device = cairo_pdf,
+                    width = 6.3 * scale_mult, height = 3.54 * scale_mult)
 }
 
 

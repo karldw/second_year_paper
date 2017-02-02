@@ -1,6 +1,6 @@
 source('r_defaults.r')
 # library(RPostgreSQL)
-install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'), verbose = FALSE)
+install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr'), verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
@@ -529,7 +529,32 @@ plot_dd_sales <- function(years = 2002:2014) {
               scale_mult = 3)
 }
 
-run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
+aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70) {
+    # Create the dataset for the difference-in-differences analysis.
+    # This is split out in a separate function before creating the ancitipation variables
+    # so it can be cached and we quickly test different values of the anticipation
+    # window.
+
+    stopifnot(is.numeric(years), length(years) >= 1,
+              is.character(agg_var), length(agg_var) == 1)
+    control_states <- find_match_states_crude()
+
+    df <- auctions %>%
+        select(sale_date, buy_state, sales_pr) %>%
+        filter_event_window(years = years, days_before = days_before) %>%
+        filter(buy_state %in% c('AK', control_states)) %>%
+        add_event_time() %>%
+        get_sales_counts(date_var = agg_var, id_var = 'buy_state') %>%
+        tag_alaskan_buyer() %>%  # Make TRUE/FALSE alaskan_buyer variable
+        collect(n = Inf)
+    return(df)
+}
+if (!existsFunction('aggregate_sales_dd')) {
+    aggregate_sales_dd <- memoize(aggregate_sales_dd_unmemoized)
+}
+
+
+run_dd <- function(years = 2002:2014,
     aggregation_level = 'daily',
     # How many days/weeks relative to the event day do we think dealers are anticipating?
     # NB: if aggregation_level is daily, anticipation_window is in days. If
@@ -538,12 +563,14 @@ run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
     anticipation_window = NULL,
     outcomes = c('sale_count', 'sale_tot'),
     # controls, including DD vars, excluding fixed effects
-    controls = c('alaskan_buyer', 'anticipation', 'alaskan_buyer_anticipation', 'post', 'alaskan_buyer_post')
+    controls = c('alaskan_buyer', 'anticipation', 'alaskan_buyer_anticipation', 'post',
+                 'alaskan_buyer_post'),
     # Which fixed effects should we have?
     fixed_effects = c('sale_year', 'buy_state'),
     # what clusters should we have?
-    clusters = 'buy_state',
-    control_states = find_match_states_crude()
+    # (remember that cluster covariance relies on asymptotics!)
+    clusters = 0,
+    days_before_limit = 70
     ) {
 
     stopifnot(aggregation_level %in% c('daily', 'weekly'),
@@ -551,7 +578,6 @@ run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
             #   length(controls) == 1,
             #   length(fixed_effects) == 1,
             #   length(clusters) == 1,
-              length(control_states) >= 1,
               length(years) >= 1
               )
     if (is.null(anticipation_window)) {
@@ -562,28 +588,8 @@ run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
         }
     }
     stopifnot(length(anticipation_window) == 2, all(anticipation_window <= 0),
-              anticipation_window[1] < anticipation_window[2])
-
-    # make_varlist <- function(x) {  # Make a vector of variables from a formula string.
-    #     stopifnot(length(x) == 1)
-    #     # strip out any whitespace or parentheses
-    #     out <- gsub('[\\s\\(\\)]', '', x, perl = TRUE) %>%
-    #         # strip out powers (things of the pattern "^ 2")
-    #         gsub('\\^\\s*\\d+', '', ., perl = TRUE) %>%
-    #         # split on formula characters:
-    #         strsplit("[\\|\\+\\*\\:\\-]", perl = TRUE) %>%
-    #         unlist()
-    #     # Require that all results start with a letter and are composed only of
-    #     # numbers letters and underscores.
-    #     stopifnot(length(out) > 0, all(grepl('^[a-zA-Z]+\\w*$', out, perl = TRUE)))
-    #     return(out)
-    # }
-
-
-    # Avoid collinearity
-    if ('buy_state' %in% fixed_effects) {
-            controls <- setdiff(controls, 'alaskan_buyer')
-    }
+              anticipation_window[1] < anticipation_window[2],
+              (-days_before_limit) < anticipation_window[1])
 
     pull_dd_data <- function() {
         # This is a sub-function for organizational ease, but it relies heavily on
@@ -591,7 +597,7 @@ run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
 
         # look up varname (will error if aggregation_level is not in there)
         agg_var <- c(daily = 'event_time', weekly = 'event_week')[[aggregation_level]]
-        grouping_vars <- c('sale_year', 'buy_state', agg_var)
+        # grouping_vars <- c('sale_year', 'buy_state', agg_var)
 
         # Set up mutate_ calls.
         # Create two variables, anticipation_period and post_period.  anticipation_period
@@ -604,40 +610,118 @@ run_dd <- function(years = 2002:2003,  # TODO: eventually run this on all years
             post = lazyeval::interp(~ agg_var > high,
                 agg_var = as.name(agg_var), high = anticipation_window[2])
             )
-
-        df <- auctions %>%
-            select(sale_date, buy_state, sales_pr) %>%
-            filter_event_window(years = years, days_before = 70) %>%
-            filter(buy_state %in% c('AK', control_states)) %>%
-            add_event_time() %>%
-            get_sales_counts(date_var = agg_var, id_var = 'buy_state') %>%
+        aggregate_sales_dd(years, agg_var, days_before = days_before_limit) %>%
             # Make these variables even if they're not used (it's fast)
-            tag_alaskan_buyer() %>%  # Make TRUE/FALSE alaskan_buyer variable
             mutate_(.dots = mutate_calls_time) %>% # Make anticipation and post
             mutate(alaskan_buyer_anticipation = alaskan_buyer & anticipation,
-                   alaskan_buyer_post = alaskan_buyer & post)
-
-           explain(df)
-           df <- collect(df, n = Inf)
-
-           stopifnot(is_varname_in(df, controls),
-                     is_varname_in(df, fixed_effects),
-                     is_varname_in(df, clusters),
-                     is_varname_in(df, outcome)
-                     )
-            return(df)
+                   alaskan_buyer_post = alaskan_buyer & post) %>%
+            collect(n = Inf) %>%
+            return()
     }
 
-    df <- pull_dd_data()
+    # Avoid collinearity
+    if ('buy_state' %in% fixed_effects) {
+            controls <- setdiff(controls, 'alaskan_buyer')
+    }
+    df <- pull_dd_data()  # finally collect the data
 
+    # Make the felm multi-part formula, something like
+    # sale_tot | sale_count ~ anticipation + alaskan_buyer_anticipation + post +
+    #     alaskan_buyer_post | buy_state + sale_year | 0 | buy_state
+    # Using paste like this reduces some flexibility for interactions, but I can just
+    # create those variables manually.
     reg_formula <- paste(paste(outcomes, collapse = ' | '), '~',
                          paste(controls, collapse = ' + '), '|',
                          paste(fixed_effects, collapse = ' + '),
                          '| 0 |',  # no IV vars
                          paste(clusters, collapse = ' + ')) %>% as.formula()
-    reg_results <- felm_strict(reg_formula, df)
-
+    reg_results <- felm(reg_formula, df)
+    return(reg_results)
 }
+
+
+plot_effects_by_anticipation <- function(outcome, aggregation_level = 'daily', days_before_limit = 70) {
+
+    if (aggregation_level == 'daily') {
+        loop_start <- (-days_before_limit) + 1
+        min_window_length <- 7
+    } else if (aggregation_level == 'weekly'){
+        loop_start <- ((-days_before_limit) %/% 7) + 1
+        min_window_length <- 1
+    } else {
+        stop("aggregation_level must be 'daily' or 'weekly'")
+    }
+    stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2)
+
+    windows <- purrr::cross2(
+        # Form the cross of all possible window starts
+        seq.int(loop_start, -1, by = 1),
+        # crossed by all possible window ends:
+        seq.int(loop_start, -1, by = 1),
+        .filter = function(start, end) {
+            # and then filter combos we don't want
+            end - start < min_window_length
+        }
+    )
+    get_results_one_window <- function(start_end_list) {
+        start <- start_end_list[[1]]
+        end <- start_end_list[[2]]
+        reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
+            anticipation_window = c(start, end), days_before_limit = days_before_limit)
+
+        # rse is apparently the robust standard error, though it's not well documented.
+        # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        df <- data_frame(start = start, end = end,
+            coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
+            se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
+            pval = reg_results$rpval[['alaskan_buyer_anticipationTRUE']])
+        return(df)
+
+    }
+
+    to_plot <- purrr::map_df(windows, get_results_one_window)
+
+    # Define a bunch of labels.
+    lab_x <- 'Window end (%s)'
+    lab_y <- 'Window start (%s)'
+    if (aggregation_level == 'daily') {
+        lab_x <- sprintf(lab_x, 'days')
+        lab_y <- sprintf(lab_y, 'days')
+    } else if (aggregation_level == 'weekly') {
+        lab_x <- sprintf(lab_x, 'weeks')
+        lab_y <- sprintf(lab_y, 'weeks')
+    } else {
+        stop("Error!")
+    }
+    if (outcome == 'sale_tot') {
+        lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
+        lab_color_se = 'SE on additional Alaskan anticipation cars sold'
+    } else if (outcome == 'sale_count') {
+        lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
+        lab_color_se = 'SE on additional Alaskan anticipation sale volume'
+    } else {
+        stop("Error!")
+    }
+
+    coef_plot <- ggplot(to_plot, aes(x = end, y = start, fill = coef)) +
+        geom_tile() +
+        scale_fill_distiller(palette = 'RdBu') +
+        labs(x = lab_x, y = lab_y, color = lab_color_coef) +
+        PLOT_THEME
+    se_plot <- ggplot(to_plot, aes(x = end, y = start, fill = se)) +
+        geom_tile() +
+        scale_fill_distiller(palette = 'RdBu') +
+        labs(x = lab_x, y = lab_y, color = lab_color_se) +
+        PLOT_THEME
+
+    save_plot(coef_plot, sprintf('anticipation_window_%s_tile_coef.pdf', outcome))
+    save_plot(se_plot,   sprintf('anticipation_window_%s_tile_se.pdf', outcome))
+
+    return(to_plot)
+}
+
+sale_tot_effects <- plot_effects_by_anticipation('sale_tot')
+sale_count_effects <- plot_effects_by_anticipation('sale_count', days_before_limit = 70)
 
 
 # quality_control_graphs()
