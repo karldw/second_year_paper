@@ -30,7 +30,7 @@ if (length(.libPaths()) < 2) {
 
 
 ####     Memoise stuff from common_functions.r    ####
-if (! existsFunction('find_match_states_crude')) {
+if (! methods::existsFunction('find_match_states_crude')) {
     install_lazy('memoise', FALSE)
     find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
 }

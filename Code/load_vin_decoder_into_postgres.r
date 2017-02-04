@@ -103,7 +103,7 @@ shuffle <- function(.data) {
         # dest = col_integer(),
         # gas_guzzler_tax = col_integer()
     )
-    df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
+    df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
         dplyr::mutate(msrp = dplyr::if_else(msrp == 0, NA_integer_, msrp)) %>%
         ensure_id_vars(vehicle_id)
     return(df)
@@ -129,7 +129,7 @@ shuffle <- function(.data) {
         combined = col_integer()
     )
 
-    df <- readr::read_csv(csv_filename, col_types=load_cols, progress=FALSE) %>%
+    df <- readr::read_csv(csv_filename, col_types = load_cols, progress = FALSE) %>%
         # shuffle the rows so the filtering is random
         shuffle() %>%
         dplyr::group_by(vehicle_id, engine_id, transmission_id, fuel_type) %>%
@@ -190,7 +190,7 @@ merge_files <- function() {
         ensure_id_vars(vehicle_id, engine_id, fuel_type)
     not_na <- Negate(is.na)
     df <- inner.join(vin_reference, veh_price, by = 'vehicle_id') %>%
-        full.join(veh_trans_mpg, by=c('vehicle_id', 'engine_id', 'fuel_type')) %>%
+        full.join(veh_trans_mpg, by = c('vehicle_id', 'engine_id', 'fuel_type')) %>%
         dplyr::filter(not_na(city), not_na(highway), not_na(combined), not_na(msrp),
                       not_na(vehicle_type), not_na(fuel_type), not_na(model_yr),
                       not_na(vin_pattern)) %>%

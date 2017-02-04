@@ -20,12 +20,12 @@
 }
 
 
-pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
+pg_vacuum <- function(con, table_name = 'all', analyze = TRUE) {
     stopifnot(length(table_name) == 1)
     if (analyze) {
-        sql_cmd <- "VACUUM ANALYZE"
+        sql_cmd <- "VACUUM FREEZE ANALYZE"
     } else {
-        sql_cmd <- "VACUUM"
+        sql_cmd <- "VACUUM FREEZE"
     }
     if (table_name != 'all') {
         # default w/o table name is all tables in database
@@ -38,7 +38,8 @@ pg_vacuum <- function(con, table_name='all', analyze=TRUE) {
 }
 
 
-pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
+pg_add_index <- function(con, table_name, indexed_col, unique_index = FALSE,
+                         drop_existing = FALSE) {
     # This function is here so I don't have to remember the SQL index syntax and so I
     # don't do anything too dumb. However, it definitely isn't safe or sanitized.
     # Obviously don't expose it to anyone malicious.
@@ -54,8 +55,10 @@ pg_add_index <- function(con, table_name, indexed_col, unique_index=FALSE) {
     } else {
         unique_cmd <- ''
     }
-    drop_cmd <- sprintf("DROP INDEX IF EXISTS %s", index_name)
-    DBI::dbSendStatement(con, drop_cmd)
+    if (drop_existing) {
+        drop_cmd <- sprintf("DROP INDEX IF EXISTS %s", index_name)
+        DBI::dbSendStatement(con, drop_cmd)
+    }
     # If there are multiple columns, make a comma-separated list
     indexed_col_str <- paste(indexed_col, collapse = ', ')
     # fillfactor to 100 because I'm never adding rows to this table
@@ -131,12 +134,14 @@ dropbox_home <- function(){
     }
 
     if (! file.exists(info_path)) {
-        err_msg = paste0("Could not find the Dropbox info.json file! (Should be here: '", info_path, "')")
+        err_msg = paste0("Could not find the Dropbox info.json file! (Should be here: '",
+                         info_path, "')")
         stop(err_msg)
     }
 
     dropbox_settings <- jsonlite::fromJSON(info_path)
-    paths <- vapply(dropbox_settings, function(account) {return(account$path)}, FUN.VALUE = '')
+    paths <- vapply(dropbox_settings, function(account) {return(account$path)},
+                    FUN.VALUE = '')
     return(paths)
 }
 
@@ -151,7 +156,8 @@ box_home <- function() {
             info_path <- file.path(appdata_paths[2], 'Box Sync', 'sync_root_folder.txt')
         }
     } else if (os == 'mac') {
-        info_path <- path.expand('~/Library/Application Support/Box/Box Sync/sync_root_folder.txt')
+        mac_path <- '~/Library/Application Support/Box/Box Sync/sync_root_folder.txt'
+        info_path <- path.expand(mac_path)
     } else if (os == 'unix') {
         stop("Box doesn't support Linux/unix.  What are you doing?")
     }
@@ -184,12 +190,12 @@ get_os <- function() {
 }
 
 
-install_lazy <- function(pkg_list, verbose=TRUE) {
+install_lazy <- function(pkg_list, verbose = TRUE) {
     installed_packages <- installed.packages()[, 1]
     need_to_install <- setdiff(pkg_list, installed_packages)
     already_installed <- pkg_list[pkg_list %in% installed_packages]
     for (pkg in need_to_install) {
-        try(install.packages(pkg), silent=TRUE)
+        try(install.packages(pkg), silent = TRUE)
     }
     if (verbose) {
         message("Already installed:")
@@ -215,7 +221,8 @@ clear_all <- function() {
         }
         try(dev.off(), silent = TRUE)
     }
-    rm(list = ls(envir = .GlobalEnv, all.names = TRUE, sorted = FALSE), envir = .GlobalEnv)
+    rm(list = ls(envir = .GlobalEnv, all.names = TRUE, sorted = FALSE),
+       envir = .GlobalEnv)
 }
 
 
@@ -229,7 +236,7 @@ save_plot <- function(plt, name, scale_mult = 1) {
 }
 
 
-tag_alaskan_buyer <- function(df, as_factor=FALSE) {
+tag_alaskan_buyer <- function(df, as_factor = FALSE) {
     mutated <- mutate(df, alaskan_buyer = buy_state == 'AK')
     if (as_factor) {
         if ('tbl_lazy' %in% class(df)) {
@@ -241,18 +248,19 @@ tag_alaskan_buyer <- function(df, as_factor=FALSE) {
 }
 
 
-bool_to_alaska_factor <- function(x, labels=c('Alaskan', 'Non-Alaskan')) {
-    factor(x, levels=c(TRUE, FALSE), labels=labels)
+bool_to_alaska_factor <- function(x, labels = c('Alaskan', 'Non-Alaskan')) {
+    factor(x, levels = c(TRUE, FALSE), labels = labels)
 }
 
 
 ensure_id_vars_ <- function(df, claimed_id_vars) {
     not_found_vars <- setdiff(claimed_id_vars, names(df))
     if (length(not_found_vars) > 0) {
-        err_msg <- sprintf("Claimed ID vars not in dataset: %s", paste(not_found_vars, collapse=', '))
+        err_msg <- sprintf("Claimed ID vars not in dataset: %s", paste(not_found_vars,
+                                                                       collapse = ', '))
         stop(err_msg)
     }
-    df_id_cols_only <- dplyr::select_(df, .dots=claimed_id_vars)
+    df_id_cols_only <- dplyr::select_(df, .dots = claimed_id_vars)
     if (anyNA(df_id_cols_only)) {
         stop("ID variables cannot be NA.")
     }
@@ -264,7 +272,7 @@ ensure_id_vars_ <- function(df, claimed_id_vars) {
     # anyDuplicated is faster than calling "distinct" then counting rows
     if (anyDuplicated(df_id_cols_only)) {
         err_msg <- sprintf("The variables '%s' do not uniquely identify rows.",
-                           paste(claimed_id_vars, collapse="', '"))
+                           paste(claimed_id_vars, collapse = "', '"))
         stop(err_msg)
     }
     # return so we can pipe this
@@ -296,12 +304,12 @@ is_id <- function(df, claimed_id_vars) {
     not_found_vars <- setdiff(claimed_id_vars, names(df_head1))
     if (length(not_found_vars) > 0) {
         err_msg <- sprintf("Claimed ID vars not in dataset: %s",
-                           paste(not_found_vars, collapse=', '))
+                           paste(not_found_vars, collapse = ', '))
         warning(err_msg)
         return(FALSE)
     }
 
-    df_id_cols_only <- dplyr::select_(df, .dots=claimed_id_vars)
+    df_id_cols_only <- dplyr::select_(df, .dots = claimed_id_vars)
     if (df_is_local) {
         ids_have_na <- anyNA(df_id_cols_only)
     } else {
@@ -337,7 +345,7 @@ make_join_safer <- function(join_fn, fast = TRUE) {
     # one of the tables before doing the join.
 
     if (fast) {
-        output_fn <- function(x, y, ..., allow.cartesian=FALSE) {
+        output_fn <- function(x, y, ..., allow.cartesian = FALSE) {
             join_results <- join_fn(x = x, y = y, ...)
 
             # A faster, but less complete way would be to count rows and throw and error
@@ -350,7 +358,7 @@ make_join_safer <- function(join_fn, fast = TRUE) {
                             nrow_join_results, max_nrow_xy),
                     "Check for duplicate key values your by-variables in each table,",
                     "each of which join to the same values over and over again. If you",
-                    "are sure you wish to proceed, rerun with allow.cartesian=TRUE.",
+                    "are sure you wish to proceed, rerun with allow.cartesian = TRUE.",
                     "Also see the help for data.table.")
                 stop(err_msg)
             }
@@ -359,7 +367,7 @@ make_join_safer <- function(join_fn, fast = TRUE) {
     } else {
         # You can also do it by actually checking uniqueness, but that's usually not
         # necessary.
-        output_fn <- function(x, y, by, ..., allow.cartesian=FALSE) {
+        output_fn <- function(x, y, by, ..., allow.cartesian = FALSE) {
             if (missing(by) || is.null(by) || is.na(by)) {
                 stop("Please specify your 'by' variables explicitly.")
             }
@@ -389,7 +397,7 @@ make_join_safer <- function(join_fn, fast = TRUE) {
                 }
             }
 
-            join_results <- join_fn(x=x, y=y, by=by, ...)
+            join_results <- join_fn(x = x, y = y, by = by, ...)
             return(join_results)
         }
     }
@@ -403,7 +411,7 @@ force_nrow <- function(df) {
     # for remote tables, force the row count.
     nrow_df <- nrow(df)
     if (is.na(nrow_df)) {
-        nrow_df <- ungroup(df) %>% summarize(n=n()) %>% collect() %$% n %>% as.integer()
+        nrow_df <- ungroup(df) %>% summarize(n = n()) %>% collect() %$% n %>% as.integer()
     }
     stopifnot(! anyNA(nrow_df))
     return(nrow_df)
@@ -423,7 +431,7 @@ tbl_has_rows <- function(df) {
 }
 
 
-lapply_bind_rows <- function(X, FUN, ..., rbind_src_id=NULL, parallel_cores=NULL) {
+lapply_bind_rows <- function(X, FUN, ..., rbind_src_id = NULL, parallel_cores = NULL) {
     # just like lapply, but bind the results together at the end (plus parallelization)
 
     # Error out early if any of these packages aren't available.
@@ -512,12 +520,13 @@ first_thursday_in_october <- function(years) {
     first_thursday_in_october_one_year <- memoise(first_thursday_in_october_one_year)
     thursdays <- vapply(X = years, FUN = first_thursday_in_october_one_year,
                         FUN.VALUE = as.Date('1970-01-01')) %>%
-                as.Date(origin='1970-01-01')
+                as.Date(origin = '1970-01-01')
     return(thursdays)
 }
 
 
-filter_event_window_one_year <- function(.data, year, days_before = 30, days_after = days_before) {
+filter_event_window_one_year <- function(.data, year, days_before = 30,
+        days_after = days_before) {
     stopifnot(length(year) == 1, length(days_before) == 1, length(days_after) == 1,
               is.numeric(days_before), is.numeric(days_after), days_before > 0,
               days_after > 0, between(year, 2002, 2014))
@@ -555,7 +564,7 @@ filter_event_window_one_year <- function(.data, year, days_before = 30, days_aft
 }
 
 
-filter_event_window <- function(.data, years = NULL, days_before=30L,
+filter_event_window <- function(.data, years = NULL, days_before = 30L,
         days_after = days_before) {
     if (is.null(years)) {
         years <- .data %>% ungroup() %>% select(sale_date) %>%
@@ -589,7 +598,7 @@ explain_analyze <- function(x) {
 }
 
 
-winsorize <- function(df, vars_to_winsorize, quantiles=c(1, 99)) {
+winsorize <- function(df, vars_to_winsorize, quantiles = c(1, 99)) {
     quantiles <- sort(quantiles)
     if (! all(quantiles <= 1)) {
         quantiles <- quantiles / 100
@@ -757,4 +766,72 @@ felm_strict <- function(...) {
 
     options(warn = 2)
     return(lfe::felm(...))
+}
+
+
+make_snippet <- function(x, filename, lazy = TRUE, ...) {
+    # Write a number to a file.
+    # (Only works for one number. Write a loop or something if you want multiple.)
+    # Works quickly for remote dplyr tables because they're not evaluated unless required
+    snippets_dir <- '../Text/Generated_snippets'
+
+    base_filename <- basename(filename)
+    if (filename == base_filename) {
+        stopifnot(dir.exists(snippets_dir))
+        outfile <- file.path(snippets_dir, base_filename)
+    } else {
+        stopifnot(dir.exists(dirname(filename)))
+        outfile <- filename
+    }
+
+    if ((! lazy) || (! file.exists(outfile))) {
+        if ('tbl' %in% class(x)) {
+            x <- collect(x, n = Inf)
+            stopifnot(all(dim(x) == c(1,1)))
+        } else {
+            stopifnot(length(x) == 1)
+        }
+        x <- unlist(x)
+        x <- format_numbers(x, ...)
+        write(x, file = outfile)
+    }
+}
+
+
+format_numbers <- function(x, dollars = FALSE, sig_figs = NULL) {
+    stopifnot(is.numeric(x), length(x) == 1)
+    thin_space <- "\\\\hspace{0.1em}"  # have to double-escape thin_space
+    if (is.null(sig_figs)) {
+        if (is.integer(x) || x == as.integer(x)) {
+            sig_figs <- 99L
+        } else {
+            sig_figs <- 4L
+        }
+    }
+    stopifnot(length(sig_figs) == 1, sig_figs >= 1)
+    x <- signif(x, sig_figs)  # round to 4 significant digits, if non-integer
+    if (x < 0) {
+        x <- abs(x)
+        neg_str <- '\\ensuremath{-}'
+    } else {
+        neg_str <- ''
+    }
+    if (dollars) {
+        dollar_str <- '\\$'
+    } else {
+        dollar_str <- ''
+    }
+    if (abs(x) >= 10000) {
+        # Don't add commas for 1000, but do add commas for 10,000
+        big.mark <- ','
+    } else {
+        big.mark <- thin_space
+    }
+
+    out <- prettyNum(x,
+                     big.mark = big.mark, big.interval = 3,
+                     small.mark = thin_space, small.interval = 3,
+                     drop0trailing = TRUE)
+    out <- paste0(neg_str, dollar_str, out)
+    return(out)
 }

@@ -64,7 +64,7 @@ load_one_decade <- function(decade) {
             POPESTIMATE2015 = col_integer()
         )
     }
-    df <- read_csv(csv_filename, col_types=select_cols) %>%
+    df <- read_csv(csv_filename, col_types = select_cols) %>%
         setNames(tolower(names(.))) %>%
         filter(sumlev == 50) %>%  # counties, not states and counties
         select(-sumlev) %>%
@@ -72,10 +72,10 @@ load_one_decade <- function(decade) {
         # see http://stackoverflow.com/a/5816779
         mutate(state  = sprintf("%02d", state),
                county = sprintf("%03d", county)) %>%
-        melt(id.vars=c('state', 'county', 'stname', 'ctyname'),
-             variable.name='year', value.name='population') %>%
+        melt(id.vars = c('state', 'county', 'stname', 'ctyname'),
+             variable.name = 'year', value.name = 'population') %>%
         as.tbl() %>%
-        mutate(year = as.integer(gsub('.*(\\d{4}).*', '\\1', year, perl=TRUE))) %>%
+        mutate(year = as.integer(gsub('.*(\\d{4}).*', '\\1', year, perl = TRUE))) %>%
         ensure_id_vars(stname, ctyname, year) %>%
         ensure_id_vars(state, county, year)
     expected_state_by_year <- length(unique(df$state)) * length(unique(df$year))
@@ -87,7 +87,7 @@ load_one_decade <- function(decade) {
 
 main <- function() {
     combined_df <- bind_rows(load_one_decade(2000), load_one_decade(2010)) %>%
-        distinct(state, county, year, .keep_all=TRUE) %>%
+        distinct(state, county, year, .keep_all = TRUE) %>%
         ensure_id_vars(stname, ctyname, year)
     out_dir <- '../Data'
     stopifnot(dir.exists(out_dir))

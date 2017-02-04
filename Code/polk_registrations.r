@@ -17,11 +17,11 @@ stopifnot(dir.exists(EXCEL_DIR))
 
 load_regs_data <- function() {
     filename <- file.path(EXCEL_DIR, 'OPP-12322003_University of California Berkley.xlsx')
-    df <- readxl::read_excel(filename, skip=5) %>%
+    df <- readxl::read_excel(filename, skip = 5) %>%
         dplyr::as.tbl() %>%
         setNames(tolower(names(.))) %>%
         dplyr::filter(! is.na(state_name),  # NAs induced from reading too many excel rows
-                      state_name != 'UNKNOWN STATE'  # Actual missing data (N=8)
+                      state_name != 'UNKNOWN STATE'  # Actual missing data (N = 8)
                       ) %>%
         dplyr::mutate(year = as.integer(substring(tp, 1, 4)),
                       quarter = as.integer(substring(tp, 10, 10)),
@@ -43,7 +43,7 @@ make_plots <- function() {
     pop_df <- load_pop_data()
 
     # check that we have complete coverage by state
-    stopifnot(nrow(anti.join(df, pop_df, by=c('state_name', 'year'))) == 0)
+    stopifnot(nrow(anti.join(df, pop_df, by = c('state_name', 'year'))) == 0)
     df_years <- sort(unique(lubridate::year(df$date)))
     q4_dates <- as.Date(sprintf("%s-10-01", df_years))
     state_regs_df <- dplyr::filter(df, ! is.na(state)) %>%
@@ -55,20 +55,20 @@ make_plots <- function() {
         mutate(alaska = state_name == 'ALASKA') %>%
         dplyr::group_by(alaska, year) %>%
         dplyr::summarize(population = sum(population))
-    state_df <- left.join(state_regs_df, state_pop_df, by=c('alaska', 'year')) %>%
+    state_df <- left.join(state_regs_df, state_pop_df, by = c('alaska', 'year')) %>%
         mutate(count_per_capita = cnt / population)
 
-    alaska_vs_other_states <- ggplot(state_df, aes(x=date, y=count_per_capita*1000,
-                                                   color=alaska)) +
+    alaska_vs_other_states <- ggplot(state_df, aes(x = date, y = count_per_capita*1000,
+                                                   color = alaska)) +
         geom_line() +
-        geom_vline(xintercept = as.integer(q4_dates), color='black',
-                   linetype='dashed', alpha = 0.1, size=0.2) +
+        geom_vline(xintercept = as.integer(q4_dates), color = 'black',
+                   linetype = 'dashed', alpha = 0.1, size = 0.2) +
         ylim(0, NA) +
-        labs(x='', y='New registrations per 1000 people', title='', color='') +
+        labs(x = '', y = 'New registrations per 1000 people', title = '', color = '') +
         PLOT_THEME +
         # Remove minor gridlines because we have so many vertical lines going on
         theme(panel.grid.minor = element_blank(), legend.position = c(.9, .9)) +
-        scale_color_manual(values=BLUE_AND_YELLOW)
+        scale_color_manual(values = BLUE_AND_YELLOW)
 
     save_plot(alaska_vs_other_states, 'vehicle_registrations_alaska_vs_notitle.pdf')
 }

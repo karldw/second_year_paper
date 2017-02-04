@@ -10,8 +10,8 @@ options(warn = 2)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'zipcode'
 
-DATA_TYPES <- c(zip='char(5)', city='text', state='char(2)',
-                latitude='float8', longitude='float8')
+DATA_TYPES <- c(zip = 'char(5)', city = 'text', state = 'char(2)',
+                latitude = 'float8', longitude = 'float8')
 
 main <- function(verbose = TRUE) {
     data('zipcode')

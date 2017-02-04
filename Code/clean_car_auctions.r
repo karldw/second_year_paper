@@ -65,14 +65,14 @@ copy_orig_table <- function(con, verbose){
     #         )
 
     # create_table_command <- paste(
-    #     "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
-    #     "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
-    #     "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
+    # "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
+    # "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
+    # "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
 
     # get the original field names, then tack an extra comma on the end.
 
     orig_col_names <- dbListFields(con, POSTGRES_ORIG_TABLE) %>%
-        paste(collapse=', ') %>% paste0(',')
+        paste(collapse = ', ') %>% paste0(',')
 
 
     create_table_command <- paste(
@@ -132,7 +132,7 @@ copy_orig_table <- function(con, verbose){
                         ") AS zipcode_auction_state",
                     "ON (auction_zip = zip)",
                 ") AS joined_buy_sell_auction",
-        sep='\n')
+        sep = '\n')
 
     set_seed_cmd <- "SELECT setseed(-0.783164798234)"
     suppressWarnings(dbExecute(con, set_seed_cmd))
@@ -168,8 +168,8 @@ filter_bad_odo <- function(con) {
     regex_over3456_exclude <- "\\$\\s*[0-9\\.,]*00"
 
     # Combine:
-    regex_over12 <- paste(regex_over1, regex_over2, sep="|")
-    regex_over3456 <- paste(regex_over3, regex_over4, regex_over5, regex_over6, sep="|")
+    regex_over12 <- paste(regex_over1, regex_over2, sep = "|")
+    regex_over3456 <- paste(regex_over3, regex_over4, regex_over5, regex_over6, sep = "|")
 
     # The following odometers also match strings like "5 DIGIT ODO", which seems okay.
     # Match "ODO", without any letters beforehand and no letters except "M" after.
@@ -187,7 +187,7 @@ filter_bad_odo <- function(con) {
                 regex_over3456, regex_over3456_exclude),
         sprintf("((comments ~ '%s') AND (NOT (comments ~ '%s')))",
                 regex_odo, regex_odo_exclude),
-        sep=' OR ')
+        sep = ' OR ')
 
     rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
@@ -211,14 +211,14 @@ filter_damaged <- function(con) {
     regex_inop <- "^\\s*INOP"
 
     regex_combo_damage <- paste(regex_salvage, regex_lemon_junk, regex_damage,
-                                regex_inop, sep='|')
+                                regex_inop, sep = '|')
 
     delete_conditions <- paste(
         "(salvg_flg = 'Y')",
         sprintf("((comments ~ '%s') AND (NOT (comments ~ '%s')))",
                 regex_flood_fire, regex_fire_exclude),
         sprintf("(comments ~ '%s')", regex_combo_damage),
-        sep=' OR ')
+        sep = ' OR ')
 
     rows_deleted <- execute_deletion(con, delete_conditions)
     return(rows_deleted)
@@ -243,12 +243,12 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
     # I think this should work, but it will delete rows that don't match the VIN decoder.
     # Is that what I want?  (Alternative: do a left join)
     # delete_command <- paste0(
-    #     "DELETE FROM ", POSTGRES_CLEAN_TABLE, " AS auctions LEFT JOIN ",
-    #     POSTGRES_VIN_DECODER_TABLE, " AS vin_decoder WHERE (",
-    #     "(substring(auctions.vin FROM 1 FOR 8) || substring(auctions.vin FROM 10 FOR 2))",
-    #     " = vin_decoder.vin_pattern", ") AND ",
-    #     "(sales_pr NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",  msrp_factor,
-    #                                                      " * vin_decoder.msrp))"
+    # "DELETE FROM ", POSTGRES_CLEAN_TABLE, " AS auctions LEFT JOIN ",
+    # POSTGRES_VIN_DECODER_TABLE, " AS vin_decoder WHERE (",
+    # "(substring(auctions.vin FROM 1 FOR 8) || substring(auctions.vin FROM 10 FOR 2))",
+    # " = vin_decoder.vin_pattern", ") AND ",
+    # "(sales_pr NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",  msrp_factor,
+    #                                                  " * vin_decoder.msrp))"
     # )
     delete_command <- paste(
         "WITH vin_msrp AS (",
@@ -328,7 +328,56 @@ filter_multistate <- function(con) {
 }
 
 
+filter_resale <- function(con, resale_min_acceptable_days) {
+    stopifnot(length(resale_min_acceptable_days) == 1,
+              is.numeric(resale_min_acceptable_days),
+              resale_min_acceptable_days > 0,
+              as.integer(resale_min_acceptable_days) == resale_min_acceptable_days)
+
+    delete_cmd_resale <- paste(
+        # Make a temp table of distinct vin-by-sale_date
+        "WITH distinct_vehicle_sales AS (",
+            "SELECT sale_date, vin FROM", POSTGRES_CLEAN_TABLE,
+                "GROUP BY vin, sale_date",
+                "ORDER BY vin, sale_date",
+        "),",  # close the distinct_vehicle_sales clause
+
+        # Make a temp table of sale date differences.  Note that because of the lead,
+        # the last sale will have a NULL sale_date_diff. Filter out NULLs, since we want
+        # the final sales.  Also filter out sales gaps more than
+        # resale_min_acceptable_days, since those gaps are okay.
+        "calculated_date_diffs AS (",
+            "SELECT sale_date, vin,",
+            # Calculate lead of sale_date within VINs, call it sale_date_diff
+            "CASE WHEN (vin = LEAD(vin, 1, NULL) OVER (ORDER BY vin, sale_date)) THEN",
+            "(LEAD(sale_date, 1, NULL) OVER (ORDER BY vin, sale_date) - sale_date)",
+            "ELSE (NULL) END AS sale_date_diff",
+            "FROM distinct_vehicle_sales",
+        "),",  # close the calculated_date_diffs clause
+        "resale_vins AS (",
+            "SELECT sale_date, vin FROM calculated_date_diffs",
+            "WHERE (NOT (sale_date_diff IS NULL)) AND",
+                "(sale_date_diff > ", resale_min_acceptable_days, ")",
+        ")",  # close the resale_vins clause
+        # Now that I have the resale_vins table, actually do the deletion:
+        "DELETE FROM", POSTGRES_CLEAN_TABLE, "AS auctions using resale_vins",
+        "WHERE resale_vins.vin = auctions.vin AND",
+            "resale_vins.sale_date = auctions.sale_date"
+        )
+    resale_rows_deleted  <- dbExecute(con, delete_cmd_resale)
+    return(resale_rows_deleted)
+}
+
+
 clean_data <- function(con, verbose) {
+    # Delete resale first because I don't want to take the second-to-last sale if one of
+    # the following filters deletes the last one.
+    # TODO: re-run this!
+    resale_min_acceptable_days <- 365
+    message_if_verbose(sprintf("Dropping obs resold within %s days",
+                               resale_min_acceptable_days), verbose)
+    rows_deleted_resale <- filter_resale(con, resale_min_acceptable_days)
+
     message_if_verbose("Dropping weird vehicles", verbose)
     rows_deleted_weird_vehicles <- filter_weird_vehicles(con)  # 20299
 
@@ -347,7 +396,8 @@ clean_data <- function(con, verbose) {
     message_if_verbose("Dropping obs with multiple buy/sell states", verbose)
     rows_deleted_multistate <- filter_multistate(con)  # 85764
 
-    deleted_counts <- c('weird vehicles' = rows_deleted_weird_vehicles,
+    deleted_counts <- c('resold'         = rows_deleted_resale,
+                        'weird vehicles' = rows_deleted_weird_vehicles,
                         'bad odometer'   = rows_deleted_bad_odo,
                         'damaged'        = rows_deleted_damaged,
                         'price'          = rows_deleted_price,
@@ -358,7 +408,7 @@ clean_data <- function(con, verbose) {
 
 
 index_and_clean <- function(con, verbose) {
-    message_if_verbose("Adding SQL indexes (ignore the messages about 'does not exist, skipping')", verbose)
+    message_if_verbose("Adding SQL indexes", verbose)
     message_if_verbose("  - buy_state_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'buy_state')      # buy_state_index
     message_if_verbose("  - sell_state_index", verbose)
@@ -375,33 +425,21 @@ index_and_clean <- function(con, verbose) {
     message_if_verbose("  - rand_index", verbose)
     pg_add_index(con, POSTGRES_CLEAN_TABLE, 'rand')           # rand_index
     # Not all of the zips are valid, but that's probably okay.
-    # (that is, they look like a five-digit zip, but don't match POSTGRES_ZIPCODE_TABLE)
+    # (that is, they look like a five-digit zip, but don't match POSTGRES_ZIPCODE_TABLE),
+    # so you can't pg_add_foreign_key on them.
+    # Same is true of the VIN decoder.
 
-    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
-    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'sell_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
-    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'auction_zip', POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'buy_zip',
+    #                    POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'sell_zip',
+    #                    POSTGRES_ZIPCODE_TABLE, 'zip')
+    # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'auction_zip',
+    #                    POSTGRES_ZIPCODE_TABLE, 'zip')
     # pg_add_foreign_key(con, POSTGRES_CLEAN_TABLE, 'vin_pattern',
     #                    POSTGRES_VIN_DECODER_TABLE, 'vin_pattern')
     message_if_verbose("  - vacuuming and analyzing", verbose)
     pg_vacuum(con, POSTGRES_CLEAN_TABLE)
 }
-
-
-# replace_blanks_with_null <- function(con, verbose) {
-#     message_if_verbose('Making blank strings NULL', verbose)
-#     .replace_one_blank <- function(column_name, con) {
-#         sql_cmd <- sprintf("UPDATE %s SET %s = NULL where %s = ''",
-#                            POSTGRES_CLEAN_TABLE, column_name, column_name)
-#         res <- dbSendStatement(con, sql_cmd)
-#         stopifnot(dbHasCompleted(res))
-#     }
-#     vars_to_check <- c('buyer_id', 'seller_id', 'seller_type', 'slrdlr_type',
-#                        'auction_code', 'make', 'model', 'sale_type', 'salvg_flg', 'cond')
-#     # these could definitely be run in parallel:
-#     lapply(vars_to_check, .replace_one_blank, con=con)
-#
-#     invisible()
-# }
 
 
 delete_orig_table <- function(con, verbose) {
@@ -410,11 +448,14 @@ delete_orig_table <- function(con, verbose) {
 }
 
 
-# add_random_index <- function(con, verbose) {
-#
-#     set_seed_cmd <- "SET SEED 783164798234"
-#     add_column_cmd <- sprintf('ALTER TABLE %s ADD COLUMN random_index float8 NOT NULL '
-# }
+report_counts <- function(deleted_counts) {
+    for (i in seq_along(deleted_counts)) {
+        count_name <- gsub('\\W', '_', names(deleted_counts)[[i]], perl = TRUE)
+        count_filename <- paste0('cleaning_count_', count_name, '.tex')
+        count_value <- as.integer(deleted_counts[[i]])
+        make_snippet(count_value, count_filename)
+    }
+}
 
 
 main <- function(verbose = TRUE) {
@@ -424,6 +465,7 @@ main <- function(verbose = TRUE) {
 
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
+    report_counts(deleted_counts)
     index_and_clean(con, verbose)
     # delete_orig_table(con, verbose)
     dbDisconnect(con)

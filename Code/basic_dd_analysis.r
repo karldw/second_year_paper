@@ -1,6 +1,7 @@
 source('r_defaults.r')
 # library(RPostgreSQL)
-install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr'), verbose = FALSE)
+install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr'),
+             verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
@@ -22,7 +23,7 @@ states <- tbl(con, 'states')
 #     auctions_sample <- auctions %>%
 #         filter(auction_state %in% top_10_states, rand < 0.01) %>%
 #         select(sale_date, sales_pr, buy_state, auction_state, sell_state) %>%
-#         collect(n=Inf)
+#         collect(n = Inf)
 # }
 
 get_top_auction_states_ak_buyers_unmemoized <- function(top_n) {
@@ -44,7 +45,7 @@ get_top_auction_states_ak_buyers_unmemoized <- function(top_n) {
         return()
 }
 if (! existsFunction('get_top_auction_states_ak_buyers')) {
-    get_top_auction_states_ak_buyers <- memoize(get_top_auction_states_ak_buyers_unmemoized)
+    get_top_auction_states_ak_buyers<-memoize(get_top_auction_states_ak_buyers_unmemoized)
 }
 
 
@@ -61,7 +62,7 @@ get_top_auction_states_table <- function(top_n, buy_state_code) {
 }
 
 
-pull_data_one_year <- function(year, days_before=30L, days_after=days_before) {
+pull_data_one_year <- function(year, days_before = 30L, days_after = days_before) {
     # top_n_auction_states limits the data returned to auction states in the top n,
     # for alaskan buyers (default of NULL doesn't limit)
 
@@ -73,13 +74,6 @@ pull_data_one_year <- function(year, days_before=30L, days_after=days_before) {
         filter_event_window_one_year(year = year, days_before = days_before,
                             days_after = days_after) %>%
         filter(! is.na(buy_state))
-
-    # if (! is.null(top_n_auction_states)) {
-    #     top_states_table <- get_top_auction_states_table(top_n_auction_states, 'AK')
-    #     data_one_year <- semi.join(data_one_year, top_states_table, by = 'auction_state')
-    # }
-
-    # stopifnot(tbl_has_rows(data_one_year))
     return(data_one_year)
 }
 
@@ -209,7 +203,7 @@ run_dd_one_year_old <- function(year) {
 
     # get the residuals
     # sales_counts_formula2 <- (sale_count ~ 1 | buyer_id)
-    # sales_counts_reg2 <- felm(formula=sales_counts_formula2, data=sales_counts)
+    # sales_counts_reg2 <- felm(formula = sales_counts_formula2, data = sales_counts)
     # sales_counts_resid2 <- residuals(sales_counts_reg2) %>% as.numeric()
     # print(head(sales_counts_resid2))
     # sales_counts <- mutate(sales_counts, resid_buyer_fe = sales_counts_resid2)
@@ -278,9 +272,9 @@ quality_control_graphs <- function() {
             tally() %>% collect() %$% n
         to_plot <- event_year %>% ungroup() %>% distinct(sale_date, buyer_id) %>%
             group_by(buyer_id) %>% summarize(buyer_id_days = n()) %>%
-            collect(n=Inf)
-        buyer_id_count_plot <- ggplot(to_plot, aes(x=buyer_id_days)) +
-            geom_histogram(bins=30) +
+            collect(n = Inf)
+        buyer_id_count_plot <- ggplot(to_plot, aes(x = buyer_id_days)) +
+            geom_histogram(bins = 30) +
             labs(x = sprintf('Number of days each buyer is present (%s day period)',
                              total_days),
                  y = 'Count', title = sprintf('Buyer counts for %s', year)) +
@@ -289,15 +283,15 @@ quality_control_graphs <- function() {
     }
 
     total_sales_by_day <- auctions %>% group_by(sale_date) %>%
-        summarize(daily_sales = sum(sales_pr), count = n()) %>% collect(n=Inf)
+        summarize(daily_sales = sum(sales_pr), count = n()) %>% collect(n = Inf)
     sales_by_month_plt <- total_sales_by_day %>%
         mutate(sale_year  = lubridate::year(sale_date),
                sale_month = lubridate::month(sale_date)) %>%
         group_by(sale_year, sale_month) %>%
-        summarize(total_sales = sum(daily_sales)/1e9, sale_date = first(sale_date)) %>%
-        ggplot(aes(x=sale_date, y=total_sales)) +
+        summarize(total_sales = sum(daily_sales) / 1e9, sale_date = first(sale_date)) %>%
+        ggplot(aes(x = sale_date, y = total_sales)) +
         geom_line() +
-        labs(x='Date', y='Monthly total ($ billions)') +
+        labs(x = 'Date', y = 'Monthly total ($ billions)') +
         ylim(c(0, NA)) +
         PLOT_THEME
 
@@ -305,10 +299,10 @@ quality_control_graphs <- function() {
         mutate(sale_year = lubridate::year(sale_date),
                sale_week = lubridate::week(sale_date)) %>%
         group_by(sale_year, sale_week) %>%
-        summarize(total_sales = sum(daily_sales)/1e9, sale_date = first(sale_date)) %>%
-        ggplot(aes(x=sale_date, y=total_sales)) +
+        summarize(total_sales = sum(daily_sales) / 1e9, sale_date = first(sale_date)) %>%
+        ggplot(aes(x = sale_date, y = total_sales)) +
         geom_line() +
-        labs(x='Date', y='Weekly total ($ billions)') +
+        labs(x = 'Date', y = 'Weekly total ($ billions)') +
         ylim(c(0, NA)) +
         PLOT_THEME
 
@@ -316,7 +310,7 @@ quality_control_graphs <- function() {
         filter(! is.na(buy_state)) %>%
         tag_alaskan_buyer() %>%
         group_by(sale_date, alaskan_buyer) %>%
-        summarize(daily_sales = sum(sales_pr), count = n()) %>% collect(n=Inf)
+        summarize(daily_sales = sum(sales_pr), count = n()) %>% collect(n = Inf)
     thursdays_int <- total_sales_by_day_ak_vs %$% sale_date %>%
         lubridate::year() %>% unique() %>% sort() %>%
         first_thursday_in_october() %>%
@@ -325,12 +319,12 @@ quality_control_graphs <- function() {
         mutate(sale_year  = lubridate::year(sale_date),
                sale_month = lubridate::month(sale_date)) %>%
         group_by(sale_year, sale_month, alaskan_buyer) %>%
-        summarize(total_sales = sum(daily_sales)/1e6, sale_date = first(sale_date)) %>%
-        ggplot(aes(x=sale_date, y=total_sales)) +
+        summarize(total_sales = sum(daily_sales) / 1e6, sale_date = first(sale_date)) %>%
+        ggplot(aes(x = sale_date, y = total_sales)) +
         geom_line() +
-        geom_vline(xintercept=thursdays_int, color='red3', alpha=0.3) +
-        facet_grid(alaskan_buyer ~ ., scales='free_y') +
-        labs(x='Date', y='Monthly total ($ millions)') +
+        geom_vline(xintercept = thursdays_int, color = 'red3', alpha = 0.3) +
+        facet_grid(alaskan_buyer ~ ., scales = 'free_y') +
+        labs(x = 'Date', y = 'Monthly total ($ millions)') +
         ylim(c(0, NA)) +
         PLOT_THEME
     save_plot(sales_by_month_plt_ak_vs, 'total_sales_monthly_total_AK_vs.pdf')
@@ -338,12 +332,12 @@ quality_control_graphs <- function() {
         mutate(sale_year = lubridate::year(sale_date),
                sale_week = lubridate::week(sale_date)) %>%
         group_by(sale_year, sale_week, alaskan_buyer) %>%
-        summarize(total_sales = sum(daily_sales)/1e6, sale_date = first(sale_date)) %>%
-        ggplot(aes(x=sale_date, y=total_sales)) +
+        summarize(total_sales = sum(daily_sales) / 1e6, sale_date = first(sale_date)) %>%
+        ggplot(aes(x = sale_date, y = total_sales)) +
         geom_line() +
-        geom_vline(xintercept=thursdays_int, color='red3') +
-        facet_grid(alaskan_buyer ~ ., scales='free_y') +
-        labs(x='Date', y='Weekly total ($ millions)') +
+        geom_vline(xintercept = thursdays_int, color = 'red3') +
+        facet_grid(alaskan_buyer ~ ., scales = 'free_y') +
+        labs(x = 'Date', y = 'Weekly total ($ millions)') +
         ylim(c(0, NA)) +
         PLOT_THEME
 
@@ -588,7 +582,7 @@ run_dd <- function(years = 2002:2014,
         }
     }
     stopifnot(length(anticipation_window) == 2, all(anticipation_window <= 0),
-              anticipation_window[1] < anticipation_window[2],
+              anticipation_window[1] <= anticipation_window[2],
               (-days_before_limit) < anticipation_window[1])
 
     pull_dd_data <- function() {
@@ -640,7 +634,8 @@ run_dd <- function(years = 2002:2014,
 }
 
 
-plot_effects_by_anticipation <- function(outcome, aggregation_level = 'daily', days_before_limit = 70) {
+plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
+        aggregation_level = 'daily', days_before_limit = 70) {
 
     if (aggregation_level == 'daily') {
         loop_start <- (-days_before_limit) + 1
@@ -720,8 +715,80 @@ plot_effects_by_anticipation <- function(outcome, aggregation_level = 'daily', d
     return(to_plot)
 }
 
-sale_tot_effects <- plot_effects_by_anticipation('sale_tot')
-sale_count_effects <- plot_effects_by_anticipation('sale_count', days_before_limit = 70)
+plot_effects_by_anticipation <- function(outcome,
+        aggregation_level = 'daily', days_before_limit = 70) {
+
+    if (aggregation_level == 'daily') {
+        loop_start <- (-days_before_limit) + 1
+        min_window_length <- 7
+    } else if (aggregation_level == 'weekly'){
+        loop_start <- ((-days_before_limit) %/% 7) + 1
+        min_window_length <- 1
+    } else {
+        stop("aggregation_level must be 'daily' or 'weekly'")
+    }
+    stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2,
+              loop_start < min_window_length)
+
+
+    get_results_one_window <- function(start) {
+        reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
+            anticipation_window = c(start, -1), days_before_limit = days_before_limit)
+
+        # rse is apparently the robust standard error, though it's not well documented.
+        # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        df <- data_frame(start = start,
+            coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
+            se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
+            pval = reg_results$rpval[['alaskan_buyer_anticipationTRUE']])
+        return(df)
+
+    }
+    windows <- seq.int(loop_start, -min_window_length, by = 1)
+    to_plot <- purrr::map_df(windows, get_results_one_window) %>%
+        mutate(start = factor(start))
+
+    if (outcome == 'sale_tot') {
+        to_plot <- to_plot %>% mutate(coef = coef / 1e3, se = se / 1e3)
+    }
+    to_plot <- to_plot %>% mutate(conf95_lower = coef - (1.96 * se),
+                                  conf95_upper = coef + (1.96 * se))
+
+
+    # Define a bunch of labels.
+    if (aggregation_level == 'daily') {
+        aggregation_level_noun <- 'day'
+    } else if (aggregation_level == 'weekly') {
+        aggregation_level_noun <- 'week'
+    } else {
+        stop("Error!")
+    }
+
+    if (outcome == 'sale_tot') {
+        lab_y <- 'Thousands of dollars per %s'
+    } else if (outcome == 'sale_count') {
+        lab_y <- 'Cars per %s'
+    } else {
+        stop("Error!")
+    }
+    lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
+    lab_y <- sprintf(lab_y, aggregation_level_noun)
+
+    coef_plot <- ggplot(to_plot, aes(x = start, y = coef)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
+        labs(x = lab_x, y = lab_y, title = 'Anticipation window treatment coefficient') +
+        PLOT_THEME
+
+    save_plot(coef_plot, sprintf('anticipation_window_%s_%s_notitle.pdf', outcome,
+                                 aggregation_level))
+    return(to_plot)
+}
+
+# sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot')
+# sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count')
+sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly')
+sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly')
 
 
 # quality_control_graphs()

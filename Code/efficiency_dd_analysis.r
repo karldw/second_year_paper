@@ -1,6 +1,7 @@
 source('r_defaults.r')
 # library(RPostgreSQL)
-install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'), verbose = FALSE)
+install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'),
+             verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
