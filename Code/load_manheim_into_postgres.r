@@ -209,7 +209,7 @@ record_filtered_rows <- function(filtered_counts) {
         count_name <- gsub('\\W', '_', names(total_counts)[[i]], perl = TRUE)
         count_filename <- paste0('load_manheim_filter_', count_name, '.tex')
         count_value <- as.integer(total_counts[[i]])
-        make_snippet(count_value, count_filename)
+        make_snippet(count_value, count_filename, lazy = FALSE)
     }
 }
 

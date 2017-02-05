@@ -12,7 +12,6 @@
 \allsectionsfont{\sffamily\mdseries}
 \usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
 \microtypecontext{spacing=nonfrench}
-%\usepackage{embrac}
 \usepackage{typearea}   % Let the typearea package work out the best margins (wider than the defaults)
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -95,6 +94,7 @@
 \newcommand{\gdp}{\textsc{gdp}}
 
 
+\newcommand{\snippet}[1]{\input{./Generated_snippets/#1}\hspace{-0.15em}}
 %\usepackage{footnote}
 \usepackage{hyperref}
 \hypersetup{colorlinks,
@@ -114,9 +114,21 @@
 }
 
 
+\graphicspath{{./Plots/}}
 \begin{document}
+\thispagestyle{empty}
+\setcounter{page}{0}
+\vspace*{0.7in plus 0.3in minus 0.3in}
 
+\begin{center}
+    \textsf{\LARGE Cars in Alaska}
 
+    \textsf{\Large Karl Dunkle Werner}
+
+    \textsf{This draft: \today}
+\end{center}
+
+\vspace{2in plus 1in minus 0.7in}
 
 \begin{center}
     \begin{minipage}{0.7\linewidth}
@@ -127,8 +139,9 @@
     \end{minipage}
 \end{center}
 
+\pagebreak
 
-\section{Introduction}
+\textsc{\Large Outline}
 
 \begin{itemize}
     \item Findings!
@@ -158,54 +171,60 @@
     \end{itemize}
 \end{itemize}
 
-
-% TODO: talk a little about the used car data and the things I can observe.  Also make clear that I can't see sales to final consumers.
-
-
-% TODO: talk about the APF dividend
+\pagebreak
+\section{Introduction}
 
 
-\section[DD Results]{DD Results (integrate this more later)}
-
-For each of the outcomes below:
-\begin{itemize}
-    \item Make a plot of the time trend of Alaska vs other states.
-    \item Drop vehicles that are sold again within a year
-\end{itemize}
+The Alaska Permanent Fund is an account set up to hold and invest a portion of the state's mineral rights revenue.
+These dividends are substantial, roughly \$1000--2000 per person, as shown in figure~\ref{fig:permanent-fund-payments-individual}.
+The fund has been sending dividend payments in the fourth quarter of each year to Alaskan residents since the 1980s \parencite{hsieh2003}.
+In recent years, the payment has happened on the first Thursday in October.
+I will use this somewhat-arbitrary payment date as a source of variation in household's income, and therefore willingness to buy durable goods (specifically, cars).
 
 
-\subsection{Picking control states}
-In considering which states are good controls for Alaska, it's worth diving a little more into the structure of the Manheim auction data.
-Auctions occur in 32 states and Puerto Rico, and Alaska is not among them.
-Therefore all purchases by Alaskan buyers are at out-of-state auctions.
-For the simple difference-in-differences below, I've chosen Idaho, Oregon and Utah.
-The choice is somewhat subjective; these states have a large fraction of their out-of-state purchases in the auction states where Alaskan dealers are buying.
-This heuristic is appealing because it captures the markets where Alaska is operating, as well as additional factors from buying out of state.
-% See the code in find_match_states_crude_unmemoized for full details..
-A more robust approach is to use best-subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD}.
 
 
-\subsection{Volume of cars sold}
-Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
-Use all years, use event time relative to the dividend day and don't take into account any anticipation.
-Control for either a year FE or state \gdp{}. Control for either daily or day-of-week FE.
-As a default, the cars sold in the set of states where Alaskan buyers are active (in a given year).
-Force the panel to be balanced by adding zeros (if necessary).
+It's worth mentioning a few of the dividend details before going on.
+The dividend is paid out of investment earnings -- 10.5\% of the past five years' earnings -- not out of present-day oil revenue.
+The Permanent Fund investments are made in a broad variety of stocks and bonds.%
+\footnote{The asset allocation is detailed in the Alaska Permanent Fund Corporation's website, \url{http://apfc.org/home/Content/investments/assetAllocation2009.cfm}}
+The dividend the same amount for all recipients, with no means testing or other adjustments.
+Almost everyone in Alaska gets the dividend.
+Major exceptions are people who have lived in the state for less than a year and people serving time for some crimes.
+Approximately 91\% of the state's population applies and about 95\% of those applications are granted.
 
-This is theoretically ambiguous -- sales of \emph{used} cars could go up or down with an income shock, or be unchanged.
+\begin{figure}[bht]
+    \caption{\large Alaska Permanent Fund payments per person}
+    \vspace{-1.05em}
+    \includegraphics[width=\linewidth]{permanent_fund_payments_individual_notitle.pdf}
+    \label{fig:permanent-fund-payments-individual}
 
-\subsection{Efficiency of cars sold}
-Repeat the previous, but with the average \gpm{} of vehicles sold.
-
-\subsection{Quality of cars sold}
-Repeat the previous, but with the average \msrp{} of vehicles sold.
-
-Repeat the previous, but with the model-year-age (relative to auction date) of vehicles sold.
+    \textsc{Source:} Alaska Permanent Fund Division \parencite{apfd_payments_summary}.\par
+		Figures are adjusted for inflation using the annual average \textsc{cpi} \parencite{fred_inflation}.
+		The 2008 total includes a one-time, \$1200 bonus.
+\end{figure}
 
 
-\section{Synthetic results}
-Do the previous DD section again, but with synthetic controls or, maybe, the fancier frameworks of
-\textcite{DoudchenkoImbens2016DD} or \textcite{Xu2016}
+
+
+The principal data source in my analysis is the Manheim wholesale used vehicle auction data.
+The dataset records sale prices, vehicle identifiers, buyer and seller IDs and locations.
+After various cleaning measures, described in section~\ref{sec:manheim-data-cleaning}, I have
+\snippet{auctions_cleaned_total_obs_count.tex}
+observations of vehicle sales.
+These sales are between wholesalers such as auto dealerships, rental car agencies and vehicle leasing programs.
+In most of the following analysis, I focus on wholesalers with billing zip codes in Alaska who buy vehicles in the auctions.
+There are no auction sites in Alaska, so all of the purchases I observe for these dealers are from out of state.
+While I see when the vehicles were bought at auction, I don't know when they were delivered.
+Presumably, there can be some substantial delay shipping to Alaska; I examine the delay and anticipation effects as part of my analysis.
+Additionally, these are \emph{used} vehicles only.
+I won't be able to discuss the market for new vehicles beyond theoretical speculation.
+
+
+Importantly, I don't observe final sales to customers, so I don't know the timing or their purchases or the prices they face.
+I assume that cars bought by Alaskan dealers are sold to consumers with a not-to-long delay, since it's costly to hold unsold cars on the lot.
+(I do exclude cars that are bought and resold within a year.)
+The Manheim data are described in more detail in section~\ref{sec:manheim-data}.
 
 
 
@@ -246,46 +265,56 @@ Assuming away market power is clearly a big assumption\ldots
 % (Both are interesting, but they're different stories.)
 
 \section{Data}
+%\label{sec:data}
 
 \subsection{Wholesale auto auctions}
-
+\label{sec:manheim-data}
 
 % TODO: Repeat a little about the used car data and the things I can observe. Make clear again that I can't see sales to final consumers.
 
 
 \subsubsection{Cleaning auction data}
-
+\label{sec:manheim-data-cleaning}
 
 \begin{table}[hbtp]
     % TODO: make "table 1" serif
     \caption{Cleaning Manheim auction data}
     \label{tab:cleaning_manheim}
 
-% TODO (high priority): make sure these numbers are accurate
-%TODO (low priority): Make these numbers auto-place.
 \begin{tabular}{l S p{0.5\linewidth}}
     \toprule
 	Elimination category & \multicolumn{1}{l}{Count removed} & Details\\
 	\midrule
-	%TODO: add counts for unintelligible dates
-	Bad sale date & & \\
+	%TODO: add counts for unintelligible dates by re-running load_manheim.
+	Bad sale date & ?? & Reported sale date isn't a date.\\
+    % Bad sale date & \snippet{load_manheim_filter_bad_date_count.tex} & Reported sale date isn't a date.\\
 	\addlinespace
+    % TODO: re-run clean_car_auctions.r and uncomment the snippet lines below.
+
+    Duplicate sales & 3132085 & Same \textsc{vin} sold twice within a year.\\
+    % Duplicate sales & \snippet{cleaning_count_resold.tex} & Same \textsc{vin} sold twice within a year.\\
+    \addlinespace
 	Weird vehicles & 20299 & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, ATVs and RVs.\\
+    % Weird vehicles & \snippet{cleaning_count_weird_vehicles.tex} & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, ATVs and RVs.\\
 	\addlinespace
-	Bad odometer & 586941 & Auction comments indicate reported miles are inaccurate.\\
+    Bad odometer & 586941 & Auction comments indicate reported miles are inaccurate.\\
+    % Bad odometer & \snippet{cleaning_count_bad_odometer.tex} & Auction comments indicate reported miles are inaccurate.\\
 	\addlinespace
-	Damaged & 2665224 & Auction comments indicate vehicle is substantially damaged. \\
+    Damaged & 2665224 & Auction comments indicate vehicle is substantially damaged. \\
+    % Damaged & \snippet{cleaning_count_damaged.tex} & Auction comments indicate vehicle is substantially damaged. \\
 	\addlinespace
-	Bad price & 59193 & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
+    Bad price & 59193 & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
+    % Bad price & \snippet{cleaning_count_price.tex} & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
 	\addlinespace
-	Canadian & 132118 & Auction comments indicate vehicle is Canadian.\\
+    Canadian & 132118 & Auction comments indicate vehicle is Canadian.\\
+    % Canadian & \snippet{cleaning_count_canadian.tex} & Auction comments indicate vehicle is Canadian.\\
     \bottomrule
     \addlinespace
 \end{tabular}
 \footnotesize
 \textsc{Notes:} Data are from US Manheim auctions, 2002--2014.
-There are XX sales before cleaning and XX sales after.
-XX of the cleaned sales are to Alaskan buyers.
+There are XX sales before cleaning and \snippet{auctions_cleaned_total_obs_count.tex} sales after.
+\snippet{auctions_cleaned_alaska_obs_count.tex} of the cleaned sales are to Alaskan buyers.
 Cars that are listed for auction but not sold are dropped.
 For cars that are sold multiple times, only the final sale is counted.
 % TODO: check that the last sentence is true.
@@ -299,6 +328,53 @@ The Manheim data are voluminous, and they include many kinds of sales outside th
 \subsection{Gas prices}
 \subsection{CEX}
 \subsection{Vehicle registrations}
+
+
+\section[DD Results]{Difference-in-differences results}
+
+For each of the outcomes below:
+\begin{itemize}
+    \item Make a plot of the time trend of Alaska vs other states.
+\end{itemize}
+
+
+\subsection{Picking control states}
+In considering which states are good controls for Alaska, it's worth diving a little more into the structure of the Manheim auction data.
+Auctions occur in 32 states and Puerto Rico, and Alaska is not among them.
+Therefore all purchases by Alaskan buyers are at out-of-state auctions.
+For the simple difference-in-differences below, I've chosen Idaho, Oregon and Utah.
+The choice is somewhat subjective; these states have a large fraction of their out-of-state purchases in the auction states where Alaskan dealers are buying.
+This heuristic is appealing because it captures the markets where Alaska is operating, as well as additional factors from buying out of state.
+% See the code in find_match_states_crude_unmemoized for full details..
+A more robust approach is to use best-subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD}.
+
+
+
+
+\subsection{Volume of cars sold}
+Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
+Use all years, use event time relative to the dividend day and don't take into account any anticipation.
+Control for either a year FE or state \gdp{}. Control for either daily or day-of-week FE.
+As a default, the cars sold in the set of states where Alaskan buyers are active (in a given year).
+Force the panel to be balanced by adding zeros (if necessary).
+
+This is theoretically ambiguous -- sales of \emph{used} cars could go up or down with an income shock, or be unchanged.
+
+\subsection{Efficiency of cars sold}
+Repeat the previous, but with the average \gpm{} of vehicles sold.
+
+\subsection{Quality of cars sold}
+Repeat the previous, but with the average \msrp{} of vehicles sold.
+
+Repeat the previous, but with the model-year-age (relative to auction date) of vehicles sold.
+
+
+\section{Synthetic results}
+Do the previous DD section again, but with synthetic controls or, maybe, the fancier frameworks of
+\textcite{DoudchenkoImbens2016DD} or \textcite{Xu2016}
+
+
+
 
 \section{Replicating Hsieh}
 % TODO: discuss his estimation setup

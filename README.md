@@ -25,9 +25,11 @@
 - [ ] Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
     - Use county pop to estimate county APF dividend income
 - [ ] Get answers from Harrison
+- [ ] Read EI feedback again.
 
 ### Data cleaning to-do
 - [ ] For observations that have no valid state, bring in the state from other observations of the same buyer/seller/auction (as long as there's a unique other state).
+- [ ] Use Derek's improved zip code mapping.
 
 ## To read:
 - [ ] Original synthetic controls paper

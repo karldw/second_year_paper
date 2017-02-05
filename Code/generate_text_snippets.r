@@ -1,3 +1,10 @@
+
+# generate_text_snippets.r
+# This file runs queries and generates some of the numbers to be \include{}-ed in the
+# LaTeX text.
+# If the files already exist, it doesn't regenerate them, so if you make changes, clear
+# them out!
+
 source('r_defaults.r')
 install_lazy(c('dplyr', 'RPostgreSQL'), verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))

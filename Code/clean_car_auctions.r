@@ -451,9 +451,10 @@ delete_orig_table <- function(con, verbose) {
 report_counts <- function(deleted_counts) {
     for (i in seq_along(deleted_counts)) {
         count_name <- gsub('\\W', '_', names(deleted_counts)[[i]], perl = TRUE)
-        count_filename <- paste0('cleaning_count_', count_name, '.tex')
+        count_filename <- paste0('clean_car_auctions_', count_name, '.tex')
         count_value <- as.integer(deleted_counts[[i]])
-        make_snippet(count_value, count_filename)
+        # write the snippets out to ../Text/Generated_snippets/
+        make_snippet(count_value, count_filename, lazy = FALSE)
     }
 }
 
