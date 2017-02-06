@@ -81,7 +81,7 @@ pull_data_one_year <- function(year, days_before = 30L, days_after = days_before
 get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
     # Aggregate sale counts and sales_pr at some level of date and ID.
     stopifnot(length(date_var) == 1, length(id_var) == 1,
-              date_var %in% c('sale_date', 'event_time', 'event_week'),
+              date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
               # other IDs are possible, but haven't been written yet:
               id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
 
@@ -715,8 +715,44 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
     return(to_plot)
 }
 
+
+get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily') {
+    if (aggregation_level == 'daily') {
+        time_var <- 'sale_date'
+    } else if (aggregation_level == 'weekly') {
+        time_var <- 'sale_week'
+    } else {
+        stop("Bad aggregation_level, should be daily or weekly.")
+    }
+
+    control_states <- find_match_states_crude()
+    df <- auctions %>%
+        select(sale_date, buy_state, sales_pr) %>%
+        filter(buy_state %in% c('AK', control_states))
+    if (time_var == 'sale_week') {
+        # NB: This is not exactly the same as event weeks
+        df <- df %>% mutate(sale_week = date_part('week', sale_date))
+    }
+    df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
+        # Then demean so we're not getting huge standard deviations by looking across
+        # states
+        group_by(buy_state) %>%
+        mutate(sale_tot = sale_tot - mean(sale_tot),
+               sale_count = sale_count - mean(sale_count)) %>%
+        ungroup() %>%
+        winsorize(c('sale_tot', 'sale_count')) %>%
+        summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
+        collect()
+
+    return(df)
+}
+if (! existsFunction('get_state_by_time_variation')) {
+    get_state_by_time_variation <- memoize(get_state_by_time_variation_unmemoized)
+}
+
+
 plot_effects_by_anticipation <- function(outcome,
-        aggregation_level = 'daily', days_before_limit = 70) {
+        aggregation_level = 'daily', days_before_limit = 70, title = TRUE) {
 
     if (aggregation_level == 'daily') {
         loop_start <- (-days_before_limit) + 1
@@ -748,13 +784,21 @@ plot_effects_by_anticipation <- function(outcome,
     to_plot <- purrr::map_df(windows, get_results_one_window) %>%
         mutate(start = factor(start))
 
+    sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
-        to_plot <- to_plot %>% mutate(coef = coef / 1e3, se = se / 1e3)
+        to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
+                                      se = se / sale_tot_divisor)
     }
     to_plot <- to_plot %>% mutate(conf95_lower = coef - (1.96 * se),
                                   conf95_upper = coef + (1.96 * se))
 
-
+    # Now also grab the std dev of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')#  so sale_tot_sd or sale_count_sd
+    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    if (outcome == 'sale_tot') {
+        data_sd <- data_sd / sale_tot_divisor
+    }
+    print(data_sd)
     # Define a bunch of labels.
     if (aggregation_level == 'daily') {
         aggregation_level_noun <- 'day'
@@ -777,14 +821,21 @@ plot_effects_by_anticipation <- function(outcome,
     coef_plot <- ggplot(to_plot, aes(x = start, y = coef)) +
         geom_point() +
         geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
-        labs(x = lab_x, y = lab_y, title = 'Anticipation window treatment coefficient') +
+        geom_hline(yintercept = data_sd, color = 'red3', alpha = 0.4) +
+        labs(x = lab_x, y = lab_y) +
         PLOT_THEME
-
-    save_plot(coef_plot, sprintf('anticipation_window_%s_%s_notitle.pdf', outcome,
-                                 aggregation_level))
-    return(to_plot)
+    if (title){
+        coef_plot <- coef_plot + labs(title =
+            'Anticipation window treatment coefficient for varying window starts')
+        title_pattern <- ''
+    } else {
+        title_pattern <- '_notitle'
+    }
+    filename <- sprintf('anticipation_window_%s_%s%s.pdf', outcome, aggregation_level,
+                        title_pattern)
+    save_plot(coef_plot, filename)
+    invisible(to_plot)  # then return the data
 }
-
 # sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot')
 # sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count')
 sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly')
