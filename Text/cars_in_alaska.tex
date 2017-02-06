@@ -7,8 +7,10 @@
 \usepackage{carlito}
 \usepackage{inconsolata}
 \usepackage{sectsty}
-
-\usepackage[font=sf]{caption}
+\usepackage{setspace}
+% \onehalfspace
+\doublespace
+% \usepackage[font=sf]{caption}
 \allsectionsfont{\sffamily\mdseries}
 \usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
 \microtypecontext{spacing=nonfrench}
@@ -195,10 +197,9 @@ Approximately 91\% of the state's population applies and about 95\% of those app
 
 \begin{figure}[bht]
     \caption{\large Alaska Permanent Fund payments per person}
-    \vspace{-1.05em}
+    % \vspace{-1.05em}
     \includegraphics[width=\linewidth]{permanent_fund_payments_individual_notitle.pdf}
     \label{fig:permanent-fund-payments-individual}
-
     \textsc{Source:} Alaska Permanent Fund Division \parencite{apfd_payments_summary}.\par
 		Figures are adjusted for inflation using the annual average \textsc{cpi} \parencite{fred_inflation}.
 		The 2008 total includes a one-time, \$1200 bonus.
@@ -272,55 +273,45 @@ Assuming away market power is clearly a big assumption\ldots
 
 % TODO: Repeat a little about the used car data and the things I can observe. Make clear again that I can't see sales to final consumers.
 
-
+\snippet{clean_car_auctions_resold.tex}
 \subsubsection{Cleaning auction data}
 \label{sec:manheim-data-cleaning}
 
-\begin{table}[hbtp]
+\begin{table}[hbt]
     % TODO: make "table 1" serif
     \caption{Cleaning Manheim auction data}
     \label{tab:cleaning_manheim}
-
+    % TODO: Make the numbers here better by having parse-numbers = true (currently broken because the snippet gets added after siunitx tries to parse the number)
+    \sisetup{parse-numbers = false}
 \begin{tabular}{l S p{0.5\linewidth}}
     \toprule
 	Elimination category & \multicolumn{1}{l}{Count removed} & Details\\
 	\midrule
-	%TODO: add counts for unintelligible dates by re-running load_manheim.
-	Bad sale date & ?? & Reported sale date isn't a date.\\
-    % Bad sale date & \snippet{load_manheim_filter_bad_date_count.tex} & Reported sale date isn't a date.\\
-	\addlinespace
-    % TODO: re-run clean_car_auctions.r and uncomment the snippet lines below.
 
-    Duplicate sales & 3132085 & Same \textsc{vin} sold twice within a year.\\
-    % Duplicate sales & \snippet{cleaning_count_resold.tex} & Same \textsc{vin} sold twice within a year.\\
+    % Bad sale date & \snippet{load_manheim_filter_bad_date_count.tex} & Reported sale date isn't a date.\\
+	% \addlinespace
+
+    Duplicate sales & \snippet{clean_car_auctions_resold.tex} & Same \textsc{vin} sold twice within a year.\\
     \addlinespace
-	Weird vehicles & 20299 & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, ATVs and RVs.\\
-    % Weird vehicles & \snippet{cleaning_count_weird_vehicles.tex} & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, ATVs and RVs.\\
+    Weird vehicles & \snippet{clean_car_auctions_weird_vehicles.tex} & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, \textsc{atv}s and \textsc{rv}s.\\
 	\addlinespace
-    Bad odometer & 586941 & Auction comments indicate reported miles are inaccurate.\\
-    % Bad odometer & \snippet{cleaning_count_bad_odometer.tex} & Auction comments indicate reported miles are inaccurate.\\
+    Bad odometer & \snippet{clean_car_auctions_bad_odometer.tex} & Auction comments indicate odometer is flawed.\\
 	\addlinespace
-    Damaged & 2665224 & Auction comments indicate vehicle is substantially damaged. \\
-    % Damaged & \snippet{cleaning_count_damaged.tex} & Auction comments indicate vehicle is substantially damaged. \\
+    Damaged & \snippet{clean_car_auctions_damaged.tex} & Auction comments indicate vehicle is damaged. \\
 	\addlinespace
-    Bad price & 59193 & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
-    % Bad price & \snippet{cleaning_count_price.tex} & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
+    Bad price & \snippet{clean_car_auctions_price.tex} & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
 	\addlinespace
-    Canadian & 132118 & Auction comments indicate vehicle is Canadian.\\
-    % Canadian & \snippet{cleaning_count_canadian.tex} & Auction comments indicate vehicle is Canadian.\\
+    Canadian & \snippet{clean_car_auctions_canadian.tex} & Auction comments indicate vehicle is Canadian.\\
     \bottomrule
     \addlinespace
 \end{tabular}
 \footnotesize
 \textsc{Notes:} Data are from US Manheim auctions, 2002--2014.
-There are XX sales before cleaning and \snippet{auctions_cleaned_total_obs_count.tex} sales after.
+There are \snippet{auctions_uncleaned_total_obs_count.tex} sales before cleaning and \snippet{auctions_cleaned_total_obs_count.tex} sales after.
 \snippet{auctions_cleaned_alaska_obs_count.tex} of the cleaned sales are to Alaskan buyers.
 Cars that are listed for auction but not sold are dropped.
-For cars that are sold multiple times, only the final sale is counted.
-% TODO: check that the last sentence is true.
 
 \end{table}
-
 
 The Manheim data are voluminous, and they include many kinds of sales outside the scope of this research.
 
@@ -516,7 +507,7 @@ To do that, I'll first discuss the various data sources, then comment on the ass
 	{\footnotesize
 		\textsc{Source:} Alaska Permanent Fund Division \parencite{apfd_payments_summary}.\par
 		Figures are adjusted for inflation using the annual average \textsc{cpi} \parencite{fred_inflation}.
-		The 2008 total includes a one-time, \$1200 bonus.
+		The 2008 total includes a \$1200 one-time bonus.
 	}
 \end{figure}
 
@@ -649,6 +640,7 @@ I've dropped these.
 
 \pagebreak
 % References
+% TODO: single-space bibliography
 \printbibliography
 
 
