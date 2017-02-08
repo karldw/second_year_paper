@@ -226,12 +226,17 @@ clear_all <- function() {
 }
 
 
-save_plot <- function(plt, name, scale_mult = 1) {
+save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE) {
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
-              grepl('.+\\.pdf', name, perl = TRUE, ignore.case = TRUE))
-
-    ggplot2::ggsave(file.path(plot_dir, name), plt, device = cairo_pdf,
+              grepl('.+\\.pdf$', name, perl = TRUE, ignore.case = TRUE),
+              is.logical(overwrite))
+    outfile <- file.path(plot_dir, name)
+    if (file.exists(outfile) && (! overwrite)) {
+        # This isn't perfect, since there's now a sliver of time between the file
+        # check and the writing, but I can't see how to make cairo do that.
+    }
+    ggplot2::ggsave(outfile, plt, device = cairo_pdf,
                     width = 6.3 * scale_mult, height = 3.54 * scale_mult)
 }
 
@@ -500,7 +505,8 @@ lapply_bind_rows <- function(X, FUN, ..., rbind_src_id = NULL, parallel_cores = 
         }
         out <- Reduce(dplyr::union_all, list_results)
     } else {
-        stop('Sorry, not sure how to bind rows here.')
+        stop(sprintf("Sorry, not sure how to bind rows for results of class '%s'.",
+                     list_results_class))
     }
     return(out)
 }

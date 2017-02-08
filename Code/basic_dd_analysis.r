@@ -636,7 +636,7 @@ run_dd <- function(years = 2002:2014,
 
 plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
         aggregation_level = 'daily', days_before_limit = 70) {
-
+    stop("This is an old function.  You probably don't want it.")
     if (aggregation_level == 'daily') {
         loop_start <- (-days_before_limit) + 1
         min_window_length <- 7
@@ -716,7 +716,18 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
 }
 
 
-get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily') {
+get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
+        winsorize_pct = NULL, states_included = NULL) {
+
+    # Parameters:
+    # aggregation_level: the aggregation level of the counts and dollar amounts.
+    #   daily/weekly, defaults to daily.
+    # winsorize_pct: the amount by which the aggregated variables (counts or $) should be
+    #   winsorized before calculating the std dev. Defaults to no winsorization.
+    # states_included: the states included in the standard deviation calculation.
+    #   Defaults to Alaska and the control states from find_match_states_crude().
+    #   Note that the outcomes are demeaned by state before calculating the std dev.
+
     if (aggregation_level == 'daily') {
         time_var <- 'sale_date'
     } else if (aggregation_level == 'weekly') {
@@ -725,10 +736,18 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily') 
         stop("Bad aggregation_level, should be daily or weekly.")
     }
 
-    control_states <- find_match_states_crude()
-    df <- auctions %>%
-        select(sale_date, buy_state, sales_pr) %>%
-        filter(buy_state %in% c('AK', control_states))
+    if (is.null(states_included)) {
+        # What states get included in the std dev calculations?
+        control_states <- find_match_states_crude()
+        states_included <- c('AK', control_states)
+    }
+    df <- auctions %>% select(sale_date, buy_state, sales_pr)
+    if (length(states_included) <= 1) {
+        # Necessary because if states_included has length 1, we encounter dplyr bug #511.
+        df <- df %>% filter(buy_state == states_included)
+    } else {
+        df <- df %>% filter(buy_state %in% states_included)
+    }
     if (time_var == 'sale_week') {
         # NB: This is not exactly the same as event weeks
         df <- df %>% mutate(sale_week = date_part('week', sale_date))
@@ -739,16 +758,20 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily') 
         group_by(buy_state) %>%
         mutate(sale_tot = sale_tot - mean(sale_tot),
                sale_count = sale_count - mean(sale_count)) %>%
-        ungroup() %>%
-        winsorize(c('sale_tot', 'sale_count')) %>%
-        summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
+        ungroup()
+    if (! is.null(winsorize_pct)) {
+        df <- df %>% winsorize(c('sale_tot', 'sale_count'), winsorize_pct)
+    }
+    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
         collect()
 
     return(df)
 }
-if (! existsFunction('get_state_by_time_variation')) {
+# TODO: uncomment this back
+# if (! existsFunction('get_state_by_time_variation')) {
     get_state_by_time_variation <- memoize(get_state_by_time_variation_unmemoized)
-}
+# }
+get_state_by_time_variation <- get_state_by_time_variation_unmemoized
 
 
 plot_effects_by_anticipation <- function(outcome,
@@ -781,8 +804,13 @@ plot_effects_by_anticipation <- function(outcome,
 
     }
     windows <- seq.int(loop_start, -min_window_length, by = 1)
-    to_plot <- purrr::map_df(windows, get_results_one_window) %>%
-        mutate(start = factor(start))
+    to_plot <- purrr::map_df(windows, get_results_one_window)
+    # For weekly, force ggplot to label all weeks, rather than having ridiculous
+    # half-weeks.
+    if (aggregation_level == 'weekly') {
+        to_plot <- to_plot %>% mutate(start = factor(start))
+    }
+
 
     sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
@@ -793,12 +821,28 @@ plot_effects_by_anticipation <- function(outcome,
                                   conf95_upper = coef + (1.96 * se))
 
     # Now also grab the std dev of the sample we're looking at.
-    sd_varname <- paste0(outcome, '_sd')#  so sale_tot_sd or sale_count_sd
+    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
     data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    control_states <- find_match_states_crude()
+    individual_state_std_dev <- lapply_bind_rows(c('AK', control_states),
+        get_state_by_time_variation,
+        aggregation_level = aggregation_level, winsorize_pct = NULL,
+        rbind_src_id = 'state', parallel_cores = 1) %>%
+        select_(.dots = c('state', sd_varname)) %>%
+        # use a common name regardless of outcome so I don't have to fuss with dplyr and
+        # ggplot standard evaluation later
+        setNames(c('state', 'outcome_sd'))
+    std_devs <- data_frame(state = 'Pooled', outcome_sd = data_sd) %>%
+        bind_rows(individual_state_std_dev) %>%
+        # Explicitly set the factor and its ordered levels for a better plot legend
+        mutate(state = factor(state, levels = c('Pooled', 'AK', control_states),
+                              labels = c('Pooled', 'AK', control_states), ordered = TRUE))
     if (outcome == 'sale_tot') {
-        data_sd <- data_sd / sale_tot_divisor
+        # data_sd <- data_sd / sale_tot_divisor
+        std_devs <- std_devs %>% mutate(outcome_sd = outcome_sd / sale_tot_divisor)
+    #    data_sd_ak_only <- data_sd_ak_only / sale_tot_divisor
     }
-    print(data_sd)
+
     # Define a bunch of labels.
     if (aggregation_level == 'daily') {
         aggregation_level_noun <- 'day'
@@ -821,8 +865,8 @@ plot_effects_by_anticipation <- function(outcome,
     coef_plot <- ggplot(to_plot, aes(x = start, y = coef)) +
         geom_point() +
         geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
-        geom_hline(yintercept = data_sd, color = 'red3', alpha = 0.4) +
-        labs(x = lab_x, y = lab_y) +
+        labs(x = lab_x, y = lab_y, color = 'State\nstd dev') +
+        scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
         PLOT_THEME
     if (title){
         coef_plot <- coef_plot + labs(title =
@@ -831,15 +875,29 @@ plot_effects_by_anticipation <- function(outcome,
     } else {
         title_pattern <- '_notitle'
     }
-    filename <- sprintf('anticipation_window_%s_%s%s.pdf', outcome, aggregation_level,
-                        title_pattern)
-    save_plot(coef_plot, filename)
+    # Then make the versions with lines for the standard deviations
+    # First, the one with a single, pooled std dev
+    coef_plot_with_pooled_sd <- coef_plot +
+        geom_hline(data = filter(std_devs, state == 'Pooled'),
+                   aes(yintercept = outcome_sd, color = state)) +
+        theme(legend.position="none")
+    # Then, to make sure it's not one state swamping the std dev calculation, do each
+    # separately.
+    coef_plot_with_states_sd <- coef_plot +
+        geom_hline(data = std_devs, aes(yintercept = outcome_sd, color = state))
+
+
+    filename_part <- sprintf('anticipation_window_%s_%s%s', outcome, aggregation_level,
+                             title_pattern)
+    save_plot(coef_plot,                paste0(filename_part, '.pdf'))
+    save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
+    save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
     invisible(to_plot)  # then return the data
 }
-# sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot')
-# sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count')
-sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly')
-sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly')
+sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot')
+sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count')
+# sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly')
+# sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly')
 
 
 # quality_control_graphs()

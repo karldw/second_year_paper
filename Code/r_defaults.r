@@ -65,3 +65,9 @@ PLOT_THEME <- ggplot2::theme(
 # Colors from http://haas.berkeley.edu/style-guide/colors.html
 # BLUE_AND_YELLOW <- c('#003A70', '#FFBD17')
 BLUE_AND_YELLOW <- c('#0066CC', '#FFBD17')
+
+# Colorblind-friendly palette with black:
+# Borrowed from http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/
+# The palette with black:
+PALETTE_8_COLOR_START_WITH_BLACK <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
+                                      "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
