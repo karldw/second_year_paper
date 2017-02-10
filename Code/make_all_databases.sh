@@ -4,6 +4,7 @@
 
 set -euf -o pipefail
 
+Rscript load_cpi_into_postgres.r
 Rscript download_state_data.r
 Rscript parse_county_data.r
 Rscript load_manheim_into_postgres.r

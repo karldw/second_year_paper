@@ -47,7 +47,8 @@ pg_add_index <- function(con, table_name, indexed_col, unique_index = FALSE,
     # unique, but if you want to ALTER TABLE to make a primary key, you have to start
     # with a unique index.
     stopifnot(length(table_name) == 1, length(indexed_col) >= 1)
-    .pg_assert_existence(con, table_name, indexed_col)
+    # Doesn't work with temp tables.  Instead, just reply on SQL to complain.
+    # .pg_assert_existence(con, table_name, indexed_col)
     index_name <- paste0(paste(indexed_col, collapse = '_'), '_index')
 
     if (unique_index) {
@@ -840,4 +841,57 @@ format_numbers <- function(x, dollars = FALSE, sig_figs = NULL) {
                      drop0trailing = TRUE)
     out <- paste0(neg_str, dollar_str, out)
     return(out)
+}
+
+
+get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
+        winsorize_pct = NULL, states_included = NULL) {
+
+    # Parameters:
+    # aggregation_level: the aggregation level of the counts and dollar amounts.
+    #   daily/weekly, defaults to daily.
+    # winsorize_pct: the amount by which the aggregated variables (counts or $) should be
+    #   winsorized before calculating the std dev. Defaults to no winsorization.
+    # states_included: the states included in the standard deviation calculation.
+    #   Defaults to Alaska and the control states from find_match_states_crude().
+    #   Note that the outcomes are demeaned by state before calculating the std dev.
+
+    if (aggregation_level == 'daily') {
+        time_var <- 'sale_date'
+    } else if (aggregation_level == 'weekly') {
+        time_var <- 'sale_week'
+    } else {
+        stop("Bad aggregation_level, should be daily or weekly.")
+    }
+
+    if (is.null(states_included)) {
+        # What states get included in the std dev calculations?
+        control_states <- find_match_states_crude()
+        states_included <- c('AK', control_states)
+    }
+    df <- auctions %>% select(sale_date, buy_state, sales_pr)
+    if (length(states_included) <= 1) {
+        # Necessary because if states_included has length 1, we encounter dplyr bug #511.
+        df <- df %>% filter(buy_state == states_included)
+    } else {
+        df <- df %>% filter(buy_state %in% states_included)
+    }
+    if (time_var == 'sale_week') {
+        # NB: This is not exactly the same as event weeks
+        df <- df %>% mutate(sale_week = date_part('week', sale_date))
+    }
+    df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
+        # Then demean so we're not getting huge standard deviations by looking across
+        # states
+        group_by(buy_state) %>%
+        mutate(sale_tot = sale_tot - mean(sale_tot),
+               sale_count = sale_count - mean(sale_count)) %>%
+        ungroup()
+    if (! is.null(winsorize_pct)) {
+        df <- df %>% winsorize(c('sale_tot', 'sale_count'), winsorize_pct)
+    }
+    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
+        collect()
+
+    return(df)
 }

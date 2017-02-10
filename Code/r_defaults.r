@@ -34,6 +34,10 @@ if (! methods::existsFunction('find_match_states_crude')) {
     install_lazy('memoise', FALSE)
     find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
 }
+if (! methods::existsFunction('get_state_by_time_variation')) {
+    get_state_by_time_variation <- memoise::memoize(
+        get_state_by_time_variation_unmemoized)
+}
 
 
 ####    Make joins better    ####

@@ -14,6 +14,8 @@ POSTGRES_ORIG_TABLE <- 'all_years_all_sales'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
 POSTGRES_VIN_DECODER_TABLE <- 'vin_decoder'
 POSTGRES_ZIPCODE_TABLE <- 'zipcode'
+POSTGRES_CPI_TABLE <- 'cpi'
+
 
 message_if_verbose <- function(msg, verbose) {
     # Just for ease of reading code later
@@ -33,112 +35,199 @@ copy_orig_table <- function(con, verbose){
     message_if_verbose(sprintf("Starting by copying %s to %s", POSTGRES_ORIG_TABLE,
                        POSTGRES_CLEAN_TABLE), verbose)
 
-    # CREATE TABLE auctions_cleaned AS
-    #
-    #     SELECT auction_zip, sell_zip, buy_zip, sale_date, seller_id, seller_type,
-    #     slrdlr_type, buyer_id, auction_code, vin, model_yr, make, model, miles,
-    #     sale_type, salvg_flg, cond, anncmts, remarks, sales_pr, mmr, bid_ct,
-    #     veh_type, comments, vin_pattern, buy_state, sell_state,
-    #     state AS auction_state,
-    #     concat_ws(' ', anncmts, remarks) AS comments,
-    #     concat(substring(vin FROM 1 FOR 8),
-    #            substring(vin FROM 10 FOR 2)) AS vin_pattern
-    #     FROM
-    #         (
-    #             SELECT * FROM
-    #                 (
-    #                 SELECT * FROM
-    #                     (
-    #                         SELECT * FROM
-    #                             all_years_all_sales
-    #                         LEFT JOIN
-    #                             (SELECT zip, state as buy_state FROM zipcode)
-    #                         ON (buy_zip = zip)
-    #                     )
-    #                 LEFT JOIN
-    #                     (SELECT zip, state as sell_state FROM zipcode)
-    #                 ON (sell_zip = zip)
-    #                 )
-    #             LEFT JOIN
-    #                 (SELECT zip, state AS auction_state FROM zipcode)
-    #             ON (auction_zip = zip)
-    #         )
-
-    # create_table_command <- paste(
-    # "SELECT *, concat_ws(' ', anncmts, remarks) AS comments,",
-    # "concat(substring(vin FROM 1 FOR 8), substring(vin FROM 10 FOR 2)) AS vin_pattern",
-    # "INTO", POSTGRES_CLEAN_TABLE, 'FROM', POSTGRES_ORIG_TABLE)
-
     # get the original field names, then tack an extra comma on the end.
-
     orig_col_names <- dbListFields(con, POSTGRES_ORIG_TABLE) %>%
         paste(collapse = ', ') %>% paste0(',')
+    state_cols <- 'buy_state, sell_state, auction_state,'
 
+    # This version, while easier to understand, uses too much temp disk space:
+    # create_table_command <- paste(
+    #     "CREATE UNLOGGED TABLE", POSTGRES_CLEAN_TABLE, "AS",
+    #
+    #         "WITH",
+    #             # We'll merge against zipcode_state several times.
+    #             # zip is the primary key in the zipcode table.
+    #             "zipcode_state AS (SELECT zip, state FROM", POSTGRES_ZIPCODE_TABLE, "),",
+    #             # First merge to create buy_state
+    #             "joined_buy AS (SELECT", orig_col_names, "state AS buy_state",
+    #                 "FROM", POSTGRES_ORIG_TABLE,
+    #                 "LEFT JOIN zipcode_state ON zip = buy_zip),",
+    #             # Then merge that result to create sell_state
+    #             "joined_buy_sell AS (SELECT", orig_col_names,
+    #                 "buy_state, state AS sell_state",
+    #                 "FROM joined_buy",
+    #                 "LEFT JOIN zipcode_state ON zip = sell_zip),",
+    #             # Then merge that result to create auction_state
+    #             "joined_buy_sell_auction AS (SELECT", orig_col_names,
+    #                 "buy_state, sell_state, state AS auction_state",
+    #                 "FROM joined_buy_sell",
+    #                 "LEFT JOIN zipcode_state ON zip = auction_zip),",
+    #             # Then merge that result with the CPI data to create sales_pr_real
+    #             # (which will be renamed in the next step to sales_pr, but it's easier
+    #             # here to keep the sales_pr variable in orig_col_names)
+    #             "joined_buy_sell_auction_cpi AS (SELECT", orig_col_names,
+    #                 "buy_state, sell_state, auction_state,",
+    #                 "sales_pr / cpi_base_2016 as sales_pr_real,",
+    #                 "concat(substring(vin FROM 1 FOR 8),",
+    #                        "substring(vin FROM 10 FOR 2)) AS vin_pattern",
+    #                 "FROM joined_buy_sell_auction AS a",
+    #                 # year and month are, jointly, the primary key on the CPI table
+    #                 "LEFT JOIN", POSTGRES_CPI_TABLE, "AS b",
+    #                 "ON DATE_PART('YEAR', a.sale_date) = b.year AND",
+    #                 "DATE_PART('MONTH', a.sale_date) = b.month),",
+    #             "msrp_info AS (SELECT",
+    #                 "msrp, vin_pattern, model_yr AS vin_decoder_model_yr FROM",
+    #                 POSTGRES_VIN_DECODER_TABLE, "),",
+    #             "joined_buy_sell_auction_cpi_msrp AS (SELECT", orig_col_names,
+    #                 "buy_state, sell_state, auction_state,",
+    #                 "sales_pr_real, x.vin_pattern, msrp, vin_decoder_model_yr",
+    #                 "FROM joined_buy_sell_auction_cpi AS x",
+    #                 "LEFT JOIN msrp_info AS y",
+    #                 "ON x.vin_pattern = y.vin_pattern)",
+    #     "SELECT",
+    #         "sale_date, sell_zip, buy_zip, auction_zip, vin, miles,",
+    #         # Finally switch around the sales_pr names, making sales_pr into
+    #         # sales_pr_nominal and sales_pr_real into sales_pr (since this is the one
+    #         # I'll want to use most of the time).
+    #         "sales_pr AS sales_pr_nominal,",
+    #         "sales_pr_real AS sales_pr,",
+    #         "mmr, bid_ct, veh_type,",
+    #         "buy_state, sell_state, auction_state, msrp,",
+    #         # Trust vin_decoder_model_yr if available, and recode 0 in auction model_yr
+    #         # as NULL.
+    #         "COALESCE(vin_decoder_model_yr, NULLIF(model_yr, 0)) as model_yr,",
+    #         "NULLIF(auction_code, '') AS auction_code,",
+    #         "NULLIF(buyer_id, '')     AS buyer_id,",
+    #         "NULLIF(cond, '')         AS cond,",
+    #         "NULLIF(make, '')         AS make,",
+    #         "NULLIF(model, '')        AS model,",
+    #         "NULLIF(sale_type, '')    AS sale_type,",
+    #         "NULLIF(salvg_flg, '')    AS salvg_flg,",
+    #         "NULLIF(seller_id, '')    AS seller_id,",
+    #         "NULLIF(seller_type, '')  AS seller_type,",
+    #         "NULLIF(slrdlr_type, '')  AS slrdlr_type,",
+    #         "concat_ws(' ', anncmts, remarks) AS comments,",
+    #         "random() as rand",
+    #     "FROM joined_buy_sell_auction_cpi_msrp",  # Pull from the WITH query above
+    #     "WITH DATA",  # copy the data from the query, not just structure (the default)
+    #     sep = '\n')
+
+    # Make small temporary tables we'll use below (mostly for convenience, and to
+    # document the primary keys in code).
+    create_zipcode_state <- paste("CREATE TEMPORARY TABLE zipcode_state AS",
+            "(SELECT zip, state FROM", POSTGRES_ZIPCODE_TABLE, ")")
+    dbSendStatement(con, create_zipcode_state)
+    pg_add_primary_key(con, 'zipcode_state', 'zip')
+
+    create_msrp_info <- paste("CREATE TEMPORARY TABLE msrp_info AS",
+        "(SELECT msrp, vin_pattern, model_yr AS vin_decoder_model_yr FROM",
+        POSTGRES_VIN_DECODER_TABLE, ")")
+    dbSendStatement(con, create_msrp_info)
+    pg_add_primary_key(con, 'msrp_info', 'vin_pattern')
 
     create_table_command <- paste(
-        "CREATE TABLE",
+        "CREATE UNLOGGED TABLE",
         POSTGRES_CLEAN_TABLE,
         "AS",
-            "SELECT",
-                "sale_date, sell_zip, buy_zip, auction_zip, vin, model_yr, miles,",
-                "sales_pr, mmr, bid_ct, veh_type,",
-                "buy_state, sell_state, auction_state,",
-                "NULLIF(auction_code, '') AS auction_code,",
-                "NULLIF(buyer_id, '')     AS buyer_id,",
-                "NULLIF(cond, '')         AS cond,",
-                "NULLIF(make, '')         AS make,",
-                "NULLIF(model, '')        AS model,",
-                "NULLIF(sale_type, '')    AS sale_type,",
-                "NULLIF(salvg_flg, '')    AS salvg_flg,",
-                "NULLIF(seller_id, '')    AS seller_id,",
-                "NULLIF(seller_type, '')  AS seller_type,",
-                "NULLIF(slrdlr_type, '')  AS slrdlr_type,",
-                "concat_ws(' ', anncmts, remarks) AS comments,",
-                "concat(substring(vin FROM 1 FOR 8),",
-                       "substring(vin FROM 10 FOR 2)) AS vin_pattern,",
-                "random() as rand",
-            "FROM",
-                "(",
-                    "SELECT",
-                        orig_col_names,
-                        "buy_state, sell_state, auction_state",
-                    "FROM",
-                        "(",
-                        "SELECT",
-                            orig_col_names,
-                            "buy_state, sell_state",
-                        "FROM",
-                            "(",
-                                "SELECT",
-                                    orig_col_names,
-                                    "buy_state",
-                                "FROM",
-                                    POSTGRES_ORIG_TABLE,
-                                "LEFT JOIN",
-                                    "(SELECT zip, state as buy_state FROM",
-                                    POSTGRES_ZIPCODE_TABLE,
-                                    ") AS zipcode_buy_state",
-                                "ON (buy_zip = zip)",
-                            ") AS joined_buy",
-                        "LEFT JOIN",
-                            "(SELECT zip, state as sell_state FROM",
-                            POSTGRES_ZIPCODE_TABLE,
-                            ") AS zipcode_sell_state",
-                        "ON (sell_zip = zip)",
-                        ") AS joined_buy_sell",
-                    "LEFT JOIN",
-                        "(SELECT zip, state AS auction_state FROM",
-                        POSTGRES_ZIPCODE_TABLE,
-                        ") AS zipcode_auction_state",
-                    "ON (auction_zip = zip)",
-                ") AS joined_buy_sell_auction",
-        sep = '\n')
+        "SELECT",
+            "sale_date, sell_zip, buy_zip, auction_zip, vin, miles,",
+            # Rename the original sales_pr to sales_pr_nominal, since most of the time
+            # we want to use inflation-adjusted prices.
+            "sales_pr AS sales_pr_nominal, sales_pr_real AS sales_pr, msrp,",
+            # Trust vin_decoder_model_yr if available, and recode 0 in auction model_yr
+            # as NULL.
+            "COALESCE(vin_decoder_model_yr, NULLIF(model_yr, 0)) as model_yr,",
+            state_cols,
+            "mmr, bid_ct, veh_type,",
+            "NULLIF(auction_code, '') AS auction_code,",
+            "NULLIF(buyer_id, '')     AS buyer_id,",
+            "NULLIF(cond, '')         AS cond,",
+            "NULLIF(make, '')         AS make,",
+            "NULLIF(model, '')        AS model,",
+            "NULLIF(sale_type, '')    AS sale_type,",
+            "NULLIF(salvg_flg, '')    AS salvg_flg,",
+            "NULLIF(seller_id, '')    AS seller_id,",
+            "NULLIF(seller_type, '')  AS seller_type,",
+            "NULLIF(slrdlr_type, '')  AS slrdlr_type,",
+            "concat_ws(' ', anncmts, remarks) AS comments,",
+            "random() as rand",
+        "FROM",
 
+            # Merge on vin_pattern to get msrp and vin_decoder_model_yr (5)
+            "(SELECT", orig_col_names, state_cols,
+                "sales_pr_real, msrp, vin_decoder_model_yr,",
+                # NB: this will only keep vin_pattern where we have matches, with the
+                # VIN decoder, but that's all that matters.
+                "msrp_info.vin_pattern",
+            "FROM",
+
+                # Merge on year and month to create sales_pr_real (4)
+                "(SELECT",
+                    orig_col_names, state_cols,
+                    '(sales_pr / cpi_base_2016) AS sales_pr_real,',
+                    # Make the vin_pattern variable for the upcoming merge with msrp_info:
+                    "concat(substring(vin FROM 1 FOR 8),",
+                           "substring(vin FROM 10 FOR 2)) AS vin_pattern",
+                "FROM",
+
+                    # Merge on auction_zip to create auction_state (3)
+                    "(SELECT",
+                        orig_col_names, 'buy_state, sell_state, state AS auction_state',
+                    "FROM",
+
+                        # Merge on sell_zip to create sell_state (2)
+                        "(SELECT",
+                            orig_col_names, "buy_state, state AS sell_state",
+                        "FROM",
+
+                            # Merge on buy_zip to create buy_state (1)
+                            "(SELECT",
+                                orig_col_names, "state AS buy_state",
+                            "FROM",
+                                POSTGRES_ORIG_TABLE,
+                                "LEFT JOIN",
+                                "zipcode_state",
+                                "ON buy_zip = zip",
+                            ") AS joined_buy",
+                            # End of merge on buy_zip to create buy state (1)
+
+                            "LEFT JOIN",
+                            "zipcode_state",
+                            "ON sell_zip = zip",
+                        ") AS joined_buy_sell",
+                        # End of merge on sell_zip to create sell_state (2)
+
+                        "LEFT JOIN",
+                        "zipcode_state",
+                        "ON auction_zip = zip",
+                    ") AS joined_buy_sell_auction",
+                    # End of merge on auction_zip to create auction_state (3)
+
+                    "LEFT JOIN",
+                    POSTGRES_CPI_TABLE, "AS cpi",
+                    "ON DATE_PART('year',  joined_buy_sell_auction.sale_date) = cpi.year",
+                    "AND",
+                    "DATE_PART('month', joined_buy_sell_auction.sale_date) = cpi.month",
+                ") AS joined_buy_sell_auction_cpi",
+                # End of merge on year and month to create sales_pr_real (4)
+
+                "LEFT JOIN",
+                "msrp_info",
+                "ON msrp_info.vin_pattern = joined_buy_sell_auction_cpi.vin_pattern",
+            ") AS joined_buy_sell_auction_cpi_msrp",
+            # End of merge on vin_pattern to get msrp and vin_decoder_model_yr (5)
+        sep = '\n')
+    # message("\n")
+    # exsql <- paste("EXPLAIN ANALYZE", create_table_command)
+    # expl_raw <- RPostgreSQL::dbGetQuery(con, exsql)
+    # expl <- paste(expl_raw[[1]], collapse = "\n")
+    # message("<PLAN>\n", expl)
+    # stop()
     set_seed_cmd <- "SELECT setseed(-0.783164798234)"
     suppressWarnings(dbExecute(con, set_seed_cmd))
 
     res <- dbSendStatement(con, create_table_command)
-    stopifnot(dbHasCompleted(res))
+    # stopifnot(dbHasCompleted(res))
 }
 
 
@@ -226,6 +315,7 @@ filter_damaged <- function(con) {
 
 
 filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 1.5) {
+    # This big commented-out section is here from a previous, more complicated situation.
 
     # The goal here is to drop rows outside the interval [100, min(80000, 1.5*msrp)]
     # The numbers, of course, can be changed.
@@ -234,9 +324,9 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
     # LEAST will ignore NULLs, so if MSRP is missing, just use 80000
 
     # Here's what the code would look like if msrp was already a column in the table:
-    # delete_conditions <- sprintf("sales_pr NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
+    # delete_cond <- sprintf("sales_pr_nominal NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
     #                              sales_pr_min, sales_pr_max, msrp_factor)
-    # rows_deleted <- execute_deletion(con, delete_conditions)
+    # rows_deleted <- execute_deletion(con, delete_cond)
 
     # The VIN match data has VIN positions 1-8, 10 and 11 (position 9 is a check digit)
 
@@ -247,23 +337,32 @@ filter_price <- function(con, min_price = 100, max_price = 80000, msrp_factor = 
     # POSTGRES_VIN_DECODER_TABLE, " AS vin_decoder WHERE (",
     # "(substring(auctions.vin FROM 1 FOR 8) || substring(auctions.vin FROM 10 FOR 2))",
     # " = vin_decoder.vin_pattern", ") AND ",
-    # "(sales_pr NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",  msrp_factor,
-    #                                                  " * vin_decoder.msrp))"
+    # "(sales_pr_nominal NOT BETWEEN ", min_price, " AND LEAST(", max_price, ", ",
+    #     msrp_factor, " * vin_decoder.msrp))"
     # )
-    delete_command <- paste(
-        "WITH vin_msrp AS (",
-            "select vin, msrp from",
-            POSTGRES_CLEAN_TABLE, "AS x LEFT JOIN",
-            POSTGRES_VIN_DECODER_TABLE, "AS y ON",
-            "x.vin_pattern = y.vin_pattern",
-        ")",
-        "DELETE FROM", POSTGRES_CLEAN_TABLE, "AS auctions using vin_msrp",
-        "where auctions.vin = vin_msrp.vin AND",
-        # All the action is here:
-        sprintf("sales_pr NOT BETWEEN %s AND LEAST(%s, %s * msrp)",
-                min_price, max_price, msrp_factor)
-        )
-    rows_deleted <- dbExecute(con, delete_command)
+    # delete_command <- paste(
+    #     "WITH vin_msrp AS (",
+    #         "select vin, msrp from",
+    #         POSTGRES_CLEAN_TABLE, "AS x LEFT JOIN",
+    #         POSTGRES_VIN_DECODER_TABLE, "AS y ON",
+    #         "x.vin_pattern = y.vin_pattern",
+    #     ")",
+    #     "DELETE FROM", POSTGRES_CLEAN_TABLE, "AS auctions using vin_msrp",
+    #     "where auctions.vin = vin_msrp.vin AND",
+    #     # All the action is here:
+    #     sprintf("sales_pr_nominal NOT BETWEEN %s AND LEAST(%s, %s * msrp)",
+    #             min_price, max_price, msrp_factor)
+    #     )
+    # rows_deleted <- dbExecute(con, delete_command)
+    # TODO: delete the code above, when I'm sure I don't need it.
+
+    # The goal here is to drop rows outside the interval [100, min(80000, 1.5*msrp)]
+    # The numbers, of course, can be changed.
+    # LEAST will ignore NULLs, so if MSRP is missing, we just use 80000
+    delete_cond <- sprintf("sales_pr_nominal NOT BETWEEN %s AND (LEAST(%s, %s * msrp))",
+                           min_price, max_price, msrp_factor)
+    rows_deleted <- execute_deletion(con, delete_cond)
+
     return(rows_deleted)
 }
 
@@ -372,7 +471,6 @@ filter_resale <- function(con, resale_min_acceptable_days) {
 clean_data <- function(con, verbose) {
     # Delete resale first because I don't want to take the second-to-last sale if one of
     # the following filters deletes the last one.
-    # TODO: re-run this!
     resale_min_acceptable_days <- 365
     message_if_verbose(sprintf("Dropping obs resold within %s days",
                                resale_min_acceptable_days), verbose)
@@ -443,6 +541,7 @@ index_and_clean <- function(con, verbose) {
 
 
 delete_orig_table <- function(con, verbose) {
+    # Only run this if you really need the disk space.
     message_if_verbose("Dropping orignal table", verbose)
     dbRemoveTable(con, POSTGRES_ORIG_TABLE)
 }
@@ -466,9 +565,9 @@ main <- function(verbose = TRUE) {
 
     copy_orig_table(con, verbose)
     deleted_counts <- clean_data(con, verbose)
+    # delete_orig_table(con, verbose)  # Only run this if you really need the disk space.
     report_counts(deleted_counts)
     index_and_clean(con, verbose)
-    # delete_orig_table(con, verbose)
     dbDisconnect(con)
 
     return(deleted_counts)

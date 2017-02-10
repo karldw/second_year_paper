@@ -239,6 +239,9 @@ main <- function(verbose = TRUE) {
     filtered_counts <- lapply_bind_rows(all_dta_files, insert_into_postgres,
         con = con, verbose = verbose, rbind_src_id = 'dta_file', parallel_cores = 1)
 
+    pg_add_index(con, POSTGRES_TABLE, 'buy_zip')
+    pg_add_index(con, POSTGRES_TABLE, 'sell_zip')
+    pg_add_index(con, POSTGRES_TABLE, 'auction_zip')
     pg_vacuum(con, POSTGRES_TABLE, analyze = TRUE)
     DBI::dbDisconnect(con)
     record_filtered_rows(filtered_counts)
