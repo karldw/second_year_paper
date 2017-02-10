@@ -59,8 +59,8 @@
 \newcommand{\Z}{\ensuremath{\mathbb{Z}}}
 \newcommand{\Q}{\ensuremath{\mathbb{Q}}}
 \newcommand{\cl}{\ensuremath{\text{cl\hspace{0.1em}}}}
-\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
 
+\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
 \DeclareMathOperator{\blackboardE}{\mathbb{E}}
 \newcommand{\expected}[1]{\blackboardE\left[#1\right]}
 \newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
@@ -95,7 +95,7 @@
 \newcommand{\eitc}{\textsc{eitc}}
 \newcommand{\gdp}{\textsc{gdp}}
 
-
+\usepackage{gitinfo2}  % requires git hooks!  See the Code/git_hooks folder in this repo.
 \newcommand{\snippet}[1]{\input{./Generated_snippets/#1}\hspace{-0.15em}}
 %\usepackage{footnote}
 \usepackage{hyperref}
@@ -127,7 +127,10 @@
 
     \textsf{\Large Karl Dunkle Werner}
 
-    \textsf{This draft: \today}
+    \textsf{This draft:
+    % The \gitHash here will automatically update the URL as necessary
+    \href{https://github.com/karldw/second_year_paper/blob/\gitHash/Text/cars_in_alaska.pdf}{\gitCommitterDate{}}.}
+    % \textsf{\href{https://github.com/karldw/second_year_paper/blob/master/Text/cars_in_alaska.pdf}{Click here for the most recent.}}
 \end{center}
 
 \vspace{2in plus 1in minus 0.7in}
@@ -167,9 +170,9 @@
     \item Papers to compare
     \begin{itemize}
         \item Hsieh
-        \item Pope, Pope et al about fickle car buying
+        \item \textcite{Busse2015_weather_on_cars} about fickle car buying
         \item Presentation about subsidy in EVs
-        \item \eitc{} literature
+        \item \eitc{} literature (e.g.\ \cite{goodman2008eitc})
     \end{itemize}
 \end{itemize}
 
@@ -182,7 +185,6 @@ These dividends are substantial, roughly \$1000--2000 per person, as shown in fi
 The fund has been sending dividend payments in the fourth quarter of each year to Alaskan residents since the 1980s \parencite{hsieh2003}.
 In recent years, the payment has happened on the first Thursday in October.
 I will use this somewhat-arbitrary payment date as a source of variation in household's income, and therefore willingness to buy durable goods (specifically, cars).
-
 
 
 
@@ -204,7 +206,6 @@ Approximately 91\% of the state's population applies and about 95\% of those app
 		Figures are adjusted for inflation using the annual average \textsc{cpi} \parencite{fred_inflation}.
 		The 2008 total includes a one-time, \$1200 bonus.
 \end{figure}
-
 
 
 
@@ -247,6 +248,9 @@ There are also behavioral possibilities, both in lack of smoothing and people tr
 I won't really be able to disentangle these, since I don't have any situations where saved wealth is exogenously manipulated, but it's important to consider that responses may differ between this situation and others.
 
 \subsection{Auto dealers}
+
+``If the car has been there for more than three months, the dealer will be more anxious to sell it as quickly as possible.''%
+\footnote{\textcite{usnews_car_deals}} %% --elaborate here...
 
 To make the model less complex, I'll assume auto-dealers don't exercise market power when they buy or sell their used cars, that they have a deep understanding of consumers' preferences, and that it's costly to hold inventory.
 
@@ -309,7 +313,8 @@ Assuming away market power is clearly a big assumption\ldots
 \textsc{Notes:} Data are from US Manheim auctions, 2002--2014.
 There are \snippet{auctions_uncleaned_total_obs_count.tex} sales before cleaning and \snippet{auctions_cleaned_total_obs_count.tex} sales after.
 \snippet{auctions_cleaned_alaska_obs_count.tex} of the cleaned sales are to Alaskan buyers.
-Cars that are listed for auction but not sold are dropped.
+Cars that are listed for auction but not sold are not included.
+Rows are removed in the order listed.
 
 \end{table}
 
@@ -340,9 +345,48 @@ This heuristic is appealing because it captures the markets where Alaska is oper
 A more robust approach is to use best-subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD}.
 
 
+\subsection{Picking an anticipation window}
+
+
+
+Anecdotally, dealers know that customers buy more cars around the dividend date and around tax refunds, but they don't make additional efforts to stock up on vehicles before the dividend is sent.
+Instead, they just try to keep a certain number of cars on their lot, buying more as necessary.
+
+Even still, we can take a strong stand on our theoretical results and estimate an anticipation effect for dealers' purchases.
+It's not clear how long that window should be.
+To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figure~\ref{fig:anticipation_window_sale_count}.
+In all cases, the anticipation window ends the immediately before the dividend day.
+None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts, as indicated by the horizontal line at \snippet{}.
+
+
+
+\begin{figure}[hbt]
+    \caption{Treatment coefficients on Alaska $\times$ anticipation}
+    \label{fig:anticipation_window_sale_count}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_pooled_sd.pdf}
+
+    {\footnotesize
+    The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+    Error bars indicate 95\% confidence intervals.
+
+    All windows end at $-1$ week.
+    }
+\end{figure}
+
+
+The graph is similar, but somewhat noisier, for daily sales counts.
+
+
 
 
 \subsection{Volume of cars sold}
+
+\begin{align}
+    \label{eqn:cars_sold_with_anticipation}
+    \text{cars sold} = & \ \beta_1 \ \text{anticipation} + \beta_2 \ \text{Alaska} \times \text{anticipation} + \beta_3 \ \text{post-dividend} \\ \nonumber
+    &+ \beta_4 \ \text{Alaska} \times \text{post-dividend} + \text{state and year fixed effects}
+\end{align}
+
 Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
 Use all years, use event time relative to the dividend day and don't take into account any anticipation.
 Control for either a year FE or state \gdp{}. Control for either daily or day-of-week FE.
@@ -388,8 +432,19 @@ There are very few car sales in the CEX data,
 
 
 
+\appendix
 
+\section{Bonus figures}
 
+\begin{figure}[hbt]
+    \caption{Treatment coefficients on Alaska $\times$ anticipation}
+    \label{fig:anticipation_window_sale_count_daily}
+    \includegraphics{anticipation_window_sale_count_daily_notitle.pdf}
+    {\footnotesize
+    The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+    All windows end at $-1$ event day.
+    }
+\end{figure}
 \end{document}
 
 
