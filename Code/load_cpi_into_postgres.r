@@ -1,7 +1,7 @@
 
 source('r_defaults.r')
 install_lazy(c('RPostgreSQL', 'dplyr', 'magrittr', 'readr', 'lubridate'), verbose = FALSE)
-library(RPostgreSQL)
+suppressPackageStartupMessages(library(RPostgreSQL))
 library(magrittr)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CPI_TABLE <- 'cpi'
@@ -11,7 +11,8 @@ DATA_TYPES <- c(year = 'int2', month = 'int2', cpi_base_2016 = 'float8')
 load_cpi <- function() {
     # Downloaded from FRED, series CPIAUCSL
     # https://fred.stlouisfed.org/series/CPIAUCSL#
-    filename <- '../Data/CPI/CPIAUCSL_1947_01_01-2016-09-01.csv'
+    filename <- '../Data/CPI/CPIAUCSL.csv'
+
     stopifnot(file.exists(filename))
 
     col_spec <- readr::cols(
@@ -29,6 +30,7 @@ load_cpi <- function() {
 
     df <- df %>% dplyr::mutate(cpi_base_2016 = cpiaucsl / cpi_mean_2016) %>%
         dplyr::select(year, month, cpi_base_2016)
+    stopifnot(min(df$year) < 2002, max(df$year) > 2015)
     return(df)
 }
 
