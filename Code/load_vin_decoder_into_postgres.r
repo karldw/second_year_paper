@@ -3,7 +3,7 @@ source('r_defaults.r')
 install_lazy(c('readr', 'RPostgreSQL', 'dplyr'), verbose = FALSE)
 library(RPostgreSQL)
 library(readr)
-library(dplyr)
+suppressPackageStartupMessages(library(dplyr))
 options(warn = 2)
 set.seed(198872394)
 

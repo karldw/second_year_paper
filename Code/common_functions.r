@@ -356,12 +356,12 @@ make_join_safer <- function(join_fn, fast = TRUE) {
 
             # A faster, but less complete way would be to count rows and throw and error
             # if the number of results was larger than the sum of input rows.
-            max_nrow_xy <- max(force_nrow(x), force_nrow(y))
+            sum_nrow_xy <- force_nrow(x) + force_nrow(y)
             nrow_join_results <- force_nrow(join_results)
-            if (nrow_join_results > max_nrow_xy) {
+            if (nrow_join_results > sum_nrow_xy) {
                 err_msg <- paste("Join results in",
-                    sprintf("%s rows; more than %s = max(nrow(x), nrow(y)).",
-                            nrow_join_results, max_nrow_xy),
+                    sprintf("%s rows; more than %s = nrow(x) + nrow(y).",
+                            nrow_join_results, sum_nrow_xy),
                     "Check for duplicate key values your by-variables in each table,",
                     "each of which join to the same values over and over again. If you",
                     "are sure you wish to proceed, rerun with allow.cartesian = TRUE.",
