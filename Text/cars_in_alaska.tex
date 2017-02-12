@@ -352,39 +352,59 @@ A more robust approach is to use best-subset or synthetic controls methods descr
 Anecdotally, dealers know that customers buy more cars around the dividend date and around tax refunds, but they don't make additional efforts to stock up on vehicles before the dividend is sent.
 Instead, they just try to keep a certain number of cars on their lot, buying more as necessary.
 
-Even still, we can take a strong stand on our theoretical results and estimate an anticipation effect for dealers' purchases.
-It's not clear how long that window should be.
-To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figure~\ref{fig:anticipation_window_sale_count}.
-In all cases, the anticipation window ends the immediately before the dividend day.
-None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts, as indicated by the horizontal line at \snippet{}.
-
-
-
 \begin{figure}[hbt]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation}
+    \caption{Treatment coefficients on Alaska $\times$ anticipation: sales counts}
     \label{fig:anticipation_window_sale_count}
     \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_pooled_sd.pdf}
 
     {\footnotesize
     The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
     Error bars indicate 95\% confidence intervals.
-
+    The horizontal line at \snippet{sales_count_weekly_std_dev.tex} is the standard deviation of weekly counts.
     All windows end at $-1$ week.
     }
 \end{figure}
 
 
+Even still, we can take a strong stand on our theoretical results and estimate an anticipation effect for dealers' purchases.
+It's not clear how long that window should be.
+To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figure~\ref{fig:anticipation_window_sale_count}.
+In all cases, the anticipation window ends the immediately before the dividend day.
+% TODO :put in a snippet here for the std dev
+None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts, as indicated by the horizontal line at \snippet{sales_count_weekly_std_dev.tex} cars per week.%
+\footnote{Different states have different standard deviations, the pooled standard deviation is not driven by states with particularly large variation.
+The 95\% confidence interval of the anticipation estimates less than are standard deviation for Alaska and every control state.}
+
+
 The graph is similar, but somewhat noisier, for daily sales counts.
+(See figure~\ref{fig:anticipation_window_sale_count_daily})
 
 
+% TODO: in addition to comparing vs the std dev, also compare as a pct of the mean.
+% TODO: compare to in-window std dev too.
 
+\begin{figure}[hbt]
+    \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
+    \label{fig:anticipation_window_sale_tot}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
+
+    {\footnotesize
+    The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+    Error bars indicate 95\% confidence intervals.
+    The horizontal line at \$\snippet{sales_tot_weekly_thousands_std_dev.tex} is the standard deviation of weekly sales volume (in thousands).
+    All windows end at $-1$ week.
+    }
+\end{figure}
 
 \subsection{Volume of cars sold}
 
 \begin{align}
     \label{eqn:cars_sold_with_anticipation}
-    \text{cars sold} = & \ \beta_1 \ \text{anticipation} + \beta_2 \ \text{Alaska} \times \text{anticipation} + \beta_3 \ \text{post-dividend} \\ \nonumber
+    \text{Cars sold} = & \ \beta_1 \ \text{anticipation} + \beta_2 \ \text{Alaska} \times \text{anticipation} + \beta_3 \ \text{post-dividend} \\ \nonumber
     &+ \beta_4 \ \text{Alaska} \times \text{post-dividend} + \text{state and year fixed effects}
+    %\\
+    % \text{Sale volume} = & \ \gamma_1 \ \text{anticipation} + \gamma_2 \ \text{Alaska} \times \text{anticipation} + \gamma_3 \ \text{post-dividend} \\ \nonumber
+    % &+ \gamma_4 \ \text{Alaska} \times \text{post-dividend} + \text{state and year fixed effects}
 \end{align}
 
 Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
@@ -394,6 +414,10 @@ As a default, the cars sold in the set of states where Alaskan buyers are active
 Force the panel to be balanced by adding zeros (if necessary).
 
 This is theoretically ambiguous -- sales of \emph{used} cars could go up or down with an income shock, or be unchanged.
+
+
+
+
 
 \subsection{Efficiency of cars sold}
 Repeat the previous, but with the average \gpm{} of vehicles sold.
@@ -411,16 +435,16 @@ Do the previous DD section again, but with synthetic controls or, maybe, the fan
 
 
 
-\section{Replicating Hsieh}
-% TODO: discuss his estimation setup
-% TODO: estimate his setup
-% TODO: answer his question with a DD framework instead
-
-\subsection{All expenses}
-\subsection{Cars only}
-
-There are very few car sales in the CEX data,
-% TODO: how many?
+% \section{Replicating Hsieh}
+% % TODO: discuss his estimation setup
+% % TODO: estimate his setup
+% % TODO: answer his question with a DD framework instead
+%
+% \subsection{All expenses}
+% \subsection{Cars only}
+%
+% There are very few car sales in the CEX data,
+% % TODO: how many?
 
 
 
@@ -445,6 +469,17 @@ There are very few car sales in the CEX data,
     All windows end at $-1$ event day.
     }
 \end{figure}
+
+\begin{figure}[hbt]
+    \caption{Treatment coefficients on Alaska $\times$ anticipation}
+    \label{fig:anticipation_window_sale_count_daily}
+    \includegraphics{anticipation_window_sale_count_daily_notitle.pdf}
+    {\footnotesize
+    The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+    All windows end at $-1$ event day.
+    }
+\end{figure}
+
 \end{document}
 
 

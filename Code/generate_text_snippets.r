@@ -8,7 +8,7 @@
 source('r_defaults.r')
 install_lazy(c('dplyr', 'RPostgreSQL'), verbose = FALSE)
 suppressPackageStartupMessages(library(dplyr))
-
+library(magrittr)
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
 POSTGRES_ORIG_TABLE <- 'all_years_all_sales'
@@ -32,8 +32,3 @@ auctions %>% filter(buy_state == 'AK') %>% count() %>%
 # Raw sale count (properly, should include bad date filters, but these are zero)
 orig_data %>% count() %>%
     make_snippet('auctions_uncleaned_total_obs_count.tex', sig_figs = 20)
-
-# standard deviation of sales counts and volumes, weekly
-sales_std_dev <- get_state_by_time_variation(aggregation_level = 'weekly')
-make_snippet(sales_std_dev$sale_tot_sd,   'sales_tot_dollar_std_dev.tex')
-make_snippet(sales_std_dev$sale_count_sd, 'sales_count_std_dev.tex')
