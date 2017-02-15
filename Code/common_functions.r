@@ -234,7 +234,10 @@ clear_all <- function() {
 }
 
 
-save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE) {
+save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio = 16/9) {
+    # aspect_ratio is a scale factor for height vs width. The default is width:height of
+    # 16:9, like a lot of TV screens. Other good choices might be 4/3 or 2/sqrt(2).
+    # The default will exactly match a full screen 16:9 beamer slide.
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
               grepl('.+\\.pdf$', name, perl = TRUE, ignore.case = TRUE),
@@ -243,9 +246,15 @@ save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE) {
     if (file.exists(outfile) && (! overwrite)) {
         # This isn't perfect, since there's now a sliver of time between the file
         # check and the writing, but I can't see how to make cairo do that.
+        err_msg <- paste("Plot destination already exists:\n  %s", outfile)
+        stop(err_msg)
     }
+    # Chose 6.3 in to match a 16:9 beamer slide.
+    width <- 6.3 * scale_mult
+    height <- width / aspect_ratio
+
     ggplot2::ggsave(outfile, plt, device = cairo_pdf,
-                    width = 6.3 * scale_mult, height = 3.54 * scale_mult)
+                    width = width, height = height, units = 'in')
 }
 
 
@@ -848,4 +857,64 @@ format_numbers <- function(x, dollars = FALSE, sig_figs = NULL) {
                      drop0trailing = TRUE)
     out <- paste0(neg_str, dollar_str, out)
     return(out)
+}
+
+
+is_panel_balanced <- function(.tbl, id_vars) {
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
+    stopifnot(length(id_vars) >= 1, is.character(id_vars))
+
+    count_unique_vals <- function(one_var, df) {
+        df %>%
+        ungroup() %>%
+        select_(.dots = one_var) %>%
+        distinct_(.dots = one_var) %>%
+        force_nrow() %>%
+        return()
+    }
+
+    ensure_id_vars_(.tbl, id_vars)
+    actual_nrow <- force_nrow(.tbl)
+    stopifnot(actual_nrow > 0)
+    unique_vals <- purrr::map_int(id_vars, count_unique_vals, df = .tbl)
+    expected_nrow <- prod(unique_vals)
+
+    return(actual_nrow == expected_nrow)
+}
+
+
+ensure_balanced_panel <- function(.tbl, id_vars) {
+    # Check for panel balance and allow for piping.
+    stopifnot(is_panel_balanced(.tbl = .tbl, id_vars = id_vars))
+    return(.tbl)
+}
+
+
+force_panel_balance <- function(.tbl, id_vars) {
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
+    # First, check that this is necesssary at all:
+    if (is_panel_balanced(.tbl = .tbl, id_vars = id_vars)) {
+        return(.tbl)
+    }
+    get_unique_vector <- function(one_var, df) {
+        df %>% ungroup() %>%
+        select_(.dots = one_var) %>%
+        distinct_(.dots = one_var) %>%
+        collect(n = Inf) %>%
+        unlist(recursive = FALSE, use.names = FALSE) %>%
+        return()
+    }
+    # Get a list of the unique values in each id_var, then use cross_d to take the cross
+    # product of all the unique values.
+    # One could probably get the same effect by using joins without by variables to take
+    # cartesian products, but that's my least favorite SQL behavior, so I'm avoiding it.
+    full_df <- lapply(id_vars, get_unique_vector, df = .tbl) %>%
+        setNames(id_vars) %>%
+        purrr::cross_d()
+
+    # right_join and copy = TRUE to copy the full_df we just created to wherever the
+    # original .tbl happens to be (in memory or in some database)
+    # After the merge, the values in new rows will be NA, but I'm not going to fill.
+    complete_tbl <- dplyr::right_join(.tbl, full_df, by = id_vars, copy = TRUE)
+    return(complete_tbl)
 }

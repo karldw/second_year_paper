@@ -75,8 +75,8 @@ PLOT_THEME <- hrbrthemes::theme_ipsum_rc() +
         axis.line.y      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
         panel.grid.major = ggplot2::element_line(color = "gray87"),
         panel.grid.minor = ggplot2::element_line(color = "gray96"),
-        # Make plots with very thin margins (top, right, bottom, and left)
-        plot.margin      = ggplot2::unit(c(0.2, 0, 0.2, 0.2), "cm")
+        # Make plots with no margins (top, right, bottom, and left)
+        plot.margin      = ggplot2::unit(c(-0.5, 0, 0, 0), "cm")
     )
 
 # Colors from http://haas.berkeley.edu/style-guide/colors.html

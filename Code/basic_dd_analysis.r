@@ -1048,7 +1048,7 @@ plot_effects_by_anticipation <- function(outcome,
 
 
 get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
-        winsorize_pct = NULL, states_included = NULL) {
+        winsorize_pct = NULL, states_included = NULL, all_year = TRUE) {
 
     # Parameters:
     # aggregation_level: the aggregation level of the counts and dollar amounts.
@@ -1058,7 +1058,9 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
     # states_included: the states included in the standard deviation calculation.
     #   Defaults to Alaska and the control states from find_match_states_crude().
     #   Note that the outcomes are demeaned by state before calculating the std dev.
-
+    # all_year: should we look at variation throughout the year, or only in the event
+    #   period we're studying (something like 70 days before to 70 days after)
+    #   Defaults to using the whole year.
     if (aggregation_level == 'daily') {
         time_var <- 'sale_date'
     } else if (aggregation_level == 'weekly') {
@@ -1073,6 +1075,9 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         states_included <- c('AK', control_states)
     }
     df <- auctions %>% select(sale_date, buy_state, sales_pr)
+    if (! all_year) {
+        df <- filter_event_window(df)
+    }
     if (length(states_included) <= 1) {
         # Necessary because if states_included has length 1, we encounter dplyr bug #511.
         df <- df %>% filter(buy_state == states_included)
@@ -1084,6 +1089,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         df <- df %>% mutate(sale_week = date_part('week', sale_date))
     }
     df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
+        ensure_balanced_panel(c(time_var, 'buy_state')) %>%
         # Then demean so we're not getting huge standard deviations by looking across
         # states
         group_by(buy_state) %>%
@@ -1108,9 +1114,17 @@ if (! methods::existsFunction('get_state_by_time_variation')) {
 generate_snippets <- function() {
     # standard deviation of sales counts and volumes, weekly
     sales_std_dev <- get_state_by_time_variation(aggregation_level = 'weekly')
-    make_snippet(sales_std_dev$sale_tot_sd / 1000,   'sales_tot_weekly_thousands_std_dev.tex')
+    make_snippet(sales_std_dev$sale_tot_sd / 1000,
+                 'sales_tot_weekly_thousands_std_dev.tex')
     make_snippet(sales_std_dev$sale_count_sd, 'sales_count_weekly_std_dev.tex')
 
+    # Repeat for window only
+    sales_std_dev2 <- get_state_by_time_variation(aggregation_level = 'weekly',
+                                                 all_year = FALSE)
+    make_snippet(sales_std_dev2$sale_tot_sd / 1000,
+                 'sales_tot_weekly_thousands_std_dev_window_only.tex')
+    make_snippet(sales_std_dev2$sale_count_sd,
+                 'sales_count_weekly_std_dev_window_only.tex')
 }
 
 sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
@@ -1118,7 +1132,9 @@ sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = 
 sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
 sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
 
-generate_snippets()  # very fast, as long as find_match_states_crude() has been run.
+# generate_snippets is fast, as long as find_match_states_crude and
+# get_state_by_time_variation have been run.
+generate_snippets()
 
 run_dd_pick_max_effect('sale_count')
 run_dd_pick_max_effect('sale_tot')
