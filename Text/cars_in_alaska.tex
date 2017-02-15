@@ -4,13 +4,14 @@
 \usepackage{amssymb,amsmath,amsthm}
 \usepackage{enumitem}
 \usepackage[mathlf]{MinionPro}
-\usepackage{carlito}
+% \usepackage{carlito}
+\usepackage{roboto}
 \usepackage{inconsolata}
 \usepackage{sectsty}
 \usepackage{setspace}
 % \onehalfspace
 \doublespace
-% \usepackage[font=sf]{caption}
+\usepackage[font=sf]{caption}
 \allsectionsfont{\sffamily\mdseries}
 \usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
 \microtypecontext{spacing=nonfrench}
@@ -287,7 +288,7 @@ Assuming away market power is clearly a big assumption\ldots
     \label{tab:cleaning_manheim}
     % TODO: Make the numbers here better by having parse-numbers = true (currently broken because the snippet gets added after siunitx tries to parse the number)
     \sisetup{parse-numbers = false}
-\begin{tabular}{l S p{0.5\linewidth}}
+\begin{tabular}{l S p{0.493\linewidth}}
     \toprule
 	Elimination category & \multicolumn{1}{l}{Count removed} & Details\\
 	\midrule
@@ -353,7 +354,8 @@ Anecdotally, dealers know that customers buy more cars around the dividend date 
 Instead, they just try to keep a certain number of cars on their lot, buying more as necessary.
 
 \begin{figure}[hbt]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation: sales counts}
+    \caption{Estimating treatment coefficients on Alaska $\times$ anticipation, sales counts and totals}
+    \vspace{2em}
     \label{fig:anticipation_window_sale_count}
     \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_pooled_sd.pdf}
 
@@ -363,7 +365,21 @@ Instead, they just try to keep a certain number of cars on their lot, buying mor
     The horizontal line at \snippet{sales_count_weekly_std_dev.tex} is the standard deviation of weekly counts.
     All windows end at $-1$ week.
     }
+
+\vspace{3em}
+    % \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
+    % \label{fig:anticipation_window_sale_tot}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
+
+    {\footnotesize
+    The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+    Error bars indicate 95\% confidence intervals.
+    The horizontal line at \$\snippet{sales_tot_weekly_thousands_std_dev.tex} is the standard deviation of weekly sales volume (in thousands).
+    All dollar amounts are in 2016 dollars.
+    All windows end at $-1$ week.
+    }
 \end{figure}
+
 
 
 Even still, we can take a strong stand on our theoretical results and estimate an anticipation effect for dealers' purchases.
@@ -383,18 +399,18 @@ The graph is similar, but somewhat noisier, for daily sales counts.
 % TODO: in addition to comparing vs the std dev, also compare as a pct of the mean.
 % TODO: compare to in-window std dev too.
 
-\begin{figure}[hbt]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
-    \label{fig:anticipation_window_sale_tot}
-    \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
-
-    {\footnotesize
-    The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-    Error bars indicate 95\% confidence intervals.
-    The horizontal line at \$\snippet{sales_tot_weekly_thousands_std_dev.tex} is the standard deviation of weekly sales volume (in thousands).
-    All windows end at $-1$ week.
-    }
-\end{figure}
+% \begin{figure}[hbt]
+%     \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
+%     \label{fig:anticipation_window_sale_tot}
+%     \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
+%
+%     {\footnotesize
+%     The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+%     Error bars indicate 95\% confidence intervals.
+%     The horizontal line at \$\snippet{sales_tot_weekly_thousands_std_dev.tex} is the standard deviation of weekly sales volume (in thousands).
+%     All windows end at $-1$ week.
+%     }
+% \end{figure}
 
 \subsection{Volume of cars sold}
 
@@ -463,22 +479,22 @@ Do the previous DD section again, but with synthetic controls or, maybe, the fan
 \begin{figure}[hbt]
     \caption{Treatment coefficients on Alaska $\times$ anticipation}
     \label{fig:anticipation_window_sale_count_daily}
-    \includegraphics{anticipation_window_sale_count_daily_notitle.pdf}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_count_daily_notitle.pdf}
     {\footnotesize
     The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
     All windows end at $-1$ event day.
     }
 \end{figure}
 
-\begin{figure}[hbt]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation}
-    \label{fig:anticipation_window_sale_count_daily}
-    \includegraphics{anticipation_window_sale_count_daily_notitle.pdf}
-    {\footnotesize
-    The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-    All windows end at $-1$ event day.
-    }
-\end{figure}
+% \begin{figure}[hbt]
+%     \caption{Treatment coefficients on Alaska $\times$ anticipation}
+%     \label{fig:anticipation_window_sale_count_daily}
+%     \includegraphics{anticipation_window_sale_count_daily_notitle.pdf}
+%     {\footnotesize
+%     The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
+%     All windows end at $-1$ event day.
+%     }
+% \end{figure}
 
 \end{document}
 

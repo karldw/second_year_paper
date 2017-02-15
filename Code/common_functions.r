@@ -191,26 +191,33 @@ get_os <- function() {
 }
 
 
-install_lazy <- function(pkg_list, verbose = TRUE) {
-    installed_packages <- installed.packages()[, 1]
-    need_to_install <- setdiff(pkg_list, installed_packages)
-    already_installed <- pkg_list[pkg_list %in% installed_packages]
+install_lazy <- function(pkg_list, verbose = FALSE) {
+    # installed_packages <- installed.packages()[, 1]
+
+    need_to_install <- pkg_list[! is_pkg_installed(pkg_list)]
+    already_installed <- setdiff(pkg_list, need_to_install)
     for (pkg in need_to_install) {
         try(install.packages(pkg), silent = TRUE)
     }
+    failed_to_install <- need_to_install[! is_pkg_installed(need_to_install)]
     if (verbose) {
         message("Already installed:")
         print(already_installed)
-        newly_installed <- need_to_install[need_to_install %in% installed.packages()]
+        newly_installed <- setdiff(need_to_install, failed_to_install)
+
         if (length(newly_installed) > 0) {
             message("Newly installed:")
             print(newly_installed)
         }
     }
-    failed_to_install <- setdiff(need_to_install, installed.packages())
     if (length(failed_to_install) > 0) {
         warning("Failed to install these packages:\n  ", paste(failed_to_install))
     }
+}
+
+
+is_pkg_installed <- function(pkg_list) {
+    vapply(pkg_list, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))
 }
 
 

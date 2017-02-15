@@ -639,7 +639,19 @@ run_dd <- function(years = 2002:2014,
                          paste(fixed_effects, collapse = ' + '),
                          '| 0 |',  # no IV vars
                          paste(clusters, collapse = ' + ')) %>% as.formula()
-    reg_results <- felm(reg_formula, df)
+    reg_results <- tryCatch({
+        felm(reg_formula, df)
+    }, warning = function(warning_condition) {
+        err_msg <- sprintf("felm issue with anticipation_window [%s, %s]",
+                           anticipation_window[1], anticipation_window[2])
+        warning(warning_condition)
+        stop(err_msg)
+    }, error = function(error_condition) {
+        stop(error_condition)
+    }, finally = {
+
+    })
+
     return(reg_results)
 }
 
@@ -735,12 +747,12 @@ run_dd_pick_max_effect <- function(outcome,
     # coefficient, we're just going to estimate the one period and find the maximizing
     # one.
     if (aggregation_level == 'daily') {
-        loop_start <- -days_before_limit
-        loop_end <- days_after_limit
+        loop_start <- -days_before_limit + 1
+        loop_end <- days_after_limit - 1
         min_window_length <- 7
     } else if (aggregation_level == 'weekly'){
-        loop_start <- (-days_before_limit) %/% 7
-        loop_end <- days_after_limit %/% 7 - 1
+        loop_start <- ((-days_before_limit) %/% 7) + 1
+        loop_end <- (days_after_limit %/% 7) - 1
         min_window_length <- 1
     } else {
         stop("aggregation_level must be 'daily' or 'weekly'")
@@ -764,8 +776,7 @@ run_dd_pick_max_effect <- function(outcome,
         reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
             anticipation_window = c(start, end), days_before_limit = days_before_limit,
             fixed_effects = c('sale_year', 'buy_state'),
-            # Only run with an anticipation window, not a post-anticipation window
-            controls = c('anticipation', 'alaskan_buyer_anticipation'))
+            controls = c('anticipation', 'alaskan_buyer_anticipation', 'post', 'alaskan_buyer_post'))
 
         # rse is apparently the robust standard error, though it's not well documented.
         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
@@ -784,7 +795,7 @@ run_dd_pick_max_effect <- function(outcome,
     }
     to_plot <- to_plot %>% mutate(conf95_lower = coef - (1.96 * se),
                                   conf95_upper = coef + (1.96 * se),
-                                  is_signif = pval < 0.05)
+                                  is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), labels = c('p < 0.05', 'p > 0.05')))
     # Define a bunch of labels.
     lab_x <- 'Window end (%s)'
     lab_y <- 'Window start (%s)'
@@ -812,19 +823,22 @@ run_dd_pick_max_effect <- function(outcome,
         factor(sign_x, levels = c(1, -1), labels = c('Positive', 'Negative'))
     }
 
-    common_plot <- ggplot(to_plot, aes(x = end, y = start)) +
-        scale_fill_distiller(palette = 'YlGnBu', direction = 1) +
-        labs(x = lab_x, y = lab_y, fill = '') +
-        guides(alpha = 'none') +
-        scale_alpha_discrete(range = c(0.5,1)) +
-        PLOT_THEME
+    # common_plot <- ggplot(to_plot, aes(x = end, y = start)) +
+    #     scale_fill_distiller(palette = 'YlGnBu', direction = 1) +
+    #     labs(x = lab_x, y = lab_y, fill = '') +
+    #     guides(alpha = 'none') +
+    #     scale_alpha_discrete(range = c(0.5,1)) +
+    #     PLOT_THEME
 
     common_plot <- ggplot(to_plot, aes(x = end, y = start)) +
         scale_fill_distiller(palette = 'YlGnBu', direction = 1) +
-        labs(x = lab_x, y = lab_y, fill = '', color = 'Sign', size = '') +
-        guides(alpha = 'none') +
-        scale_alpha_discrete(range = c(0.3, 1)) +
-        scale_size_area() +
+        labs(x = lab_x, y = lab_y, fill = '', color = 'Sign', size = '', alpha = 'Significance') +
+        # guides(alpha = 'none') +
+        scale_alpha_discrete(range = c(0.25, 1)) +
+        scale_size_area(max_size = 5) +
+        guides(size  = guide_legend(order = 1),
+               color = guide_legend(order = 2),
+               alpha = guide_legend(order = 3)) +
         PLOT_THEME
     # Available colors:
     # Diverging:
@@ -848,26 +862,46 @@ run_dd_pick_max_effect <- function(outcome,
     # ggplot(filter(to_plot, end < 10), aes(x = end, y = start)) +
     #     scale_fill_distiller(palette = 'PuOr', direction = 1) +
     #     labs(x = lab_x, y = lab_y, fill = '') +
-    #     PLOT_THEME + geom_tile(aes(fill = coef, alpha = is_signif)) + guides(alpha = 'none') + scale_alpha_discrete(range = c(0,1))
-
-    # TODO: do this instead?
-    # ggplot(filter(to_plot, end < 10), aes(x = end, y = start)) +
-    #     labs(x = lab_x, y = lab_y, fill = '') +
-    #     PLOT_THEME + geom_point(aes(size = abs(coef), color = factor(sign(coef)))) + guides(alpha = 'none') + scale_size_area()
-
+    #     PLOT_THEME + geom_tile(aes(fill = coef, alpha = is_signif)) +
+    #     guides(alpha = 'none') + scale_alpha_discrete(range = c(0,1))
+    # TODO: the geom_point plot looks terrible for daily data. Maybe use
+    # `geom_tile(aes(fill = coef, alpha = is_signif))` for daily and geom_point for weekly
 
     coef_plot <- common_plot +
         # geom_tile(aes(fill = coef, alpha = is_signif))
-        geom_point(aes(size = abs(coef), color = sign_as_factor(coef), alpha = is_signif))
+        geom_point(aes(size = abs(coef), color = sign_as_factor(coef),
+                   alpha = is_signif)) +
+        labs(size = 'Coefficient\nmagnitude')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    if (all(sign(to_plot$coef) == 1)){
+        coef_plot <- coef_plot + guides(color = 'none')
+    }
 
-    se_plot <- common_plot + geom_point(aes(size = se))
+    se_plot <- common_plot + geom_point(aes(size = se)) + labs(size = 'Standard\nError')
+
     conf95_lower_plot <- common_plot +
         # geom_tile(aes(fill = conf95_lower, alpha = is_signif))
-        geom_point(aes(size = abs(conf95_lower), color = sign_as_factor(conf95_lower), alpha = is_signif))
+        geom_point(aes(size = abs(conf95_lower), color = sign_as_factor(conf95_lower),
+                       alpha = is_signif)) +
+        labs(size = '95% CI\nlower bound', color = 'Lower bound sign')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    if (all(sign(to_plot$conf95_lower) == 1)){
+        conf95_lower_plot <- conf95_lower_plot + guides(color = 'none')
+    }
 
     conf95_upper_plot <- common_plot +
         # geom_tile(aes(fill = conf95_upper, alpha = is_signif))
-        geom_point(aes(size = abs(conf95_upper), color = sign_as_factor(conf95_upper), alpha = is_signif))
+        geom_point(aes(size = abs(conf95_upper), color = sign_as_factor(conf95_upper),
+                       alpha = is_signif)) +
+        labs(size = '95% CI\nupper bound',  color = 'Upper bound sign')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    if (all(sign(to_plot$conf95_upper) == 1)){
+        conf95_upper_plot <- conf95_upper_plot + guides(color = 'none')
+    }
+
+    # Spellcheck my plot labels:
+    lapply(list(coef_plot, se_plot, conf95_lower_plot, conf95_upper_plot),
+           hrbrthemes::gg_check)
 
     # filename_base <- sprintf('variable_window_dd_%s_%s_tile_', outcome, aggregation_level)
     filename_base <- sprintf('variable_window_dd_%s_%s_area_', outcome, aggregation_level)
@@ -879,8 +913,23 @@ run_dd_pick_max_effect <- function(outcome,
 }
 
 
+render_title <- function(title, default = '') {
+    stopifnot(length(title) <= 1, length(default) == 1)
+    if (is.null(title) || isTRUE(title)){
+        out <- default
+    } else if (is.character(title) && title != '') {
+        out <- title
+    } else if (identical(title, FALSE) || tile == '') {
+        out <- ''
+    } else {
+        stop(sprintf("Can't process title: '%s'", title))
+    }
+    return(out)
+}
+
+
 plot_effects_by_anticipation <- function(outcome,
-        aggregation_level = 'daily', days_before_limit = 70, title = TRUE) {
+        aggregation_level = 'daily', days_before_limit = 70, title = NULL) {
 
     if (aggregation_level == 'daily') {
         loop_start <- (-days_before_limit) + 1
@@ -972,25 +1021,23 @@ plot_effects_by_anticipation <- function(outcome,
         labs(x = lab_x, y = lab_y, color = 'State\nstd dev') +
         scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
         PLOT_THEME
-    if (title){
-        coef_plot <- coef_plot + labs(title =
-            'Anticipation window treatment coefficient for varying window starts')
-        title_pattern <- ''
-    } else {
-        title_pattern <- '_notitle'
-    }
+
+    title <- render_title(title,
+        default = 'Anticipation window treatment coefficient for varying window starts')
+    title_pattern <- if_else(title == '', '_notitle', '')
+    coef_plot <- coef_plot + labs(title = title)
+
     # Then make the versions with lines for the standard deviations
     # First, the one with a single, pooled std dev
     coef_plot_with_pooled_sd <- coef_plot +
         geom_hline(data = filter(std_devs, state == 'Pooled'),
                    aes(yintercept = outcome_sd, color = state)) +
-        theme(legend.position="none")
+        guides(color = 'none')
     # Then, to make sure it's not one state swamping the std dev calculation, do each
     # separately.
     coef_plot_with_states_sd <- coef_plot +
         geom_hline(data = std_devs, aes(yintercept = outcome_sd, color = state))
-
-
+    # Make filenames like anticipation_window_sale_count_weekly_notitle.pdf
     filename_part <- sprintf('anticipation_window_%s_%s%s', outcome, aggregation_level,
                              title_pattern)
     save_plot(coef_plot,                paste0(filename_part, '.pdf'))
@@ -1066,10 +1113,11 @@ generate_snippets <- function() {
 
 }
 
-# sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
-# sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
-# sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
-# sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
+sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
+sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
+sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
+sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
+
 generate_snippets()  # very fast, as long as find_match_states_crude() has been run.
 
 run_dd_pick_max_effect('sale_count')
