@@ -275,31 +275,8 @@ bool_to_alaska_factor <- function(x, labels = c('Alaskan', 'Non-Alaskan')) {
 }
 
 
-ensure_id_vars_ <- function(df, claimed_id_vars) {
-    not_found_vars <- setdiff(claimed_id_vars, names(df))
-    if (length(not_found_vars) > 0) {
-        err_msg <- sprintf("Claimed ID vars not in dataset: %s", paste(not_found_vars,
-                                                                       collapse = ', '))
-        stop(err_msg)
-    }
-    df_id_cols_only <- dplyr::select_(df, .dots = claimed_id_vars)
-    if (anyNA(df_id_cols_only)) {
-        stop("ID variables cannot be NA.")
-    }
-    # nrow is NA for databases (not an issue here, but I may want this code later)
-    # (should be rare enough that it's not worth forcing a database to count all rows)
-    if ((! is.na(nrow(df))) && (nrow(df) == 0)) {
-        stop("No rows!")
-    }
-    # anyDuplicated is faster than calling "distinct" then counting rows
-    if (anyDuplicated(df_id_cols_only)) {
-        err_msg <- sprintf("The variables '%s' do not uniquely identify rows.",
-                           paste(claimed_id_vars, collapse = "', '"))
-        stop(err_msg)
-    }
-    # return so we can pipe this
-    return(df)
-}
+ensure_id_vars_ <- ensurer::ensures_that(is_id(., claimed_id_vars) ~
+    "Variables don't uniquely identify rows")
 
 
 ensure_id_vars <- function(df, ...) {
@@ -311,23 +288,26 @@ ensure_id_vars <- function(df, ...) {
 }
 
 
-is_id <- function(df, claimed_id_vars) {
-    # Note: it's probably a good idea to force computation on df, if it's a remote table
-    stopifnot(is.character(claimed_id_vars) && length(claimed_id_vars) > 0)
+is_id <- function(df, claimed_id_vars, quiet = FALSE) {
+    # NB It might be a good idea to force computation on df, if it's a remote table
+    stopifnot(is.character(claimed_id_vars), length(claimed_id_vars) > 0,
+              is.logical(quiet))
     # select one row to get variable names
+    df_head1 <- head(df, 1L)
     if ('tbl_lazy' %in% class(df)) {
-        df_head1 <- head(df, 1) %>% dplyr::collect(df_head1)
+        df_head1 <- dplyr::collect(df_head1)
         df_is_local <- FALSE
     } else {
-        df_head1 <- head(df, 1)
         df_is_local <- TRUE
     }
 
     not_found_vars <- setdiff(claimed_id_vars, names(df_head1))
     if (length(not_found_vars) > 0) {
-        err_msg <- sprintf("Claimed ID vars not in dataset: %s",
-                           paste(not_found_vars, collapse = ', '))
-        warning(err_msg)
+        if (! quiet) {
+            err_msg <- sprintf("Claimed ID vars not in dataset: %s",
+                               paste(not_found_vars, collapse = ', '))
+            warning(err_msg)
+        }
         return(FALSE)
     }
 
@@ -335,13 +315,24 @@ is_id <- function(df, claimed_id_vars) {
     if (df_is_local) {
         ids_have_na <- anyNA(df_id_cols_only)
     } else {
+        # TODO (eventually): this part could probably be faster.  For one thing, finding
+        # an NA in any of the columns is enough, we don't need to check all at once.
         ids_have_na <- df_id_cols_only %>%
             dplyr::ungroup() %>%
             dplyr::summarise_all(dplyr::funs(any(is.na(.)))) %>%
             collect() %>% unlist() %>% any()
     }
     if (ids_have_na) {
-        warning("ID variables cannot be NA.")
+        if (! quiet) {
+            warning("ID variables cannot be NA.")
+        }
+        return(FALSE)
+    }
+    total_row_count <- force_nrow(df_id_cols_only)
+    if (total_row_count == 0) {
+        if (! quiet) {
+            warning("No rows!")
+        }
         return(FALSE)
     }
 
@@ -349,11 +340,26 @@ is_id <- function(df, claimed_id_vars) {
         # anyDuplicated is faster than calling "distinct" then counting rows, but
         # remote tables don't support anyDuplicated, so do it manually there.
         ids_are_unique <- anyDuplicated(df_id_cols_only) == 0
+    } else if ('tbl_postgres' %in% class(df)){
+        con_psql <- df_id_cols_only$src$con
+        from <- dplyr::sql_subquery(con_psql, dplyr::sql_render(df_id_cols_only),
+                                    name = NULL)
+        group_sql <- dplyr::sql(paste(claimed_id_vars, collapse = ', '))
+        # Use the HAVING clause, as done here: http://stackoverflow.com/a/28157109
+        # Limit to one row because we only need to know that at least one group has
+        # count > 1.
+
+        distinct_query <- dplyr::sql_select(con = con_psql, select = sql('count(*)'),
+            from = from, group_by = group_sql, having = dplyr::sql('count(*) > 1'),
+            limit = 1L)
+        distinct_tbl <- dplyr::tbl(df_id_cols_only$src, distinct_query)
+        distinct_tbl <- dplyr::collect(distinct_tbl)
+        ids_are_unique <- (! tbl_has_rows(distinct_tbl))
+
     } else {
         distinct_row_count <- dplyr::ungroup(df_id_cols_only) %>%
             dplyr::distinct() %>%
             force_nrow()
-        total_row_count <- force_nrow(df_id_cols_only)
         ids_are_unique <- total_row_count == distinct_row_count
     }
     return(ids_are_unique)
@@ -443,7 +449,7 @@ force_nrow <- function(df) {
 tbl_has_rows <- function(df) {
     # Works for both local tables and remote databases
     nrow_df <- nrow(df)
-    if (is.na(nrow_df)) {  # nrow() is NA for remote tables
+    if (is.na(nrow_df)) {  # nrow() is tbl for remote tables
         head1 <- ungroup(df) %>% head(1) %>% collect()
         has_rows <- nrow(head1) > 0
     } else {
@@ -872,8 +878,10 @@ is_panel_balanced <- function(.tbl, id_vars) {
         force_nrow() %>%
         return()
     }
-
-    ensure_id_vars_(.tbl, id_vars)
+    if ('data.frame' %in% class(.tbl)) {
+        # TODO: use is_id here.
+        ensure_id_vars_(.tbl, id_vars)
+    }
     actual_nrow <- force_nrow(.tbl)
     stopifnot(actual_nrow > 0)
     unique_vals <- purrr::map_int(id_vars, count_unique_vals, df = .tbl)
@@ -917,4 +925,10 @@ force_panel_balance <- function(.tbl, id_vars) {
     # After the merge, the values in new rows will be NA, but I'm not going to fill.
     complete_tbl <- dplyr::right_join(.tbl, full_df, by = id_vars, copy = TRUE)
     return(complete_tbl)
+}
+
+print_pipe <- function(x) {
+    # This is for debugging, easier than stepping through the function.
+    print(x)
+    return(x)
 }
