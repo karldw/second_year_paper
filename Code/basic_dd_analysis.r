@@ -965,36 +965,45 @@ plot_effects_by_anticipation <- function(outcome,
         to_plot <- to_plot %>% mutate(start = factor(start))
     }
 
-    sale_tot_divisor <- 1000
-    if (outcome == 'sale_tot') {
-        to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
-                                      se = se / sale_tot_divisor)
-    }
-    to_plot <- to_plot %>% mutate(conf95_lower = coef - (1.96 * se),
-                                  conf95_upper = coef + (1.96 * se))
-
     # Now also grab the std dev of the sample we're looking at.
     sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
     data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
-    control_states <- find_match_states_crude()
-    individual_state_std_dev <- lapply_bind_rows(c('AK', control_states),
-        get_state_by_time_variation,
-        aggregation_level = aggregation_level, winsorize_pct = NULL,
-        rbind_src_id = 'state', parallel_cores = 1) %>%
-        select_(.dots = c('state', sd_varname)) %>%
-        # use a common name regardless of outcome so I don't have to fuss with dplyr and
-        # ggplot standard evaluation later
-        setNames(c('state', 'outcome_sd'))
-    std_devs <- data_frame(state = 'Pooled', outcome_sd = data_sd) %>%
-        bind_rows(individual_state_std_dev) %>%
-        # Explicitly set the factor and its ordered levels for a better plot legend
-        mutate(state = factor(state, levels = c('Pooled', 'AK', control_states),
-                              labels = c('Pooled', 'AK', control_states), ordered = TRUE))
+
+    sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
-        # data_sd <- data_sd / sale_tot_divisor
-        std_devs <- std_devs %>% mutate(outcome_sd = outcome_sd / sale_tot_divisor)
-    #    data_sd_ak_only <- data_sd_ak_only / sale_tot_divisor
+        to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
+                                      se   = se   / sale_tot_divisor)
+        data_sd <- data_sd / sale_tot_divisor
     }
+    to_plot <- to_plot %>%
+        mutate(conf95_lower = coef - (1.96 * se),
+               conf95_upper = coef + (1.96 * se),
+               coef_effect  = coef / data_sd,
+               conf95_lower_effect = conf95_lower / data_sd,
+               conf95_upper_effect = conf95_upper / data_sd,
+               # What's the greatest magnitude we could have?
+               conf95_max_mag = max(abs(conf95_lower_effect), abs(conf95_upper_effect)))
+
+    # NB: If you uncomment this block, you have to rejigger the sale_tot_divisor.
+    # control_states <- find_match_states_crude()
+    # individual_state_std_dev <- lapply_bind_rows(c('AK', control_states),
+    #     get_state_by_time_variation,
+    #     aggregation_level = aggregation_level, winsorize_pct = NULL,
+    #     rbind_src_id = 'state', parallel_cores = 1) %>%
+    #     select_(.dots = c('state', sd_varname)) %>%
+    #     # use a common name regardless of outcome so I don't have to fuss with dplyr and
+    #     # ggplot standard evaluation later
+    #     setNames(c('state', 'outcome_sd'))
+    # std_devs <- data_frame(state = 'Pooled', outcome_sd = data_sd) %>%
+    #     bind_rows(individual_state_std_dev) %>%
+    #     # Explicitly set the factor and its ordered levels for a better plot legend
+    #     mutate(state = factor(state, levels = c('Pooled', 'AK', control_states),
+    #                           labels = c('Pooled', 'AK', control_states), ordered = TRUE))
+    # if (outcome == 'sale_tot') {
+    #     # data_sd <- data_sd / sale_tot_divisor
+    #     std_devs <- std_devs %>% mutate(outcome_sd = outcome_sd / sale_tot_divisor)
+    # #    data_sd_ak_only <- data_sd_ak_only / sale_tot_divisor
+    # }
 
     # Define a bunch of labels.
     if (aggregation_level == 'daily') {
@@ -1015,10 +1024,10 @@ plot_effects_by_anticipation <- function(outcome,
     lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
     lab_y <- sprintf(lab_y, aggregation_level_noun)
 
-    coef_plot <- ggplot(to_plot, aes(x = start, y = coef)) +
+    coef_plot <- ggplot(to_plot, aes(x = start, y = coef_effect)) +
         geom_point() +
-        geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
-        labs(x = lab_x, y = lab_y, color = 'State\nstd dev') +
+        geom_errorbar(aes(ymin = conf95_lower_effect, ymax = conf95_upper_effect)) +
+        labs(x = lab_x, y = lab_y) +
         scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
         PLOT_THEME
 
@@ -1029,20 +1038,22 @@ plot_effects_by_anticipation <- function(outcome,
 
     # Then make the versions with lines for the standard deviations
     # First, the one with a single, pooled std dev
-    coef_plot_with_pooled_sd <- coef_plot +
-        geom_hline(data = filter(std_devs, state == 'Pooled'),
-                   aes(yintercept = outcome_sd, color = state)) +
-        guides(color = 'none')
+    # coef_plot_with_pooled_sd <- coef_plot + geom_hline(yintercept = data_sd)
+
     # Then, to make sure it's not one state swamping the std dev calculation, do each
     # separately.
-    coef_plot_with_states_sd <- coef_plot +
-        geom_hline(data = std_devs, aes(yintercept = outcome_sd, color = state))
+    # TODO: consider bringing this back, but it will require a bit of adjustment with
+    # dividing by different standard deviations:
+    # coef_plot_with_states_sd <- coef_plot +
+        # geom_hline(data = std_devs, aes(yintercept = outcome_sd, color = state))
+
     # Make filenames like anticipation_window_sale_count_weekly_notitle.pdf
     filename_part <- sprintf('anticipation_window_%s_%s%s', outcome, aggregation_level,
                              title_pattern)
+    hrbrthemes::gg_check(coef_plot)
     save_plot(coef_plot,                paste0(filename_part, '.pdf'))
-    save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
-    save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
+    # save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
+    # save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
     invisible(to_plot)  # then return the data
 }
 
@@ -1089,6 +1100,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         df <- df %>% mutate(sale_week = date_part('week', sale_date))
     }
     df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
+        print_pipe() %>%
         ensure_balanced_panel(c(time_var, 'buy_state')) %>%
         # Then demean so we're not getting huge standard deviations by looking across
         # states
@@ -1108,8 +1120,7 @@ if (! methods::existsFunction('get_state_by_time_variation')) {
     get_state_by_time_variation <- memoise::memoize(
         get_state_by_time_variation_unmemoized)
 }
-
-
+get_state_by_time_variation <- get_state_by_time_variation_unmemoized
 
 generate_snippets <- function() {
     # standard deviation of sales counts and volumes, weekly
@@ -1127,17 +1138,17 @@ generate_snippets <- function() {
                  'sales_count_weekly_std_dev_window_only.tex')
 }
 
-sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
-sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
+# sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
+# sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
 sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
 sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
 
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
-generate_snippets()
+# generate_snippets()
 
-run_dd_pick_max_effect('sale_count')
-run_dd_pick_max_effect('sale_tot')
+# run_dd_pick_max_effect('sale_count')
+# run_dd_pick_max_effect('sale_tot')
 # run_dd_pick_max_effect('sale_count', aggregation_level = 'daily')
 # run_dd_pick_max_effect('sale_tot',   aggregation_level = 'daily')
 
