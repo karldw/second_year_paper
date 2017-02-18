@@ -353,9 +353,9 @@ Anecdotally, dealers know that customers buy more cars around the dividend date 
 Instead, they just try to keep a certain number of cars on their lot, buying more as necessary.
 
 \begin{figure}[hbt]
-    \caption{Estimated sales count anticipation effects}
+    \caption{Anticipation effects for sales count}
     \label{fig:anticipation_window_sale_count}
-    \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_pooled_sd.pdf}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle.pdf}
 
     {\footnotesize
     The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
@@ -366,9 +366,9 @@ Instead, they just try to keep a certain number of cars on their lot, buying mor
 
 \end{figure}
 \begin{figure}[hbt]
-     \caption{Estimated total sales anticipation effects are small relative to standard deviation}
+     \caption{Anticipation effects for sales totals}
      \label{fig:anticipation_window_sale_tot}
-        \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
+        \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle.pdf}
 
     {\footnotesize
     The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
@@ -385,13 +385,13 @@ Theory doesn't tell us, however, how long that anticipation window should be.
 To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figures~\ref{fig:anticipation_window_sale_count} and~\ref{fig:anticipation_window_sale_tot}.
 In all cases, the anticipation window ends the immediately before the dividend day.
 
-None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts and sales totals, as indicated by the horizontal lines at the top of the graphs. 
+None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts and sales totals, as indicated by the horizontal lines at the top of the graphs.
 (Different states have somewhat different standard deviations, the pooled standard deviation is not driven by states with particularly large variation.
 The 95\% confidence interval of the anticipation estimates less than are standard deviation for Alaska and every control state, as demonstrated in figure~\ref{bonusfig:anticipation_window_sale_count_and_tot_weekly_states_sd}.)
-I default to calculating the pooled standard deviation across Alaska and the control states and across all weeks in the data.  
-Calculating the standard deviation on only periods within our event window -- from 70~days before the dividend is sent to 70~days after -- gives slightly larger standard deviations, and therefore even smaller effect sizes.
+I default to calculating the pooled standard deviation across Alaska and the control states and across all weeks in the data.
+Calculating the standard deviation on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives slightly larger standard deviations, and therefore even smaller effect sizes.
 
-Using daily data produces similar results. 
+Using daily data produces similar results.
 The coefficients are somewhat more variable and a couple are statistically significant, but they're still much smaller than the standard deviation.
 (See figure~\ref{bonusfig:anticipation_window_sale_count_daily}.)
 
@@ -491,7 +491,7 @@ Do the previous DD section again, but with synthetic controls or, maybe, the fan
 	\caption{Treatment coefficients on Alaska $\times$ anticipation, with state-specific standard deviation lines}
 	\label{bonusfig:anticipation_window_sale_count_and_tot_weekly_states_sd}
 	\includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_states_sd.pdf}
-	
+
 	\includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_states_sd.pdf}
 \end{figure}
 

@@ -289,6 +289,7 @@ ensure_id_vars <- function(df, ...) {
 
 
 is_id <- function(df, claimed_id_vars, quiet = FALSE) {
+    # TODO: this should really use classes...
     # NB It might be a good idea to force computation on df, if it's a remote table
     stopifnot(is.character(claimed_id_vars), length(claimed_id_vars) > 0,
               is.logical(quiet))
@@ -612,18 +613,24 @@ filter_event_window <- function(.data, years = NULL, days_before = 30L,
 }
 
 
-explain_analyze <- function(x) {
-    # Just like dplyr::explain, but running the more detailed EXPLAIN ANALYZE
+explain <- function(x, analyze = FALSE) {
+    # Just like dplyr::explain, but pipe-able and optionally running EXPLAIN ANALYZE
     force(x)
     stopifnot('tbl_postgres' %in% class(x))
     dplyr::show_query(x)
     message("\n")
-    exsql <- dplyr::build_sql("EXPLAIN ANALYZE ", dplyr::sql_render(x))
+    if (! analyze) {
+        explain_txt <- 'EXPLAIN '
+    } else {
+        explain_txt <- 'EXPLAIN ANALYZE '
+    }
+
+    exsql <- dplyr::build_sql(sql(explain_txt), dplyr::sql_render(x))
     expl_raw <- RPostgreSQL::dbGetQuery(x$src$con, exsql)
     expl <- paste(expl_raw[[1]], collapse = "\n")
 
     message("<PLAN>\n", expl)
-    invisible(NULL)
+    invisible(x)
 }
 
 
@@ -891,15 +898,30 @@ is_panel_balanced <- function(.tbl, id_vars) {
 }
 
 
-ensure_balanced_panel <- function(.tbl, id_vars) {
-    # Check for panel balance and allow for piping.
-    stopifnot(is_panel_balanced(.tbl = .tbl, id_vars = id_vars))
-    return(.tbl)
+ensure_balanced_panel <- function(df, id_vars) {
+    stopifnot(is_panel_balanced(df, id_vars))
+    return(df)
 }
 
 
-force_panel_balance <- function(.tbl, id_vars) {
+cross_d <- function(.l, .filter = NULL) {
+    # Define a version of purrr::cross_d that works with dates.
+    # See, e.g., https://github.com/hadley/purrr/issues/251
     stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
+    # Figure out which columns are dates
+    is_date <- function(x) {'Date' %in% class(x)}
+    dates_col_idx <- which(purrr::map_lgl(.l, is_date))
+    # Make a partially completed function to apply in the mutate_at
+    as_date <- purrr::partial(as.Date.numeric, origin = '1970-01-01')
+
+    results <- purrr::cross_d(.l = .l, .filter = .filter) %>%
+        dplyr::mutate_at(dates_col_idx, as_date)
+    return(results)
+}
+
+
+force_panel_balance <- function(.tbl, id_vars, fill_na = FALSE) {
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr', 'magrittr'))))
     # First, check that this is necesssary at all:
     if (is_panel_balanced(.tbl = .tbl, id_vars = id_vars)) {
         return(.tbl)
@@ -909,7 +931,8 @@ force_panel_balance <- function(.tbl, id_vars) {
         select_(.dots = one_var) %>%
         distinct_(.dots = one_var) %>%
         collect(n = Inf) %>%
-        unlist(recursive = FALSE, use.names = FALSE) %>%
+        magrittr::extract2(1) %>%
+        #unlist(recursive = FALSE, use.names = FALSE) %>%
         return()
     }
     # Get a list of the unique values in each id_var, then use cross_d to take the cross
@@ -918,14 +941,59 @@ force_panel_balance <- function(.tbl, id_vars) {
     # cartesian products, but that's my least favorite SQL behavior, so I'm avoiding it.
     full_df <- lapply(id_vars, get_unique_vector, df = .tbl) %>%
         setNames(id_vars) %>%
-        purrr::cross_d()
+        cross_d()
 
     # right_join and copy = TRUE to copy the full_df we just created to wherever the
     # original .tbl happens to be (in memory or in some database)
-    # After the merge, the values in new rows will be NA, but I'm not going to fill.
     complete_tbl <- dplyr::right_join(.tbl, full_df, by = id_vars, copy = TRUE)
+
+    if (fill_na) {
+        complete_tbl <- fill_tbl(complete_tbl, replace_what = NA)
+    }
     return(complete_tbl)
 }
+
+
+fill_tbl <- function(.tbl, replace_what = NA) {
+    # Fill a table with zeros, or whatever else.
+    stopifnot(length(replace_what) == 1)
+    head1 <- head(.tbl, 1) %>% dplyr::collect()
+    tbl_names <- names(head1)
+
+    get_default_value <- function(x) {
+        cls <- class(x)
+        if (any(c('numeric', 'integer', 'character', 'logical') %in% cls)) {
+            # use the trick that numeric(1) is 0, integer(1) is 0L etc.
+            default_val <- match.fun(class(x)[1])(1)
+        } else if ('Date' %in% cls) {
+            default_val <- as.Date('1970-01-01')
+        } else {
+            stop(sprintf('Default value for class "%s" not written yet.',
+                         paste(cls, collapse = ', ')))
+        }
+        return(default_val)
+    }
+
+    if_else_once <- function(var, replacement, replace_what) {
+        # If this is going into a database, if_else and ifelse are identical.
+        # If it's a local data.frame, I'm going to rely on the auto-coersion of ifelse.
+        stopifnot(length(replacement) == 1, length(var) == 1)
+        if (is.na(replace_what)) {
+            mutate_call <- lazyeval::interp(~ ifelse(is.na(var), replacement, var),
+                var = as.name(var))
+        } else {
+            mutate_call <- lazyeval::interp(~ ifelse(var == val, replacement, var),
+                var = as.name(var), val = replace_what, replacement = replacement)
+        }
+        return(mutate_call)
+    }
+    default_vals <- lapply(head1, get_default_value)  # get a named list of defaults
+    mutate_calls <- purrr::map2(tbl_names, default_vals, if_else_once,
+                                replace_what = replace_what)
+
+    return(dplyr::mutate_(.tbl, .dots = setNames(mutate_calls, tbl_names)))
+}
+
 
 print_pipe <- function(x) {
     # This is for debugging, easier than stepping through the function.

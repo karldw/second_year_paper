@@ -901,7 +901,7 @@ run_dd_pick_max_effect <- function(outcome,
 
     # Spellcheck my plot labels:
     lapply(list(coef_plot, se_plot, conf95_lower_plot, conf95_upper_plot),
-           hrbrthemes::gg_check)
+           hrbrthemes::gg_check, ignore = 'conf')
 
     # filename_base <- sprintf('variable_window_dd_%s_%s_tile_', outcome, aggregation_level)
     filename_base <- sprintf('variable_window_dd_%s_%s_area_', outcome, aggregation_level)
@@ -1015,14 +1015,15 @@ plot_effects_by_anticipation <- function(outcome,
     }
 
     if (outcome == 'sale_tot') {
-        lab_y <- 'Thousands of dollars per %s'
+        lab_y <- 'sale total'
     } else if (outcome == 'sale_count') {
-        lab_y <- 'Cars per %s'
+        lab_y <- 'cars sold'
     } else {
         stop("Error!")
     }
+
     lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
-    lab_y <- sprintf(lab_y, aggregation_level_noun)
+    lab_y <- sprintf("Effect size (std. dev. %s)", lab_y)
 
     coef_plot <- ggplot(to_plot, aes(x = start, y = coef_effect)) +
         geom_point() +
@@ -1100,8 +1101,8 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         df <- df %>% mutate(sale_week = date_part('week', sale_date))
     }
     df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
-        print_pipe() %>%
-        ensure_balanced_panel(c(time_var, 'buy_state')) %>%
+        # Some state-days don't have trades; fill these with zeros.
+        force_panel_balance(c(time_var, 'buy_state'), fill_na = TRUE) %>%
         # Then demean so we're not getting huge standard deviations by looking across
         # states
         group_by(buy_state) %>%
@@ -1120,7 +1121,7 @@ if (! methods::existsFunction('get_state_by_time_variation')) {
     get_state_by_time_variation <- memoise::memoize(
         get_state_by_time_variation_unmemoized)
 }
-get_state_by_time_variation <- get_state_by_time_variation_unmemoized
+
 
 generate_snippets <- function() {
     # standard deviation of sales counts and volumes, weekly
@@ -1145,7 +1146,7 @@ sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly'
 
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
-# generate_snippets()
+generate_snippets()
 
 # run_dd_pick_max_effect('sale_count')
 # run_dd_pick_max_effect('sale_tot')
