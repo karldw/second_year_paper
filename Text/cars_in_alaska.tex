@@ -95,6 +95,7 @@
 \newcommand{\msrp}{\textsc{msrp}}
 \newcommand{\eitc}{\textsc{eitc}}
 \newcommand{\gdp}{\textsc{gdp}}
+\newcommand{\Var}{\text{Var}}
 
 \usepackage{gitinfo2}  % requires git hooks!  See the Code/git_hooks folder in this repo.
 \newcommand{\snippet}[1]{\input{./Generated_snippets/#1}\hspace{-0.15em}}
@@ -379,8 +380,9 @@ Instead, they just try to keep a certain number of cars on their lot, buying mor
     }
 \end{figure}
 
+% TODO: Make the event-study plot Hal was talking about; for my zero to be credible, these need to *remain* pretty parallel.
 
-On the other hand, anecdata are often wrong, so maybe it's worth considering the theoretical predicting a dealer anticipation effect.
+Anecdata are often wrong, so maybe it's worth considering the theoretical predicting a dealer anticipation effect.
 Theory doesn't tell us, however, how long that anticipation window should be.
 To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figures~\ref{fig:anticipation_window_sale_count} and~\ref{fig:anticipation_window_sale_tot}.
 In all cases, the anticipation window ends the immediately before the dividend day.
@@ -394,6 +396,38 @@ Calculating the standard deviation on only periods within the event window -- fr
 Using daily data produces similar results.
 The coefficients are somewhat more variable and a couple are statistically significant, but they're still much smaller than the standard deviation.
 (See figure~\ref{bonusfig:anticipation_window_sale_count_daily}.)
+
+
+\begin{figure}[hbt]
+     \caption{Sales totals effect size across windows, max 95\% CI}
+     \label{fig:variable_window_sale_tot_conf95_max_effect}
+        \includegraphics[width=\linewidth]{variable_window_dd_sale_tot_weekly_area_conf95_max_effect.pdf}
+
+    {\footnotesize
+    % TODO: write an equation for this, put in the appropriate greek letter. (use \psi or change the math below)
+    \textsc{Notes:} The plot shows the Alaska $\times$ anticipation coefficients on total sales from a regression with a varying ``anticipation'' window.
+    The $y$-axis shows is the start of the window relative to the dividend day, while the $x$-axis codes the end of the window.
+    The size of the points is the maximum of the absolute value of the effect size of the 95\% confidence intervals: $\max \big\{ \hat{\psi} - 1.96 \sqrt{\Var(\hat{\psi})},$ $ \hat{\psi} + 1.96 \sqrt{\Var(\hat{\psi})} \big\}$.
+    A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
+    }
+\end{figure}
+
+\begin{figure}[hbt]
+     \caption{Maximum sales count effect size confidence intervals}
+     \label{fig:variable_window_sale_count_conf95_max_effect}
+        \includegraphics[width=\linewidth]{variable_window_dd_sale_count_weekly_area_conf95_max_effect.pdf}
+
+    {\footnotesize
+    % TODO: write an equation for this, put in the appropriate greek letter. (use \psi or change the math below)
+    \textsc{Notes:} The plot shows the Alaska $\times$ anticipation coefficients on sale count from a regression with a varying ``anticipation'' window.
+    The $y$-axis shows is the start of the window relative to the dividend day, while the $x$-axis codes the end of the window.
+    The size of the points is the maximum of the absolute value of the effect size of the 95\% confidence intervals: $\max \big\{ \hat{\psi} - 1.96 \sqrt{\Var(\hat{\psi})},$ $ \hat{\psi} + 1.96 \sqrt{\Var(\hat{\psi})} \big\}$.
+    A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
+    }
+\end{figure}
+
+On the other hand, one might put more credence in the anecdotes.
+To show that there is still no effect on vehicle sales, I'll estimate an even more flexible treatment window.
 
 
 

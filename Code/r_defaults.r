@@ -73,10 +73,10 @@ PLOT_THEME <- hrbrthemes::theme_ipsum_rc() +
         legend.title     = ggplot2::element_text(size = 9),
         axis.line.x      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
         axis.line.y      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
-        panel.grid.major = ggplot2::element_line(color = "gray87"),
-        panel.grid.minor = ggplot2::element_line(color = "gray96"),
+        panel.grid.major = ggplot2::element_line(color = "gray86"),
+        panel.grid.minor = ggplot2::element_line(color = "gray95"),
         # Make plots with thin margins (top, right, bottom, and left)
-        plot.margin      = ggplot2::unit(c(-0.6, 0.2, 0.2, 0.2), "cm")
+        plot.margin      = ggplot2::unit(c(0, 0.2, 0.2, 0.2), "cm")
     )
 
 # Colors from http://haas.berkeley.edu/style-guide/colors.html

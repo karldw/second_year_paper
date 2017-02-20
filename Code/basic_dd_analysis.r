@@ -738,6 +738,22 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
 }
 
 
+calculate_effect_sizes <- function(df, data_sd) {
+    out <- df %>%
+        mutate(conf95_lower = coef - (1.96 * se),
+               conf95_upper = coef + (1.96 * se),
+               is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), ordered = TRUE,
+                                  labels = c('p < 0.05', 'p > 0.05')),
+               coef_effect = coef / data_sd,
+               conf95_lower_effect = conf95_lower / data_sd,
+               conf95_upper_effect = conf95_upper / data_sd,
+               # pmax because I want rowwise max, not max of all.
+               conf95_max_mag_effect = pmax(abs(conf95_lower_effect),
+                                            abs(conf95_upper_effect)))
+    return(out)
+}
+
+
 run_dd_pick_max_effect <- function(outcome,
         aggregation_level = 'weekly', days_before_limit = 70,
         days_after_limit = days_before_limit) {
@@ -766,7 +782,7 @@ run_dd_pick_max_effect <- function(outcome,
         seq.int(loop_start, loop_end, by = 1),
         .filter = function(start, end) {
             # and then filter combos we don't want
-            (end - start <= min_window_length) || (end - start >= max_window_length)
+            (end - start < min_window_length) || (end - start > max_window_length)
         }
     )
     stopifnot(length(windows) > 0)
@@ -787,15 +803,18 @@ run_dd_pick_max_effect <- function(outcome,
         return(df)
     }
 
+    # Now also grab the std dev of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
+    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+
     to_plot <- purrr::map_df(windows, get_results_one_window)
     sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
         to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
-                                      se = se / sale_tot_divisor)
+                                      se   = se   / sale_tot_divisor)
+        data_sd <- data_sd / sale_tot_divisor
     }
-    to_plot <- to_plot %>% mutate(conf95_lower = coef - (1.96 * se),
-                                  conf95_upper = coef + (1.96 * se),
-                                  is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), labels = c('p < 0.05', 'p > 0.05')))
+    to_plot <- calculate_effect_sizes(to_plot, data_sd)
     # Define a bunch of labels.
     lab_x <- 'Window end (%s)'
     lab_y <- 'Window start (%s)'
@@ -832,10 +851,11 @@ run_dd_pick_max_effect <- function(outcome,
 
     common_plot <- ggplot(to_plot, aes(x = end, y = start)) +
         scale_fill_distiller(palette = 'YlGnBu', direction = 1) +
-        labs(x = lab_x, y = lab_y, fill = '', color = 'Sign', size = '', alpha = 'Significance') +
+        labs(x = lab_x, y = lab_y, fill = '', color = 'Sign', size = '',
+             alpha = 'Significance') +
         # guides(alpha = 'none') +
         scale_alpha_discrete(range = c(0.25, 1)) +
-        scale_size_area(max_size = 5) +
+        scale_size_area() +
         guides(size  = guide_legend(order = 1),
                color = guide_legend(order = 2),
                alpha = guide_legend(order = 3)) +
@@ -867,48 +887,51 @@ run_dd_pick_max_effect <- function(outcome,
     # TODO: the geom_point plot looks terrible for daily data. Maybe use
     # `geom_tile(aes(fill = coef, alpha = is_signif))` for daily and geom_point for weekly
 
-    coef_plot <- common_plot +
+    coef_effect_plot <- common_plot +
         # geom_tile(aes(fill = coef, alpha = is_signif))
-        geom_point(aes(size = abs(coef), color = sign_as_factor(coef),
+        geom_point(aes(size = abs(coef_effect), color = sign_as_factor(coef),
                    alpha = is_signif)) +
         labs(size = 'Coefficient\nmagnitude')
     # If the plot has only positive values, don't show a legend (but keep the color)
     if (all(sign(to_plot$coef) == 1)){
-        coef_plot <- coef_plot + guides(color = 'none')
+        coef_effect_plot <- coef_effect_plot + guides(color = 'none')
     }
 
-    se_plot <- common_plot + geom_point(aes(size = se)) + labs(size = 'Standard\nError')
-
-    conf95_lower_plot <- common_plot +
-        # geom_tile(aes(fill = conf95_lower, alpha = is_signif))
-        geom_point(aes(size = abs(conf95_lower), color = sign_as_factor(conf95_lower),
-                       alpha = is_signif)) +
-        labs(size = '95% CI\nlower bound', color = 'Lower bound sign')
-    # If the plot has only positive values, don't show a legend (but keep the color)
-    if (all(sign(to_plot$conf95_lower) == 1)){
-        conf95_lower_plot <- conf95_lower_plot + guides(color = 'none')
-    }
-
-    conf95_upper_plot <- common_plot +
-        # geom_tile(aes(fill = conf95_upper, alpha = is_signif))
-        geom_point(aes(size = abs(conf95_upper), color = sign_as_factor(conf95_upper),
-                       alpha = is_signif)) +
-        labs(size = '95% CI\nupper bound',  color = 'Upper bound sign')
-    # If the plot has only positive values, don't show a legend (but keep the color)
-    if (all(sign(to_plot$conf95_upper) == 1)){
-        conf95_upper_plot <- conf95_upper_plot + guides(color = 'none')
-    }
+    # These plots are fine, but no longer necessary:
+    # se_plot <- common_plot + geom_point(aes(size = se)) + labs(size = 'Standard\nError')
+    # conf95_lower_plot <- common_plot +
+    #     # geom_tile(aes(fill = conf95_lower, alpha = is_signif))
+    #     geom_point(aes(size = abs(conf95_lower), color = sign_as_factor(conf95_lower),
+    #                    alpha = is_signif)) +
+    #     labs(size = '95% CI\nlower bound', color = 'Lower bound sign')
+    # # If the plot has only positive values, don't show a legend (but keep the color)
+    # if (all(sign(to_plot$conf95_lower) == 1)){
+    #     conf95_lower_plot <- conf95_lower_plot + guides(color = 'none')
+    # }
+    # conf95_upper_plot <- common_plot +
+    #     # geom_tile(aes(fill = conf95_upper, alpha = is_signif))
+    #     geom_point(aes(size = abs(conf95_upper), color = sign_as_factor(conf95_upper),
+    #                    alpha = is_signif)) +
+    #     labs(size = '95% CI\nupper bound',  color = 'Upper bound sign')
+    # # If the plot has only positive values, don't show a legend (but keep the color)
+    # if (all(sign(to_plot$conf95_upper) == 1)){
+    #     conf95_upper_plot <- conf95_upper_plot + guides(color = 'none')
+    # }
+    conf95_max_mag_plot <- common_plot +
+        geom_point(aes(size = conf95_max_mag_effect, color = is_signif)) +
+        labs(size = 'Max 95%-CI\nmagnitude',  color = 'Significance')
 
     # Spellcheck my plot labels:
-    lapply(list(coef_plot, se_plot, conf95_lower_plot, conf95_upper_plot),
+    lapply(list(coef_effect_plot, conf95_max_mag_plot),
            hrbrthemes::gg_check, ignore = 'conf')
 
     # filename_base <- sprintf('variable_window_dd_%s_%s_tile_', outcome, aggregation_level)
     filename_base <- sprintf('variable_window_dd_%s_%s_area_', outcome, aggregation_level)
-    save_plot(coef_plot, paste0(filename_base, 'coef.pdf'))
-    save_plot(se_plot,   paste0(filename_base, 'se.pdf'))
-    save_plot(conf95_lower_plot, paste0(filename_base, 'conf95_lower.pdf'))
-    save_plot(conf95_upper_plot, paste0(filename_base, 'conf95_upper.pdf'))
+    save_plot(coef_effect_plot,    paste0(filename_base, 'coef_effect.pdf'))
+    # save_plot(se_plot,             paste0(filename_base, 'se.pdf'))
+    # save_plot(conf95_lower_plot,   paste0(filename_base, 'conf95_lower.pdf'))
+    # save_plot(conf95_upper_plot,   paste0(filename_base, 'conf95_upper.pdf'))
+    save_plot(conf95_max_mag_plot, paste0(filename_base, 'conf95_max_effect.pdf'))
     invisible(to_plot)
 }
 
@@ -965,7 +988,7 @@ plot_effects_by_anticipation <- function(outcome,
         to_plot <- to_plot %>% mutate(start = factor(start))
     }
 
-    # Now also grab the std dev of the sample we're looking at.
+    # Now also grab the std dev.
     sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
     data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
 
@@ -975,14 +998,7 @@ plot_effects_by_anticipation <- function(outcome,
                                       se   = se   / sale_tot_divisor)
         data_sd <- data_sd / sale_tot_divisor
     }
-    to_plot <- to_plot %>%
-        mutate(conf95_lower = coef - (1.96 * se),
-               conf95_upper = coef + (1.96 * se),
-               coef_effect  = coef / data_sd,
-               conf95_lower_effect = conf95_lower / data_sd,
-               conf95_upper_effect = conf95_upper / data_sd,
-               # What's the greatest magnitude we could have?
-               conf95_max_mag = max(abs(conf95_lower_effect), abs(conf95_upper_effect)))
+    to_plot <- calculate_effect_sizes(to_plot, data_sd)
 
     # NB: If you uncomment this block, you have to rejigger the sale_tot_divisor.
     # control_states <- find_match_states_crude()
