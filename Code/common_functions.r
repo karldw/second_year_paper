@@ -275,8 +275,12 @@ bool_to_alaska_factor <- function(x, labels = c('Alaskan', 'Non-Alaskan')) {
 }
 
 
-ensure_id_vars_ <- ensurer::ensures_that(is_id(., claimed_id_vars) ~
-    "Variables don't uniquely identify rows")
+ensure_id_vars_ <- function(.tbl, claimed_id_vars) {
+    if (! is_id(.tbl, claimed_id_vars)) {
+        stop("Variables don't uniquely identify rows")
+    }
+    return(.tbl)
+}
 
 
 ensure_id_vars <- function(df, ...) {
@@ -908,14 +912,19 @@ cross_d <- function(.l, .filter = NULL) {
     # Define a version of purrr::cross_d that works with dates.
     # See, e.g., https://github.com/hadley/purrr/issues/251
     stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
-    # Figure out which columns are dates
+
+    results <- purrr::cross_d(.l = .l, .filter = .filter)
+    # Fix dates if necessary:
+    # First figure out which columns are dates
     is_date <- function(x) {'Date' %in% class(x)}
     dates_col_idx <- which(purrr::map_lgl(.l, is_date))
-    # Make a partially completed function to apply in the mutate_at
-    as_date <- purrr::partial(as.Date.numeric, origin = '1970-01-01')
-
-    results <- purrr::cross_d(.l = .l, .filter = .filter) %>%
-        dplyr::mutate_at(dates_col_idx, as_date)
+    # Then if there are dates, fix them
+    if (length(dates_col_idx) > 0) {
+        # Make a partially completed function to apply in the mutate_at
+        # (easier to reason about than passing origin into mutate_at)
+        as_date <- purrr::partial(as.Date.numeric, origin = '1970-01-01')
+        results <- dplyr::mutate_at(results, dates_col_idx, as_date)
+    }
     return(results)
 }
 
