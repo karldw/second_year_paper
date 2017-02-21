@@ -77,7 +77,7 @@ if (! is_pkg_installed('hrbrthemes')) {
         panel.grid.major = ggplot2::element_line(color = "gray86"),
         panel.grid.minor = ggplot2::element_line(color = "gray95"),
         # Make plots with thin margins (top, right, bottom, and left)
-        plot.margin      = ggplot2::unit(c(0, 0.2, 0.2, 0.2), "cm")
+        plot.margin      = ggplot2::unit(c(0.1, 0.2, 0.2, 0.2), "cm")
     )
 
 # Colors from http://haas.berkeley.edu/style-guide/colors.html

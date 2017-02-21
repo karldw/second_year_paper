@@ -798,14 +798,23 @@ find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_state
 }
 
 
-felm_strict <- function(...) {
-    # Just like normal felm, but stricter about warnings.
-    # (these are almost always a serious problem and should be treated as errors)
-    orig_warn <- getOption('warn')
-    on.exit(options(warn = orig_warn), add = TRUE)
+my_felm <- function(formula, data, ..., dates_as_factor = TRUE, strict = FALSE) {
+    force(formula)
+    force(data)
 
-    options(warn = 2)
-    return(lfe::felm(...))
+    if (strict) {
+        # Just like normal felm, but stricter about warnings.
+        # (these are almost always a serious problem and should be treated as errors)
+        orig_warn <- getOption('warn')
+        on.exit(options(warn = orig_warn), add = TRUE)
+        options(warn = 2)
+    }
+    if (dates_as_factor) {
+        # Force date variables to be factor if they're integer/date
+        date_vars <- c('sale_date', 'sale_week', 'event_time', 'event_week')
+        data <- make_factor(data, date_vars, strict = FALSE)
+    }
+    return(lfe::felm(formula = formula, data = data, ...))
 }
 
 
@@ -1008,4 +1017,23 @@ print_pipe <- function(x) {
     # This is for debugging, easier than stepping through the function.
     print(x)
     return(x)
+}
+
+
+make_factor <- function(.tbl, varnames, strict = TRUE) {
+    # If varname is in the table, make it into a factor. Otherwise, don't bother.
+    stopifnot('data.frame' %in% class(.tbl), length(varnames) >= 1,
+              is.character(varnames), is.logical(strict))
+
+    varnames_in_tbl <- intersect(varnames, names(.tbl))
+    if (strict && length(varnames_in_tbl) < length(varnames)) {
+        missing_vars <- paste(setdiff(varnames, varnames_in_tbl), collapse = "', '")
+        err_msg <- sprintf("Mising variables: '%s'", missing_vars)
+        stop(err_msg)
+    }
+    if (length(varnames_in_tbl) == 0) {
+        return(.tbl)
+    }
+    out <- .tbl %>% mutate_at(vars(one_of(varnames_in_tbl)), as.factor)
+    return(out)
 }
