@@ -30,11 +30,13 @@ if (length(.libPaths()) < 2) {
 
 
 ####     Memoise stuff from common_functions.r    ####
+install_lazy('memoise', FALSE)
 if (! methods::existsFunction('find_match_states_crude')) {
-    install_lazy('memoise', FALSE)
     find_match_states_crude <- memoise::memoize(find_match_states_crude_unmemoized)
 }
-
+if (! methods::existsFunction('aggregate_sales_dd')) {
+    aggregate_sales_dd <- memoise::memoize(aggregate_sales_dd_unmemoized)
+}
 
 ####    Make joins better    ####
 # Unlike the dplyr versions, these don't (or at least shouldn't) allow many-to-many joins.
