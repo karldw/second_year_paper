@@ -85,14 +85,22 @@ get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id
               # other IDs are possible, but haven't been written yet:
               id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
 
-    if (startsWith(date_var, 'event')) {
+    group_vars <- c(id_var, date_var)
+    if (date_var == 'event_week') {
+        # Add sale_year because event_week is just a week integer, something like -10,
+        # and I don't want to total over year.
         df_base <- df_base %>% add_sale_year()
-        group_vars <- c(id_var, 'sale_year', date_var)
-    } else {
-        group_vars <- c(id_var, date_var)
+        group_vars <- c(group_vars, 'sale_year')
+    } else if (date_var == 'event_time') {
+        # Add sale_date because (1) we need to differentiate years, same as event_week,
+        # and (2) it's convenient to have sale_date included in the output variables,
+        # without actually changing the level of aggregation. (Put differently,
+        # event_time and sale_year identify days exactly as well as sale_date.)
+        group_vars <- c(group_vars, 'sale_year', 'sale_date')
     }
     sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
-        summarize(sale_count = n(), sale_tot = sum(sales_pr)) %>%
+        summarize(sale_count = n(), sale_tot = sum(sales_pr),
+                  sales_pr_mean = mean(sales_pr)) %>%
         ungroup() %>% collapse()
 
     if (id_var == 'buyer_id') {  # Merge back in buy_state.
@@ -180,7 +188,7 @@ run_dd_one_year_old <- function(year) {
     # DD with LHS of daily sale_count, buyer_id and sale_date FE and buy_state clusters
     sales_counts_formula <- (sale_count_pc ~ 0 |
                              sale_date | 0 | buy_state)
-    sales_counts_reg <- felm(formula = sales_counts_formula, data = sales_counts)
+    sales_counts_reg <- my_felm(formula = sales_counts_formula, data = sales_counts)
     print(summary(sales_counts_reg))
     # fixed_effects <- getfe(sales_counts_reg) %>% as.tbl()
 
@@ -203,7 +211,7 @@ run_dd_one_year_old <- function(year) {
 
     # get the residuals
     # sales_counts_formula2 <- (sale_count ~ 1 | buyer_id)
-    # sales_counts_reg2 <- felm(formula = sales_counts_formula2, data = sales_counts)
+    # sales_counts_reg2 <- my_felm(formula = sales_counts_formula2, data = sales_counts)
     # sales_counts_resid2 <- residuals(sales_counts_reg2) %>% as.numeric()
     # print(head(sales_counts_resid2))
     # sales_counts <- mutate(sales_counts, resid_buyer_fe = sales_counts_resid2)
@@ -231,11 +239,11 @@ plot_alaska_sales <- function() {
         bind_rows() %>%
         ungroup()
     sale_count_reg_dow_resid <- (sale_count ~ 0 | sale_dow) %>%
-        felm(data = sales_near_windows) %>%
+        my_felm(data = sales_near_windows) %>%
         residuals() %>%
         as.numeric()
     sale_volume_reg_dow_resid <- (sale_volume ~ 0 | sale_dow) %>%
-        felm(data = sales_near_windows) %>%
+        my_felm(data = sales_near_windows) %>%
         residuals() %>%
         as.numeric()
     sales_resids_long <- sales_near_windows %>%
@@ -408,6 +416,7 @@ verify_constant_ids <- function() {
 
 
 regression_adjust <- function(.data, varname, formula_rhs) {
+    warning("If you use this function, make sure you're making dates factors.")
     # e.g.
     # regression_adjust(sales_counts, sale_count_pc, ~ buy_state + sale_dow)
     if (! is.character(formula_rhs)) {
@@ -421,7 +430,7 @@ regression_adjust <- function(.data, varname, formula_rhs) {
               varname %in% names(df))
 
     reg_formula <- as.formula(paste(varname, formula_rhs))
-    resid <- felm(reg_formula, df) %>%
+    resid <- my_felm(reg_formula, df) %>%
         residuals() %>% as.numeric()
     stopifnot(length(resid) == nrow(df))
     df[[varname]] <- resid
@@ -523,6 +532,7 @@ plot_dd_sales <- function(years = 2002:2014) {
               scale_mult = 3)
 }
 
+
 aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
         days_after = days_before) {
     # Create the dataset for the difference-in-differences analysis.
@@ -557,7 +567,7 @@ run_dd <- function(years = 2002:2014,
     # aggregation_level is weekly, anticipation_window is in weeks. Zero is the day/week
     # when the dividend is sent (so -1 is the last period before the dividend).
     anticipation_window = NULL,
-    outcomes = c('sale_count', 'sale_tot'),
+    outcomes = c('sale_count', 'sale_tot', 'sales_pr_mean'),
     # controls, including DD vars, excluding fixed effects
     controls = c('alaskan_buyer', 'anticipation', 'alaskan_buyer_anticipation', 'post',
                  'alaskan_buyer_post'),
@@ -640,7 +650,7 @@ run_dd <- function(years = 2002:2014,
                          '| 0 |',  # no IV vars
                          paste(clusters, collapse = ' + ')) %>% as.formula()
     reg_results <- tryCatch({
-        felm(reg_formula, df)
+        my_felm(reg_formula, df)
     }, warning = function(warning_condition) {
         err_msg <- sprintf("felm issue with anticipation_window [%s, %s]",
                            anticipation_window[1], anticipation_window[2])
@@ -716,6 +726,9 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
     } else if (outcome == 'sale_count') {
         lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
         lab_color_se = 'SE on additional Alaskan anticipation sale volume'
+    } else if (outcome == 'sales_pr_mean') {
+        lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
+        lab_color_se = 'SE on additional Alaskan anticipation average sale price'
     } else {
         stop("Error!")
     }
@@ -773,7 +786,8 @@ run_dd_pick_max_effect <- function(outcome,
     } else {
         stop("aggregation_level must be 'daily' or 'weekly'")
     }
-    stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2)
+    stopifnot(outcome %in% c('sale_count', 'sale_tot', 'sales_pr_mean'),
+              days_before_limit > 2)
     max_window_length <- abs(loop_end) + abs(loop_start) - 2
     windows <- purrr::cross2(
         # Form the cross of all possible window starts
@@ -833,6 +847,9 @@ run_dd_pick_max_effect <- function(outcome,
     } else if (outcome == 'sale_count') {
         lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
         lab_color_se = 'SE on additional Alaskan anticipation sale volume'
+    } else if (outcome == 'sales_pr_mean') {
+        lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
+        lab_color_se = 'SE on additional Alaskan anticipation average sale price'
     } else {
         stop("Error!")
     }
@@ -866,7 +883,8 @@ run_dd_pick_max_effect <- function(outcome,
     # Qualitative:
     # Accent, Dark2, Paired, Pastel1, Pastel2, Set1, Set2, Set3
     # Sequential:
-    # Blues, BuGn, BuPu, GnBu, Greens, Greys, Oranges, OrRd, PuBu, PuBuGn, PuRd, Purples, RdPu, Reds, YlGn, YlGnBu, YlOrBr, YlOrRd
+    # Blues, BuGn, BuPu, GnBu, Greens, Greys, Oranges, OrRd, PuBu, PuBuGn, PuRd, Purples,
+    # RdPu, Reds, YlGn, YlGnBu, YlOrBr, YlOrRd
 
     # coef_plot <- ggplot(to_plot, aes(x = end, y = start, fill = coef)) +
     #     geom_tile() +
@@ -963,8 +981,8 @@ plot_effects_by_anticipation <- function(outcome,
     } else {
         stop("aggregation_level must be 'daily' or 'weekly'")
     }
-    stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2,
-              loop_start < min_window_length)
+    stopifnot(outcome %in% c('sale_count', 'sale_tot', 'sales_pr_mean'),
+              days_before_limit > 2, loop_start < min_window_length)
 
 
     get_results_one_window <- function(start) {
@@ -1022,23 +1040,11 @@ plot_effects_by_anticipation <- function(outcome,
     # }
 
     # Define a bunch of labels.
-    if (aggregation_level == 'daily') {
-        aggregation_level_noun <- 'day'
-    } else if (aggregation_level == 'weekly') {
-        aggregation_level_noun <- 'week'
-    } else {
-        stop("Error!")
-    }
-
-    if (outcome == 'sale_tot') {
-        lab_y <- 'sale total'
-    } else if (outcome == 'sale_count') {
-        lab_y <- 'cars sold'
-    } else {
-        stop("Error!")
-    }
-
+    aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
     lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
+
+    lab_y <- c('sale_tot' = 'sale total', 'sale_count' = 'cars sold',
+               'sales_pr_mean' = 'average sales price')[[outcome]]
     lab_y <- sprintf("Effect size (std. dev. %s)", lab_y)
 
     coef_plot <- ggplot(to_plot, aes(x = start, y = coef_effect)) +
@@ -1123,12 +1129,14 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         # states
         group_by(buy_state) %>%
         mutate(sale_tot = sale_tot - mean(sale_tot),
-               sale_count = sale_count - mean(sale_count)) %>%
+               sale_count = sale_count - mean(sale_count),
+               sales_pr_mean = sales_pr_mean - mean(sales_pr_mean)) %>%
         ungroup()
     if (! is.null(winsorize_pct)) {
         df <- df %>% winsorize(c('sale_tot', 'sale_count'), winsorize_pct)
     }
-    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
+    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count),
+                           sales_pr_mean_sd = sd(sales_pr_mean)) %>%
         collect()
 
     return(df)
@@ -1155,8 +1163,101 @@ generate_snippets <- function() {
                  'sales_count_weekly_std_dev_window_only.tex')
 }
 
-# sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
-# sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
+
+plot_effects_individual_period <- function(
+        outcome,
+        aggregation_level = 'daily',
+        years = 2002:2014,
+        controls = "alaskan_buyer",
+        fixed_effects = 'sale_year',
+        clusters = 0,
+        days_before_limit = 70,
+        days_after_limit = days_before_limit) {
+
+    stopifnot(length(outcome) == 1)  # makes parsing output *much* easier
+    x_vars <- c(controls, fixed_effects)
+    agg_var <- c('daily' = 'event_time', 'weekly' = 'event_week')[[aggregation_level]]
+    aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
+    aggregated_sales <- aggregate_sales_dd(years, agg_var,
+        days_before = days_before_limit,days_after = days_after_limit) %>%
+        force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE)
+    if ('sale_dow' %in% x_vars) {
+        aggregated_sales <- add_sale_dow(aggregated_sales)
+    }
+
+    if ('alaskan_buyer' %in% x_vars) {
+        aggregated_sales <- aggregated_sales %>% tag_alaskan_buyer(as_factor = FALSE)
+        if ('buy_state' %in% x_vars) {
+            stop("Can't have alaskan_buyer and buy_state because of collinearity")
+        }
+    }
+
+    reg_formula <- paste(outcome, '~',
+                         paste(controls, collapse = ' + '), '|',
+                         paste(fixed_effects, collapse = ' + '),
+                         '| 0 |',  # no IV vars
+                         paste(clusters, collapse = ' + ')) %>% as.formula()
+    get_results_one_period <- function(agg_var_value) {
+        aggregated_sales_one_period <- aggregated_sales %>%
+            filter_(.dots = lazyeval::interp(~var == val, var = as.name(agg_var),
+                                             val = agg_var_value))
+
+        reg_results <- tryCatch({
+            reg_results <- my_felm(reg_formula, data = aggregated_sales_one_period)
+        }, warning = function(warning_condition) {
+            warning(sprintf('Problem with %s %ss', agg_var_value, aggregation_level_noun))
+            stop(warning_condition)
+        }, error = function(error_condition) {
+            warning(sprintf('Problem with %s %ss', agg_var_value, aggregation_level_noun))
+            stop(error_condition)
+        }, finally = {
+
+        })
+        # reg_results <- my_felm(reg_formula, data = aggregated_sales_one_period)
+        df <- data_frame(event_period = agg_var_value,
+            coef = reg_results$coefficients['alaskan_buyerTRUE', ],
+            se   = reg_results$rse[['alaskan_buyerTRUE']],
+            pval = reg_results$rpval[['alaskan_buyerTRUE']])
+
+        return(df)
+    }
+
+    # Now also grab the std dev of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
+    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    # Pull the unique values of agg_var into a vector, sort it, and pass the values to
+    # get_results_one_period. Then collect the output dataframe into one, then use the
+    # standard deviation we just calculated to get effect sizes.
+    to_plot <- aggregated_sales %>%
+        distinct_(agg_var) %>%
+        extract2(1) %>% sort() %>%
+        purrr::map_df(get_results_one_period) %>%
+        calculate_effect_sizes(data_sd = data_sd)
+    lab_x <- sprintf('Event %s', aggregation_level_noun)
+    lab_y <- c('sale_tot' = 'sale total', 'sale_count' = 'cars sold',
+               'sales_pr_mean' = 'average sales price')[[outcome]]
+    lab_y_effect <- sprintf("Effect size (std. dev. %s)", tolower(lab_y))
+    coef_plot <- ggplot(to_plot, aes(x = event_period, y = coef)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
+        labs(x = lab_x, y = lab_y) +
+        PLOT_THEME
+    coef_effect_plot <- ggplot(to_plot, aes(x = event_period, y = coef_effect)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf95_lower_effect, ymax = conf95_upper_effect)) +
+        labs(x = lab_x, y = lab_y_effect) +
+        PLOT_THEME
+    filename_part <- sprintf('effects_individual_period_%s_%s_',
+                             outcome, aggregation_level)
+    suffix <- '_notitle.pdf'
+    save_plot(coef_plot,        paste0(filename_part, 'coef',        suffix))
+    save_plot(coef_effect_plot, paste0(filename_part, 'coef_effect', suffix))
+    invisible(to_plot)  # then return the data
+}
+
+
+sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
+sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
 sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
 sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
 
@@ -1164,11 +1265,15 @@ sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly'
 # get_state_by_time_variation have been run.
 generate_snippets()
 
-# run_dd_pick_max_effect('sale_count')
-# run_dd_pick_max_effect('sale_tot')
-# run_dd_pick_max_effect('sale_count', aggregation_level = 'daily')
-# run_dd_pick_max_effect('sale_tot',   aggregation_level = 'daily')
+run_dd_pick_max_effect('sale_count')
+run_dd_pick_max_effect('sale_tot')
+run_dd_pick_max_effect('sale_count', aggregation_level = 'daily')
+run_dd_pick_max_effect('sale_tot',   aggregation_level = 'daily')
 
+plot_effects_individual_period('sale_count', 'weekly')
+plot_effects_individual_period('sale_tot', 'weekly')
+plot_effects_individual_period('sale_count', 'daily', fixed_effects = c('sale_year', 'sale_dow'))
+plot_effects_individual_period('sale_tot', 'daily', fixed_effects = c('sale_year', 'sale_dow'))
 
 # quality_control_graphs()
 # plot_dd_sales(2002)
