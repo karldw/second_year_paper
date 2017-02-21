@@ -1256,22 +1256,25 @@ plot_effects_individual_period <- function(
 }
 
 
-sale_tot_effects_daily    <- plot_effects_by_anticipation('sale_tot', title = FALSE)
-sale_count_effects_daily  <- plot_effects_by_anticipation('sale_count', title = FALSE)
-sale_tot_effects_weekly   <- plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
-sale_count_effects_weekly <- plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
+plot_effects_by_anticipation('sale_tot', title = FALSE)
+plot_effects_by_anticipation('sale_count', title = FALSE)
+plot_effects_by_anticipation('sale_tot', 'weekly', title = FALSE)
+plot_effects_by_anticipation('sale_count', 'weekly', title = FALSE)
+plot_effects_by_anticipation('sales_pr_mean', 'weekly', title = FALSE)
 
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
 generate_snippets()
 
-run_dd_pick_max_effect('sale_count')
-run_dd_pick_max_effect('sale_tot')
+run_dd_pick_max_effect('sale_count', aggregation_level = 'weekly')
+run_dd_pick_max_effect('sale_tot', aggregation_level = 'weekly')
+run_dd_pick_max_effect('sales_pr_mean', aggregation_level = 'weekly')
 run_dd_pick_max_effect('sale_count', aggregation_level = 'daily')
 run_dd_pick_max_effect('sale_tot',   aggregation_level = 'daily')
 
 plot_effects_individual_period('sale_count', 'weekly')
 plot_effects_individual_period('sale_tot', 'weekly')
+plot_effects_individual_period('sales_pr_mean', 'weekly')
 plot_effects_individual_period('sale_count', 'daily', fixed_effects = c('sale_year', 'sale_dow'))
 plot_effects_individual_period('sale_tot', 'daily', fixed_effects = c('sale_year', 'sale_dow'))
 
