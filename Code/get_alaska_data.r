@@ -1,42 +1,44 @@
 
-
+source('r_defaults.r')
 install_lazy(c('memoise', 'rvest', 'dplyr', 'assertr', 'magrittr', 'lubridate', 'readr', 'ensurer', 'ggplot2'), verbose = FALSE)
 library(memoise)
-library(rvest)
-library(dplyr)
+suppressPackageStartupMessages(library(rvest))
+suppressPackageStartupMessages(library(dplyr))
 library(magrittr)
 library(assertr)
 library(ensurer)
-library(lubridate)
-library(readr)
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(readr))
 library(ggplot2)
-
+DATA_DIR <- '../Data'
+stopifnot(dir.exists(DATA_DIR))
 if (! memoise::is.memoised(read_html)) {
     read_html <- memoise::memoise(xml2::read_html)
 }
 
 
-PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
-                    panel.border = element_rect(fill = NA, color = 'black'),
-                    panel.grid.major = element_blank(),
-                    panel.grid.minor = element_blank(),
-                    axis.ticks = element_line(color = 'gray5'),
-                    axis.text = element_text(color = 'black', size = 10),
-                    axis.title = element_text(color = 'black', size = 12),
-                    legend.key = element_blank())
+# PLOT_THEME <- theme(panel.background = element_rect(fill = NA),
+#                     panel.border = element_rect(fill = NA, color = 'black'),
+#                     panel.grid.major = element_blank(),
+#                     panel.grid.minor = element_blank(),
+#                     axis.ticks = element_line(color = 'gray5'),
+#                     axis.text = element_text(color = 'black', size = 10),
+#                     axis.title = element_text(color = 'black', size = 12),
+#                     legend.key = element_blank())
 
 
 download_summary_table <- function(){
+    outfile <- file.path(DATA_DIR, 'permanent_fund_payments.rda')
     url <- 'https://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments'
 
-    expected_names <- c("Dividend\n            Year",
-                        "State \n            Population",
+    expected_names <- c("DividendYear",
+                        "StatePopulation",
                         "Dividend Applications",
                         "Dividend Applications" ,
-                        "Dividend\n            Amount",
-                        "% Change from\n            Prior Year",
-                        "Total \n            Disbursed Amount",
-                        "Total \n            Disbursed Amount" )
+                        "DividendAmount",
+                        "% Change fromPrior Year",
+                        "TotalDisbursed Amount",
+                        "TotalDisbursed Amount" )
     new_names <- c('year', 'state_pop', 'apps_received', 'apps_paid',
                    'amount', 'pct_change', 'total_disbursed', 'total_disbursed2')
 
@@ -54,7 +56,8 @@ download_summary_table <- function(){
         as.tbl %>%
         select(-pct_change, -total_disbursed2) %>%
         slice(., c(-1, -nrow(.)))  %>%  # first and last rows aren't data
-        mutate_all(as_numeric_smart)
+        mutate_all(as_numeric_smart) %>%
+        readr::write_rds(outfile, compress = 'gz')
     return(df)
 }
 
@@ -62,7 +65,7 @@ download_summary_table <- function(){
 load_cpi <- function() {
     # Downloaded from FRED, series CPIAUCSL
     # https://fred.stlouisfed.org/series/CPIAUCSL#
-    filename <- '../Data/CPI/CPIAUCSL_1947_01_01-2016-09-01.csv'
+    filename <- file.path(DATA_DIR, 'CPI/CPIAUCSL_1947_01_01-2016-09-01.csv')
     stopifnot(file.exists(filename))
 
     col_spec <- cols(
@@ -122,14 +125,9 @@ plot_payments <- function() {
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir))
 
-    file.path(plot_dir, 'permanent_fund_payments_individual.pdf') %>%
-    ggsave(plt_individual, width=6.3, height=3.54)
-
-    file.path(plot_dir, 'permanent_fund_payments_individual_notitle.pdf') %>%
-    ggsave(plt_individual_notitle, width=6.3, height=3.54)
-
-    file.path(plot_dir, 'permanent_fund_payments_aggregate.pdf') %>%
-    ggsave(plt_aggregate, width=6.3, height=3.54)
+    save_plot(plt_individual, 'permanent_fund_payments_individual.pdf')
+    save_plot(plt_individual_notitle, 'permanent_fund_payments_individual_notitle.pdf')
+    save_plot(plt_aggregate, 'permanent_fund_payments_aggregate.pdf')
 }
 
 x <- adjust_pfd_payments()
