@@ -67,7 +67,8 @@ if (! is_pkg_installed('hrbrthemes')) {
 }
 # Instead of specifying all the things above, just use the hrbrmstr hrbrthemes, but then
 # add back in axis lines and make the grid lines grey.
-PLOT_THEME <- hrbrthemes::theme_ipsum_rc() +
+    PLOT_THEME <- hrbrthemes::theme_ipsum_rc(base_family = "Carlito",
+        subtitle_family = "Carlito", caption_family = "Carlito") +
     ggplot2::theme(
         # Make legend text smaller
         legend.title     = ggplot2::element_text(size = 9),
