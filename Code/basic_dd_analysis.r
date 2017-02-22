@@ -98,10 +98,19 @@ get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id
         # event_time and sale_year identify days exactly as well as sale_date.)
         group_vars <- c(group_vars, 'sale_year', 'sale_date')
     }
+    # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
+    # The downside of using log() in dplyr is that it calls the two-argument form of
+    # log, which doesn't work for floating points in postgres.
+    # See: https://github.com/hadley/dplyr/issues/2464
+    # Use ln() instead, which gets passed through.
+    # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
     sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
         summarize(sale_count = n(), sale_tot = sum(sales_pr),
+                  sales_pr_mean_log = mean(ln(sales_pr)),
                   sales_pr_mean = mean(sales_pr)) %>%
-        ungroup() %>% collapse()
+        ungroup() %>%
+        mutate(sale_count_log = ln(sale_count), sale_tot_log = ln(sale_tot)) %>%
+        collapse()
 
     if (id_var == 'buyer_id') {  # Merge back in buy_state.
         # We've previously ensured that each buyer_id has at most one state.
