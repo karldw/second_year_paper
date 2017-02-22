@@ -165,7 +165,7 @@ make_fuel_cons_plot <- function(freq) {
     #     filter(buy_state %in% c('AK', control_states)) %>%
     #     add_event_time()
 
-    base_df <- aggregate_sales_dd(years = 2002:2005, agg_var = 'sale_week',
+    base_df <- aggregate_sales_dd(years = 2002:2005, agg_var = 'event_week',
         days_before = 70, aggregate_fn = get_sales_efficiency)
 
     if (freq == 'daily') {
@@ -209,7 +209,8 @@ make_fuel_cons_plot <- function(freq) {
 }
 
 # pull_efficiency_data()
-plot_effects_individual_period('combined_gpm')
+# make_fuel_cons_plot('weekly')
+plot_effects_individual_period('combined_gpm', aggregation_level = 'weekly')
 # x <- aggregate_sales_dd(years = 2002:2005, days_before = 60, agg_var = 'event_week',
     # aggregate_fn = get_sales_efficiency)
 

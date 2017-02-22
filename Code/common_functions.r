@@ -276,23 +276,48 @@ bool_to_alaska_factor <- function(x, labels = c('Alaskan', 'Non-Alaskan')) {
 
 
 ensure_id_vars_ <- function(.tbl, claimed_id_vars) {
-    if (! is_id(.tbl, claimed_id_vars)) {
+    if (! is_id_(.tbl, claimed_id_vars)) {
         stop("Variables don't uniquely identify rows")
     }
     return(.tbl)
 }
 
+# This works, but it makes error tracing harder.
+# make_nse_fn <- function(standard_eval_fn) {
+#     out_fn <- function(.tbl, ...) {
+#         # Note: there's probably a better way to do this
+#         lzydots <- lazyeval::lazy_dots(...)
+#         lazy_expressions <- vapply(seq_along(lzydots),
+#             function(i) {as.character(lzydots[[i]]$expr)}, character(1))
+#         return(standard_eval_fn(.tbl, lazy_expressions))
+#     }
+#     return(out_fn)
+# }
+# ensure_id_vars <- make_nse_fn(ensure_id_vars_)
 
-ensure_id_vars <- function(df, ...) {
+dots_to_names <- function(..., strict = TRUE) {
     lzydots <- lazyeval::lazy_dots(...)
-    claimed_id_vars <- vapply(seq_along(lzydots),
-                              function(i) {as.character(lzydots[[i]]$expr)},
-                              character(1))
-    ensure_id_vars_(df, claimed_id_vars) %>% return()
+    # I don't care about the names of the lazy_dots, I just want to translate, e.g.,
+    # demean(mtcars, cyl, disp) to demean_(mtcars, 'cyl', 'disp')
+    out_names <- vapply(seq_along(lzydots),
+        function(i) {as.character(lzydots[[i]]$expr)}, character(1))
+    mismatched_names <- out_names[make.names(out_names) != out_names]
+    if (strict && length(mismatched_names) > 0) {
+        err_msg <- sprintf("Some names don't look right: '%s'",
+                           paste(mismatched_names, collapse = "', '"))
+        stop(err_msg)
+    }
+    return(out_names)
 }
 
 
-is_id <- function(df, claimed_id_vars, quiet = FALSE) {
+ensure_id_vars <- function(df, ...) {
+    claimed_id_vars <- dots_to_names(...)
+    return(ensure_id_vars_(df, claimed_id_vars))
+}
+
+
+is_id_ <- function(df, claimed_id_vars, quiet = FALSE) {
     # TODO: this should really use classes...
     # NB It might be a good idea to force computation on df, if it's a remote table
     stopifnot(is.character(claimed_id_vars), length(claimed_id_vars) > 0,
@@ -371,6 +396,12 @@ is_id <- function(df, claimed_id_vars, quiet = FALSE) {
 }
 
 
+id_id <- function(df, ..., quiet = FALSE) {
+    claimed_id_vars <- dots_to_names(...)
+    return(is_id_(df, claimed_id_vars, quiet = quiet))
+}
+
+
 make_join_safer <- function(join_fn, fast = TRUE) {
     # If fast == TRUE, do the join, then check that the number of rows is not greater than
     # the max row count of the input tables.
@@ -413,16 +444,17 @@ make_join_safer <- function(join_fn, fast = TRUE) {
                 }
 
                 # force computation on x because it'll help is_id() a lot
+                # TODO: do timing tests on the previous sentence
                 if ('tbl_lazy' %in% class(x)) {
                     x <- dplyr::compute(x)
                 }
-                if (! is_id(x, by_x)) {
+                if (! is_id_(x, by_x)) {
                     # iff x isn't IDed by the by_x variables, then turn to y
                     # force computation on y too
                     if ('tbl_lazy' %in% class(y)) {
                         y <- dplyr::compute(y)
                     }
-                    if (! is_id(y, by_y)) {
+                    if (! is_id_(y, by_y)) {
                         err_msg <- paste("Neither table is uniquely identified by",
                                          "their 'by' variables!")
                         stop(err_msg)
@@ -899,8 +931,9 @@ is_panel_balanced <- function(.tbl, id_vars) {
         return()
     }
     if ('data.frame' %in% class(.tbl)) {
-        # TODO: use is_id here.
-        ensure_id_vars_(.tbl, id_vars)
+        if (is_id_(.tbl, id_vars) == FALSE) {
+            return(FALSE)
+        }
     }
     actual_nrow <- force_nrow(.tbl)
     stopifnot(actual_nrow > 0)
@@ -1049,10 +1082,10 @@ aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
 
     stopifnot(is.numeric(years), length(years) >= 1,
               is.character(agg_var), length(agg_var) == 1)
-    aggregate_fn <- fun.match(aggregate_fn)
+    aggregate_fn <- match.fun(aggregate_fn)
     control_states <- find_match_states_crude()
     df <- auctions %>%
-        select(sale_date, buy_state, sales_pr, vin) %>%  # TODO: make this vin_pattern
+        select(sale_date, buy_state, sales_pr, vin_pattern) %>%
         filter_event_window(years = years, days_before = days_before,
                             days_after = days_after) %>%
         filter(buy_state %in% c('AK', control_states)) %>%
@@ -1138,19 +1171,28 @@ plot_effects_individual_period <- function(
 
     # Now also grab the std dev of the sample we're looking at.
     sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
-    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    mean_varname <- paste0(outcome, '_mean')
+    data_sd <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'sd')[[sd_varname]]
+    data_mean <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'mean')[[mean_varname]]
+
     # Pull the unique values of agg_var into a vector, sort it, and pass the values to
     # get_results_one_period. Then collect the output dataframe into one, then use the
     # standard deviation we just calculated to get effect sizes.
+
     to_plot <- aggregated_sales %>%
         distinct_(agg_var) %>%
         extract2(1) %>% sort() %>%
         purrr::map_df(get_results_one_period) %>%
-        calculate_effect_sizes(data_sd = data_sd)
+        calculate_effect_sizes(data_sd = data_sd, data_mean = data_mean)
     lab_x <- sprintf('Event %s', aggregation_level_noun)
-    lab_y <- c('sale_tot' = 'sale total', 'sale_count' = 'cars sold',
-               'sales_pr_mean' = 'average sales price')[[outcome]]
+    lab_y <- c('sale_tot' = 'Sale total',
+               'sale_count' = 'Cars sold',
+               'sales_pr_mean' = 'Average sales price',
+               'combined_gpm' = 'Combined gal/mi')[[outcome]]
     lab_y_effect <- sprintf("Effect size (std. dev. %s)", tolower(lab_y))
+    lab_y_mean  <- sprintf("Effect size (fraction of mean %s)", tolower(lab_y))
     coef_plot <- ggplot(to_plot, aes(x = event_period, y = coef)) +
         geom_point() +
         geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
@@ -1161,10 +1203,166 @@ plot_effects_individual_period <- function(
         geom_errorbar(aes(ymin = conf95_lower_effect, ymax = conf95_upper_effect)) +
         labs(x = lab_x, y = lab_y_effect) +
         PLOT_THEME
+    coef_effect_mean_plot <- ggplot(to_plot, aes(x = event_period, y = coef_effect_mean,
+            ymin = conf95_lower_effect_mean, ymax = conf95_upper_effect_mean)) +
+        geom_point() +
+        geom_errorbar() +
+        labs(x = lab_x, y = lab_y_mean) +
+        PLOT_THEME
     filename_part <- sprintf('effects_individual_period_%s_%s_',
                              outcome, aggregation_level)
     suffix <- '_notitle.pdf'
-    save_plot(coef_plot,        paste0(filename_part, 'coef',        suffix))
-    save_plot(coef_effect_plot, paste0(filename_part, 'coef_effect', suffix))
+    save_plot(coef_plot,             paste0(filename_part, 'coef',        suffix))
+    save_plot(coef_effect_plot,      paste0(filename_part, 'coef_effect', suffix))
+    save_plot(coef_effect_mean_plot, paste0(filename_part, 'coef_effect_mean', suffix))
     invisible(to_plot)  # then return the data
+}
+
+
+calculate_effect_sizes <- function(df, data_sd = NULL, data_mean = NULL) {
+    stopifnot(length(data_sd) <= 1, length(data_mean) <= 1,
+              length(data_sd) + length(data_mean) >= 1)
+    out <- df %>%
+        mutate(conf95_lower = coef - (1.96 * se),
+               conf95_upper = coef + (1.96 * se),
+               is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), ordered = TRUE,
+                                  labels = c('p < 0.05', 'p > 0.05')))
+    if (! is.null(data_sd)) {
+        out <- out %>%
+            mutate(coef_effect = coef / data_sd,
+                   conf95_lower_effect = conf95_lower / data_sd,
+                   conf95_upper_effect = conf95_upper / data_sd,
+                   # pmax because I want rowwise max, not max of all.
+                   conf95_max_mag_effect = pmax(abs(conf95_lower_effect),
+                                                abs(conf95_upper_effect)))
+    }
+    if (! is.null(data_mean)) {
+        out <- out %>%
+            mutate(coef_effect_mean = coef / data_mean,
+                   conf95_lower_effect_mean = conf95_lower / data_mean,
+                   conf95_upper_effect_mean = conf95_upper / data_mean,
+                   conf95_max_mag_effect_mean = pmax(abs(conf95_lower_effect_mean),
+                                                     abs(conf95_upper_effect_mean)))
+    }
+    return(out)
+}
+
+
+get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
+        winsorize_pct = NULL, states_included = NULL, all_year = TRUE,
+        vars_to_summarize = c('sale_tot', 'sale_count', 'sales_pr_mean'),
+        summary_fn = 'sd') {
+
+    # Parameters:
+    # aggregation_level: the aggregation level of the counts and dollar amounts.
+    #   daily/weekly, defaults to daily.
+    # winsorize_pct: the amount by which the aggregated variables (counts or $) should be
+    #   winsorized before calculating the std dev. Defaults to no winsorization.
+    # states_included: the states included in the standard deviation calculation.
+    #   Defaults to Alaska and the control states from find_match_states_crude().
+    #   Note that the outcomes are demeaned by state before calculating the std dev.
+    # all_year: should we look at variation throughout the year, or only in the event
+    #   period we're studying (something like 70 days before to 70 days after)
+    #   Defaults to using the whole year.
+    # vars_to_summarize: which variables are we getting the standard deviation for?
+    # summary_fn: what summary to create (mean or sd) (must be character because that
+    #   makes it vastly easier to translate to SQL)
+
+    if (aggregation_level == 'daily') {
+        time_var <- 'sale_date'
+    } else if (aggregation_level == 'weekly') {
+        time_var <- 'sale_week'
+    } else {
+        stop("Bad aggregation_level, should be daily or weekly.")
+    }
+
+    # The names aren't the most clear, but aggregate_fn takes the original auction data
+    # and aggregates to daily/weekly totals or averages, then summary_fn takes those
+    # totals and finds their mean / sd
+    stopifnot(is.character(summary_fn), length(summary_fn) == 1,
+              is.function(match.fun(summary_fn)))
+    if (summary_fn == 'sd') {
+        should_demean <- TRUE
+    } else if (summary_fn == 'mean') {
+        should_demean <- FALSE
+    } else {
+        stop(sprintf('Not sure how to work with this function: %s', summary_fn))
+    }
+
+    if (all(vars_to_summarize %in% c('sale_tot', 'sale_count', 'sales_pr_mean'))) {
+        aggregate_fn <- get_sales_counts
+        select_auctions_var <- 'sales_pr'
+    } else if (all(vars_to_summarize %in% 'combined_gpm')) {
+        aggregate_fn <- get_sales_efficiency
+        select_auctions_var <- 'vin_pattern'
+    } else {
+        err_msg <- sprintf(
+            "Not sure what aggregation function to use for variables: '%s'",
+            paste(vars_to_summarize, collapse = "', '"))
+        stop(err_msg)
+    }
+    df <- auctions %>% select_(.dots = c('sale_date', 'buy_state', select_auctions_var))
+
+    if (is.null(states_included)) {
+        # What states get included in the std dev calculations?
+        control_states <- find_match_states_crude()
+        states_included <- c('AK', control_states)
+    }
+    if (length(states_included) <= 1) {
+        # Necessary because if states_included has length 1, we encounter dplyr bug #511.
+        df <- filter(df, buy_state == states_included)
+    } else {
+        df <- filter(df, buy_state %in% states_included)
+    }
+
+    if (! all_year) {
+        df <- filter_event_window(df)
+    }
+
+    if (time_var == 'sale_week') {
+        # NB: This is not exactly the same as event weeks
+        # (date_part is a postges function)
+        df <- mutate(df, sale_week = date_part('week', sale_date))
+    }
+    df <- df %>% aggregate_fn(date_var = time_var, id_var = 'buy_state') %>%
+        # Some state-days don't have trades; fill these with zeros.
+        force_panel_balance(c(time_var, 'buy_state'), fill_na = TRUE)
+    if (should_demean) {
+        # Demean so we're not getting huge standard deviations by looking across states
+        # with different means.
+        df <- df %>% group_by(buy_state) %>%
+            demean_(vars_to_summarize) %>%
+            ungroup()
+    }
+
+    if (! is.null(winsorize_pct)) {
+        df <- winsorize(df, vars_to_summarize, winsorize_pct)
+    }
+
+    # summarize like:
+    # summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count),
+    #    sales_pr_mean_sd = sd(sales_pr_mean))
+    one_summary <- function(x) {
+        lazyeval::interp(~fn(x), x = as.name(x), fn = as.name(summary_fn))
+    }
+    summarize_calls <- lapply(vars_to_summarize, one_summary) %>%
+        # make the *_sd or *_mean variable names
+        setNames(paste0(vars_to_summarize, '_', summary_fn))
+    df %>% summarize_(.dots = summarize_calls) %>%
+        collect() %>% return()
+}
+
+
+demean_ <- function(.tbl, vars) {
+    # Demean the variables.  If .tbl is grouped, it will be a within-group demeaning.
+    stopifnot(is.character(vars), length(vars) >= 0)
+    mutate_once <- function(var) {lazyeval::interp(~ v - mean(v), v = as.name(var))}
+    mutate_calls <- lapply(vars, mutate_once) %>% setNames(vars)
+    return(mutate_(.tbl, .dots = mutate_calls))
+}
+
+
+demean <- function(.tbl, ...) {
+    varnames <- dots_to_names(...)
+    demean_(.tbl, varnames)
 }

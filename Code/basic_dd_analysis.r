@@ -724,22 +724,6 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
 }
 
 
-calculate_effect_sizes <- function(df, data_sd) {
-    out <- df %>%
-        mutate(conf95_lower = coef - (1.96 * se),
-               conf95_upper = coef + (1.96 * se),
-               is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), ordered = TRUE,
-                                  labels = c('p < 0.05', 'p > 0.05')),
-               coef_effect = coef / data_sd,
-               conf95_lower_effect = conf95_lower / data_sd,
-               conf95_upper_effect = conf95_upper / data_sd,
-               # pmax because I want rowwise max, not max of all.
-               conf95_max_mag_effect = pmax(abs(conf95_lower_effect),
-                                            abs(conf95_upper_effect)))
-    return(out)
-}
-
-
 run_dd_pick_max_effect <- function(outcome,
         aggregation_level = 'weekly', days_before_limit = 70,
         days_after_limit = days_before_limit) {
@@ -779,7 +763,8 @@ run_dd_pick_max_effect <- function(outcome,
         reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
             anticipation_window = c(start, end), days_before_limit = days_before_limit,
             fixed_effects = c('sale_year', 'buy_state'),
-            controls = c('anticipation', 'alaskan_buyer_anticipation', 'post', 'alaskan_buyer_post'))
+            controls = c('anticipation', 'alaskan_buyer_anticipation', 'post',
+                         'alaskan_buyer_post'))
 
         # rse is apparently the robust standard error, though it's not well documented.
         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
@@ -1051,72 +1036,6 @@ plot_effects_by_anticipation <- function(outcome,
     # save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
     # save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
     invisible(to_plot)  # then return the data
-}
-
-# TODO: move this to common_functions and allow it to calculate combined_gpm when Necessary
-get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
-        winsorize_pct = NULL, states_included = NULL, all_year = TRUE) {
-
-    # Parameters:
-    # aggregation_level: the aggregation level of the counts and dollar amounts.
-    #   daily/weekly, defaults to daily.
-    # winsorize_pct: the amount by which the aggregated variables (counts or $) should be
-    #   winsorized before calculating the std dev. Defaults to no winsorization.
-    # states_included: the states included in the standard deviation calculation.
-    #   Defaults to Alaska and the control states from find_match_states_crude().
-    #   Note that the outcomes are demeaned by state before calculating the std dev.
-    # all_year: should we look at variation throughout the year, or only in the event
-    #   period we're studying (something like 70 days before to 70 days after)
-    #   Defaults to using the whole year.
-    if (aggregation_level == 'daily') {
-        time_var <- 'sale_date'
-    } else if (aggregation_level == 'weekly') {
-        time_var <- 'sale_week'
-    } else {
-        stop("Bad aggregation_level, should be daily or weekly.")
-    }
-
-    if (is.null(states_included)) {
-        # What states get included in the std dev calculations?
-        control_states <- find_match_states_crude()
-        states_included <- c('AK', control_states)
-    }
-    df <- auctions %>% select(sale_date, buy_state, sales_pr)
-    if (! all_year) {
-        df <- filter_event_window(df)
-    }
-    if (length(states_included) <= 1) {
-        # Necessary because if states_included has length 1, we encounter dplyr bug #511.
-        df <- df %>% filter(buy_state == states_included)
-    } else {
-        df <- df %>% filter(buy_state %in% states_included)
-    }
-    if (time_var == 'sale_week') {
-        # NB: This is not exactly the same as event weeks
-        df <- df %>% mutate(sale_week = date_part('week', sale_date))
-    }
-    df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
-        # Some state-days don't have trades; fill these with zeros.
-        force_panel_balance(c(time_var, 'buy_state'), fill_na = TRUE) %>%
-        # Then demean so we're not getting huge standard deviations by looking across
-        # states
-        group_by(buy_state) %>%
-        mutate(sale_tot = sale_tot - mean(sale_tot),
-               sale_count = sale_count - mean(sale_count),
-               sales_pr_mean = sales_pr_mean - mean(sales_pr_mean)) %>%
-        ungroup()
-    if (! is.null(winsorize_pct)) {
-        df <- df %>% winsorize(c('sale_tot', 'sale_count'), winsorize_pct)
-    }
-    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count),
-                           sales_pr_mean_sd = sd(sales_pr_mean)) %>%
-        collect()
-
-    return(df)
-}
-if (! methods::existsFunction('get_state_by_time_variation')) {
-    get_state_by_time_variation <- memoise::memoize(
-        get_state_by_time_variation_unmemoized)
 }
 
 
