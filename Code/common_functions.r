@@ -221,6 +221,21 @@ is_pkg_installed <- function(pkg_list) {
 }
 
 
+is_pkg_up_to_date <- function(pkg_list, desired_versions) {
+    stopifnot(length(pkg_list) == length(desired_versions),
+              length(pkg_list) >= 1, is.character(pkg_list[[1]]),
+              is.character(desired_versions[[1]]))
+    is_pkg_up_to_date_once <- function(pkg_name, desired_version) {
+        pkg_ver <- as.character(packageVersion(pkg_name))
+        compare_result <- compareVersion(pkg_ver, desired_version)
+        up_to_date <- compare_result %in% c(0, 1)  # -1 if out of date
+        return(up_to_date)
+    }
+    results <- mapply(is_pkg_up_to_date_once, pkg_list, desired_versions, SIMPLIFY = TRUE)
+    return(results)
+}
+
+
 clear_all <- function() {
   # clear and close any open grapics devices, then delete everything.
     while (! is.null(dev.list())) {
@@ -370,7 +385,7 @@ is_id_ <- function(df, claimed_id_vars, quiet = FALSE) {
         # anyDuplicated is faster than calling "distinct" then counting rows, but
         # remote tables don't support anyDuplicated, so do it manually there.
         ids_are_unique <- anyDuplicated(df_id_cols_only) == 0
-    } else if ('tbl_postgres' %in% class(df)){
+    } else if ('tbl_sql' %in% class(df)){
         con_psql <- df_id_cols_only$src$con
         from <- dplyr::sql_subquery(con_psql, dplyr::sql_render(df_id_cols_only),
                                     name = NULL)
@@ -605,7 +620,7 @@ filter_event_window_one_year <- function(.data, year, days_before = 30,
              "will probably have bugs.")
     }
     .data <- ungroup(.data)
-    if ('tbl_postgres' %in% class(.data)) {
+    if ('tbl_sql' %in% class(.data)) {
         # First, borrow the existing SQL query (translated from the dplyr stuff)
         existing_query <- dplyr::sql_render(.data, con = .data$src$con)
         # Then write custom SQL because dplyr doesn't support BETWEEN DATE.
@@ -624,7 +639,10 @@ filter_event_window_one_year <- function(.data, year, days_before = 30,
         data_one_year <- .data %>%
             dplyr::filter(dplyr::between(sale_date, window_begin, window_end))
     } else {
-        stop("Sorry, I don't know how to subset sale_date here.")
+        err_msg <- sprintf(
+            "Sorry, I don't know how to subset sale_date for data of class '%s'",
+            paste(class(.data), collapse = "', '"))
+        stop(err_msg)
     }
     return(data_one_year)
 }
@@ -652,7 +670,7 @@ filter_event_window <- function(.data, years = NULL, days_before = 30L,
 explain <- function(x, analyze = FALSE) {
     # Just like dplyr::explain, but pipe-able and optionally running EXPLAIN ANALYZE
     force(x)
-    stopifnot('tbl_postgres' %in% class(x))
+    stopifnot('tbl_sql' %in% class(x))
     dplyr::show_query(x)
     message("\n")
     if (! analyze) {
@@ -708,9 +726,9 @@ winsorize <- function(df, vars_to_winsorize, quantiles = c(1, 99)) {
 
 
 add_sale_year <- function(.data) {
-    if ('tbl_postgres' %in% class(.data)) {
+    if ('tbl_sql' %in% class(.data)) {
         # This is the case at the time of writing
-        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
+        # Note, I'm testing with tbl_sql rather than tbl_sql because I'm about to
         # use some postgres-specific syntax
         out <- .data %>%
             mutate(sale_year = date_part('year', sale_date))
@@ -726,10 +744,9 @@ add_sale_year <- function(.data) {
 
 
 add_sale_dow <- function(.data) {
-    if ('tbl_postgres' %in% class(.data)) {
-        # This is the case at the time of writing
-        # Note, I'm testing with tbl_postgres rather than tbl_sql because I'm about to
-        # use some postgres-specific syntax
+    if ('tbl_sql' %in% class(.data)) {
+        # Note, I'm testing with tbl_sql because tbl_postgres is no longer a class in
+        # dplyr > 0.5.0. However, I *am* about to use some postgres-specific syntax.
         # Note the + 1 because postgres defines numeric weekday differently than lubridate
         out <- .data %>%
             mutate(sale_dowr = date_part('dow', sale_date) + 1)
