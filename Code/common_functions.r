@@ -191,26 +191,33 @@ get_os <- function() {
 }
 
 
-install_lazy <- function(pkg_list, verbose = TRUE) {
-    installed_packages <- installed.packages()[, 1]
-    need_to_install <- setdiff(pkg_list, installed_packages)
-    already_installed <- pkg_list[pkg_list %in% installed_packages]
+install_lazy <- function(pkg_list, verbose = FALSE) {
+    # installed_packages <- installed.packages()[, 1]
+
+    need_to_install <- pkg_list[! is_pkg_installed(pkg_list)]
+    already_installed <- setdiff(pkg_list, need_to_install)
     for (pkg in need_to_install) {
         try(install.packages(pkg), silent = TRUE)
     }
+    failed_to_install <- need_to_install[! is_pkg_installed(need_to_install)]
     if (verbose) {
         message("Already installed:")
         print(already_installed)
-        newly_installed <- need_to_install[need_to_install %in% installed.packages()]
+        newly_installed <- setdiff(need_to_install, failed_to_install)
+
         if (length(newly_installed) > 0) {
             message("Newly installed:")
             print(newly_installed)
         }
     }
-    failed_to_install <- setdiff(need_to_install, installed.packages())
     if (length(failed_to_install) > 0) {
         warning("Failed to install these packages:\n  ", paste(failed_to_install))
     }
+}
+
+
+is_pkg_installed <- function(pkg_list) {
+    vapply(pkg_list, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))
 }
 
 
@@ -227,7 +234,10 @@ clear_all <- function() {
 }
 
 
-save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE) {
+save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio = 16/9) {
+    # aspect_ratio is a scale factor for height vs width. The default is width:height of
+    # 16:9, like a lot of TV screens. Other good choices might be 4/3 or 2/sqrt(2).
+    # The default will exactly match a full screen 16:9 beamer slide.
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
               grepl('.+\\.pdf$', name, perl = TRUE, ignore.case = TRUE),
@@ -236,9 +246,15 @@ save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE) {
     if (file.exists(outfile) && (! overwrite)) {
         # This isn't perfect, since there's now a sliver of time between the file
         # check and the writing, but I can't see how to make cairo do that.
+        err_msg <- paste("Plot destination already exists:\n  %s", outfile)
+        stop(err_msg)
     }
+    # Chose 6.3 in to match a 16:9 beamer slide.
+    width <- 6.3 * scale_mult
+    height <- width / aspect_ratio
+
     ggplot2::ggsave(outfile, plt, device = cairo_pdf,
-                    width = 6.3 * scale_mult, height = 3.54 * scale_mult)
+                    width = width, height = height, units = 'in')
 }
 
 
@@ -259,30 +275,11 @@ bool_to_alaska_factor <- function(x, labels = c('Alaskan', 'Non-Alaskan')) {
 }
 
 
-ensure_id_vars_ <- function(df, claimed_id_vars) {
-    not_found_vars <- setdiff(claimed_id_vars, names(df))
-    if (length(not_found_vars) > 0) {
-        err_msg <- sprintf("Claimed ID vars not in dataset: %s", paste(not_found_vars,
-                                                                       collapse = ', '))
-        stop(err_msg)
+ensure_id_vars_ <- function(.tbl, claimed_id_vars) {
+    if (! is_id(.tbl, claimed_id_vars)) {
+        stop("Variables don't uniquely identify rows")
     }
-    df_id_cols_only <- dplyr::select_(df, .dots = claimed_id_vars)
-    if (anyNA(df_id_cols_only)) {
-        stop("ID variables cannot be NA.")
-    }
-    # nrow is NA for databases (not an issue here, but I may want this code later)
-    # (should be rare enough that it's not worth forcing a database to count all rows)
-    if ((! is.na(nrow(df))) && (nrow(df) == 0)) {
-        stop("No rows!")
-    }
-    # anyDuplicated is faster than calling "distinct" then counting rows
-    if (anyDuplicated(df_id_cols_only)) {
-        err_msg <- sprintf("The variables '%s' do not uniquely identify rows.",
-                           paste(claimed_id_vars, collapse = "', '"))
-        stop(err_msg)
-    }
-    # return so we can pipe this
-    return(df)
+    return(.tbl)
 }
 
 
@@ -295,23 +292,27 @@ ensure_id_vars <- function(df, ...) {
 }
 
 
-is_id <- function(df, claimed_id_vars) {
-    # Note: it's probably a good idea to force computation on df, if it's a remote table
-    stopifnot(is.character(claimed_id_vars) && length(claimed_id_vars) > 0)
+is_id <- function(df, claimed_id_vars, quiet = FALSE) {
+    # TODO: this should really use classes...
+    # NB It might be a good idea to force computation on df, if it's a remote table
+    stopifnot(is.character(claimed_id_vars), length(claimed_id_vars) > 0,
+              is.logical(quiet))
     # select one row to get variable names
+    df_head1 <- head(df, 1L)
     if ('tbl_lazy' %in% class(df)) {
-        df_head1 <- head(df, 1) %>% dplyr::collect(df_head1)
+        df_head1 <- dplyr::collect(df_head1)
         df_is_local <- FALSE
     } else {
-        df_head1 <- head(df, 1)
         df_is_local <- TRUE
     }
 
     not_found_vars <- setdiff(claimed_id_vars, names(df_head1))
     if (length(not_found_vars) > 0) {
-        err_msg <- sprintf("Claimed ID vars not in dataset: %s",
-                           paste(not_found_vars, collapse = ', '))
-        warning(err_msg)
+        if (! quiet) {
+            err_msg <- sprintf("Claimed ID vars not in dataset: %s",
+                               paste(not_found_vars, collapse = ', '))
+            warning(err_msg)
+        }
         return(FALSE)
     }
 
@@ -319,13 +320,24 @@ is_id <- function(df, claimed_id_vars) {
     if (df_is_local) {
         ids_have_na <- anyNA(df_id_cols_only)
     } else {
+        # TODO (eventually): this part could probably be faster.  For one thing, finding
+        # an NA in any of the columns is enough, we don't need to check all at once.
         ids_have_na <- df_id_cols_only %>%
             dplyr::ungroup() %>%
             dplyr::summarise_all(dplyr::funs(any(is.na(.)))) %>%
             collect() %>% unlist() %>% any()
     }
     if (ids_have_na) {
-        warning("ID variables cannot be NA.")
+        if (! quiet) {
+            warning("ID variables cannot be NA.")
+        }
+        return(FALSE)
+    }
+    total_row_count <- force_nrow(df_id_cols_only)
+    if (total_row_count == 0) {
+        if (! quiet) {
+            warning("No rows!")
+        }
         return(FALSE)
     }
 
@@ -333,11 +345,26 @@ is_id <- function(df, claimed_id_vars) {
         # anyDuplicated is faster than calling "distinct" then counting rows, but
         # remote tables don't support anyDuplicated, so do it manually there.
         ids_are_unique <- anyDuplicated(df_id_cols_only) == 0
+    } else if ('tbl_postgres' %in% class(df)){
+        con_psql <- df_id_cols_only$src$con
+        from <- dplyr::sql_subquery(con_psql, dplyr::sql_render(df_id_cols_only),
+                                    name = NULL)
+        group_sql <- dplyr::sql(paste(claimed_id_vars, collapse = ', '))
+        # Use the HAVING clause, as done here: http://stackoverflow.com/a/28157109
+        # Limit to one row because we only need to know that at least one group has
+        # count > 1.
+
+        distinct_query <- dplyr::sql_select(con = con_psql, select = sql('count(*)'),
+            from = from, group_by = group_sql, having = dplyr::sql('count(*) > 1'),
+            limit = 1L)
+        distinct_tbl <- dplyr::tbl(df_id_cols_only$src, distinct_query)
+        distinct_tbl <- dplyr::collect(distinct_tbl)
+        ids_are_unique <- (! tbl_has_rows(distinct_tbl))
+
     } else {
         distinct_row_count <- dplyr::ungroup(df_id_cols_only) %>%
             dplyr::distinct() %>%
             force_nrow()
-        total_row_count <- force_nrow(df_id_cols_only)
         ids_are_unique <- total_row_count == distinct_row_count
     }
     return(ids_are_unique)
@@ -427,7 +454,7 @@ force_nrow <- function(df) {
 tbl_has_rows <- function(df) {
     # Works for both local tables and remote databases
     nrow_df <- nrow(df)
-    if (is.na(nrow_df)) {  # nrow() is NA for remote tables
+    if (is.na(nrow_df)) {  # nrow() is tbl for remote tables
         head1 <- ungroup(df) %>% head(1) %>% collect()
         has_rows <- nrow(head1) > 0
     } else {
@@ -590,18 +617,24 @@ filter_event_window <- function(.data, years = NULL, days_before = 30L,
 }
 
 
-explain_analyze <- function(x) {
-    # Just like dplyr::explain, but running the more detailed EXPLAIN ANALYZE
+explain <- function(x, analyze = FALSE) {
+    # Just like dplyr::explain, but pipe-able and optionally running EXPLAIN ANALYZE
     force(x)
     stopifnot('tbl_postgres' %in% class(x))
     dplyr::show_query(x)
     message("\n")
-    exsql <- dplyr::build_sql("EXPLAIN ANALYZE ", dplyr::sql_render(x))
+    if (! analyze) {
+        explain_txt <- 'EXPLAIN '
+    } else {
+        explain_txt <- 'EXPLAIN ANALYZE '
+    }
+
+    exsql <- dplyr::build_sql(sql(explain_txt), dplyr::sql_render(x))
     expl_raw <- RPostgreSQL::dbGetQuery(x$src$con, exsql)
     expl <- paste(expl_raw[[1]], collapse = "\n")
 
     message("<PLAN>\n", expl)
-    invisible(NULL)
+    invisible(x)
 }
 
 
@@ -765,14 +798,23 @@ find_match_states_crude_unmemoized <- function(n_auction_states = 3, n_buy_state
 }
 
 
-felm_strict <- function(...) {
-    # Just like normal felm, but stricter about warnings.
-    # (these are almost always a serious problem and should be treated as errors)
-    orig_warn <- getOption('warn')
-    on.exit(options(warn = orig_warn), add = TRUE)
+my_felm <- function(formula, data, ..., dates_as_factor = TRUE, strict = FALSE) {
+    force(formula)
+    force(data)
 
-    options(warn = 2)
-    return(lfe::felm(...))
+    if (strict) {
+        # Just like normal felm, but stricter about warnings.
+        # (these are almost always a serious problem and should be treated as errors)
+        orig_warn <- getOption('warn')
+        on.exit(options(warn = orig_warn), add = TRUE)
+        options(warn = 2)
+    }
+    if (dates_as_factor) {
+        # Force date variables to be factor if they're integer/date
+        date_vars <- c('sale_date', 'sale_week', 'event_time', 'event_week')
+        data <- make_factor(data, date_vars, strict = FALSE)
+    }
+    return(lfe::felm(formula = formula, data = data, ...))
 }
 
 
@@ -844,54 +886,285 @@ format_numbers <- function(x, dollars = FALSE, sig_figs = NULL) {
 }
 
 
-get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
-        winsorize_pct = NULL, states_included = NULL) {
+is_panel_balanced <- function(.tbl, id_vars) {
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
+    stopifnot(length(id_vars) >= 1, is.character(id_vars))
 
-    # Parameters:
-    # aggregation_level: the aggregation level of the counts and dollar amounts.
-    #   daily/weekly, defaults to daily.
-    # winsorize_pct: the amount by which the aggregated variables (counts or $) should be
-    #   winsorized before calculating the std dev. Defaults to no winsorization.
-    # states_included: the states included in the standard deviation calculation.
-    #   Defaults to Alaska and the control states from find_match_states_crude().
-    #   Note that the outcomes are demeaned by state before calculating the std dev.
+    count_unique_vals <- function(one_var, df) {
+        df %>%
+        ungroup() %>%
+        select_(.dots = one_var) %>%
+        distinct_(.dots = one_var) %>%
+        force_nrow() %>%
+        return()
+    }
+    if ('data.frame' %in% class(.tbl)) {
+        # TODO: use is_id here.
+        ensure_id_vars_(.tbl, id_vars)
+    }
+    actual_nrow <- force_nrow(.tbl)
+    stopifnot(actual_nrow > 0)
+    unique_vals <- purrr::map_int(id_vars, count_unique_vals, df = .tbl)
+    expected_nrow <- prod(unique_vals)
 
-    if (aggregation_level == 'daily') {
-        time_var <- 'sale_date'
-    } else if (aggregation_level == 'weekly') {
-        time_var <- 'sale_week'
-    } else {
-        stop("Bad aggregation_level, should be daily or weekly.")
-    }
+    return(actual_nrow == expected_nrow)
+}
 
-    if (is.null(states_included)) {
-        # What states get included in the std dev calculations?
-        control_states <- find_match_states_crude()
-        states_included <- c('AK', control_states)
-    }
-    df <- auctions %>% select(sale_date, buy_state, sales_pr)
-    if (length(states_included) <= 1) {
-        # Necessary because if states_included has length 1, we encounter dplyr bug #511.
-        df <- df %>% filter(buy_state == states_included)
-    } else {
-        df <- df %>% filter(buy_state %in% states_included)
-    }
-    if (time_var == 'sale_week') {
-        # NB: This is not exactly the same as event weeks
-        df <- df %>% mutate(sale_week = date_part('week', sale_date))
-    }
-    df <- df %>% get_sales_counts(date_var = time_var, id_var = 'buy_state') %>%
-        # Then demean so we're not getting huge standard deviations by looking across
-        # states
-        group_by(buy_state) %>%
-        mutate(sale_tot = sale_tot - mean(sale_tot),
-               sale_count = sale_count - mean(sale_count)) %>%
-        ungroup()
-    if (! is.null(winsorize_pct)) {
-        df <- df %>% winsorize(c('sale_tot', 'sale_count'), winsorize_pct)
-    }
-    df <- df %>% summarize(sale_tot_sd = sd(sale_tot), sale_count_sd = sd(sale_count)) %>%
-        collect()
 
+ensure_balanced_panel <- function(df, id_vars) {
+    stopifnot(is_panel_balanced(df, id_vars))
     return(df)
+}
+
+
+cross_d <- function(.l, .filter = NULL) {
+    # Define a version of purrr::cross_d that works with dates.
+    # See, e.g., https://github.com/hadley/purrr/issues/251
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr'))))
+
+    results <- purrr::cross_d(.l = .l, .filter = .filter)
+    # Fix dates if necessary:
+    # First figure out which columns are dates
+    is_date <- function(x) {'Date' %in% class(x)}
+    dates_col_idx <- which(purrr::map_lgl(.l, is_date))
+    # Then if there are dates, fix them
+    if (length(dates_col_idx) > 0) {
+        # Make a partially completed function to apply in the mutate_at
+        # (easier to reason about than passing origin into mutate_at)
+        as_date <- purrr::partial(as.Date.numeric, origin = '1970-01-01')
+        results <- dplyr::mutate_at(results, dates_col_idx, as_date)
+    }
+    return(results)
+}
+
+
+force_panel_balance <- function(.tbl, id_vars, fill_na = FALSE) {
+    stopifnot(all(is_pkg_installed(c('dplyr', 'purrr', 'magrittr'))))
+    # First, check that this is necesssary at all:
+    if (is_panel_balanced(.tbl = .tbl, id_vars = id_vars)) {
+        return(.tbl)
+    }
+    get_unique_vector <- function(one_var, df) {
+        df %>% ungroup() %>%
+        select_(.dots = one_var) %>%
+        distinct_(.dots = one_var) %>%
+        collect(n = Inf) %>%
+        magrittr::extract2(1) %>%
+        #unlist(recursive = FALSE, use.names = FALSE) %>%
+        return()
+    }
+    # Get a list of the unique values in each id_var, then use cross_d to take the cross
+    # product of all the unique values.
+    # One could probably get the same effect by using joins without by variables to take
+    # cartesian products, but that's my least favorite SQL behavior, so I'm avoiding it.
+    full_df <- lapply(id_vars, get_unique_vector, df = .tbl) %>%
+        setNames(id_vars) %>%
+        cross_d()
+
+    # right_join and copy = TRUE to copy the full_df we just created to wherever the
+    # original .tbl happens to be (in memory or in some database)
+    complete_tbl <- dplyr::right_join(.tbl, full_df, by = id_vars, copy = TRUE)
+
+    if (fill_na) {
+        complete_tbl <- fill_tbl(complete_tbl, replace_what = NA)
+    }
+    return(complete_tbl)
+}
+
+
+fill_tbl <- function(.tbl, replace_what = NA) {
+    # Fill a table with zeros, or whatever else.
+    stopifnot(length(replace_what) == 1)
+    head1 <- head(.tbl, 1) %>% dplyr::collect()
+    tbl_names <- names(head1)
+
+    get_default_value <- function(x) {
+        cls <- class(x)
+        if (any(c('numeric', 'integer', 'character', 'logical') %in% cls)) {
+            # use the trick that numeric(1) is 0, integer(1) is 0L etc.
+            default_val <- match.fun(class(x)[1])(1)
+        } else if ('Date' %in% cls) {
+            default_val <- as.Date('1970-01-01')
+        } else {
+            stop(sprintf('Default value for class "%s" not written yet.',
+                         paste(cls, collapse = ', ')))
+        }
+        return(default_val)
+    }
+
+    if_else_once <- function(var, replacement, replace_what) {
+        # If this is going into a database, if_else and ifelse are identical.
+        # If it's a local data.frame, I'm going to rely on the auto-coersion of ifelse.
+        stopifnot(length(replacement) == 1, length(var) == 1)
+        if (is.na(replace_what)) {
+            mutate_call <- lazyeval::interp(~ ifelse(is.na(var), replacement, var),
+                var = as.name(var))
+        } else {
+            mutate_call <- lazyeval::interp(~ ifelse(var == val, replacement, var),
+                var = as.name(var), val = replace_what, replacement = replacement)
+        }
+        return(mutate_call)
+    }
+    default_vals <- lapply(head1, get_default_value)  # get a named list of defaults
+    mutate_calls <- purrr::map2(tbl_names, default_vals, if_else_once,
+                                replace_what = replace_what)
+
+    return(dplyr::mutate_(.tbl, .dots = setNames(mutate_calls, tbl_names)))
+}
+
+
+print_pipe <- function(x) {
+    # This is for debugging, easier than stepping through the function.
+    print(x)
+    return(x)
+}
+
+
+make_factor <- function(.tbl, varnames, strict = TRUE) {
+    # If varname is in the table, make it into a factor. Otherwise, don't bother.
+    stopifnot('data.frame' %in% class(.tbl), length(varnames) >= 1,
+              is.character(varnames), is.logical(strict))
+
+    varnames_in_tbl <- intersect(varnames, names(.tbl))
+    if (strict && length(varnames_in_tbl) < length(varnames)) {
+        missing_vars <- paste(setdiff(varnames, varnames_in_tbl), collapse = "', '")
+        err_msg <- sprintf("Mising variables: '%s'", missing_vars)
+        stop(err_msg)
+    }
+    if (length(varnames_in_tbl) == 0) {
+        return(.tbl)
+    }
+    out <- .tbl %>% mutate_at(vars(one_of(varnames_in_tbl)), as.factor)
+    return(out)
+}
+
+
+aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
+        days_after = days_before, aggregate_fn = get_sales_counts) {
+    # Create the dataset for the difference-in-differences analysis.
+    # This is split out in a separate function before creating the ancitipation variables
+    # so it can be cached and we quickly test different values of the anticipation
+    # window.
+    # This is memoized in r_defaults.r into aggregate_sales_dd
+
+    stopifnot(is.numeric(years), length(years) >= 1,
+              is.character(agg_var), length(agg_var) == 1)
+    aggregate_fn <- fun.match(aggregate_fn)
+    control_states <- find_match_states_crude()
+    df <- auctions %>%
+        select(sale_date, buy_state, sales_pr, vin) %>%  # TODO: make this vin_pattern
+        filter_event_window(years = years, days_before = days_before,
+                            days_after = days_after) %>%
+        filter(buy_state %in% c('AK', control_states)) %>%
+        add_event_time() %>%
+        aggregate_fn(date_var = agg_var, id_var = 'buy_state') %>%
+        tag_alaskan_buyer() %>%  # Make TRUE/FALSE alaskan_buyer variable
+        collect(n = Inf)
+    return(df)
+}
+
+
+plot_effects_individual_period <- function(
+        outcome,
+        aggregation_level = 'daily',
+        years = 2002:2014,
+        controls = "alaskan_buyer",
+        fixed_effects = 'sale_year',
+        clusters = 0,
+        days_before_limit = 70,
+        days_after_limit = days_before_limit) {
+
+    stopifnot(length(outcome) == 1)  # makes parsing output *much* easier
+    x_vars <- c(controls, fixed_effects)
+    agg_var <- c('daily' = 'event_time', 'weekly' = 'event_week')[[aggregation_level]]
+    aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
+    if (outcome %in% c('sales_pr_mean', 'sale_tot', 'sale_count')) {
+        # This branch is to create the plots for 'sales_pr_mean', 'sale_tot', 'sale_count'
+        # It's intended to be called from basic_dd_analysis.r
+        agg_fn <- get_sales_counts
+    } else if (outcome == 'combined_gpm') {
+        # This branch is to create the plots for 'combined_gpm'.
+        # It's intended to be called from efficiency_dd_analysis.r
+        agg_fn <- get_sales_efficiency
+    } else {
+        stop("Unknown outcome")
+    }
+    aggregated_sales <- aggregate_sales_dd(years, agg_var, aggregate_fn = agg_fn,
+        days_before = days_before_limit, days_after = days_after_limit) %>%
+        force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE)
+
+    if ('sale_dow' %in% x_vars) {
+        aggregated_sales <- add_sale_dow(aggregated_sales)
+    } else if (any(grepl('sale_dow', x_vars, fixed = TRUE))) {
+        stop("Something weird with sale_dow here.")
+    }
+
+    if ('alaskan_buyer' %in% x_vars) {
+        aggregated_sales <- aggregated_sales %>% tag_alaskan_buyer(as_factor = FALSE)
+        if ('buy_state' %in% x_vars) {
+            stop("Can't have alaskan_buyer and buy_state because of collinearity")
+        }
+    }
+
+    reg_formula <- paste(outcome, '~',
+                         paste(controls, collapse = ' + '), '|',
+                         paste(fixed_effects, collapse = ' + '),
+                         '| 0 |',  # no IV vars
+                         paste(clusters, collapse = ' + ')) %>% as.formula()
+    get_results_one_period <- function(agg_var_value) {
+        aggregated_sales_one_period <- aggregated_sales %>%
+            filter_(.dots = lazyeval::interp(~var == val, var = as.name(agg_var),
+                                             val = agg_var_value))
+
+        reg_results <- tryCatch({
+            reg_results <- my_felm(reg_formula, data = aggregated_sales_one_period)
+        }, warning = function(warning_condition) {
+            warning(sprintf('Problem with %s %ss', agg_var_value, aggregation_level_noun))
+            stop(warning_condition)
+        }, error = function(error_condition) {
+            warning(sprintf('Problem with %s %ss', agg_var_value, aggregation_level_noun))
+            stop(error_condition)
+        }, finally = {
+
+        })
+        # reg_results <- my_felm(reg_formula, data = aggregated_sales_one_period)
+        df <- data_frame(event_period = agg_var_value,
+            coef = reg_results$coefficients['alaskan_buyerTRUE', ],
+            se   = reg_results$rse[['alaskan_buyerTRUE']],
+            pval = reg_results$rpval[['alaskan_buyerTRUE']])
+
+        return(df)
+    }
+
+    # Now also grab the std dev of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
+    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    # Pull the unique values of agg_var into a vector, sort it, and pass the values to
+    # get_results_one_period. Then collect the output dataframe into one, then use the
+    # standard deviation we just calculated to get effect sizes.
+    to_plot <- aggregated_sales %>%
+        distinct_(agg_var) %>%
+        extract2(1) %>% sort() %>%
+        purrr::map_df(get_results_one_period) %>%
+        calculate_effect_sizes(data_sd = data_sd)
+    lab_x <- sprintf('Event %s', aggregation_level_noun)
+    lab_y <- c('sale_tot' = 'sale total', 'sale_count' = 'cars sold',
+               'sales_pr_mean' = 'average sales price')[[outcome]]
+    lab_y_effect <- sprintf("Effect size (std. dev. %s)", tolower(lab_y))
+    coef_plot <- ggplot(to_plot, aes(x = event_period, y = coef)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf95_lower, ymax = conf95_upper)) +
+        labs(x = lab_x, y = lab_y) +
+        PLOT_THEME
+    coef_effect_plot <- ggplot(to_plot, aes(x = event_period, y = coef_effect)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf95_lower_effect, ymax = conf95_upper_effect)) +
+        labs(x = lab_x, y = lab_y_effect) +
+        PLOT_THEME
+    filename_part <- sprintf('effects_individual_period_%s_%s_',
+                             outcome, aggregation_level)
+    suffix <- '_notitle.pdf'
+    save_plot(coef_plot,        paste0(filename_part, 'coef',        suffix))
+    save_plot(coef_effect_plot, paste0(filename_part, 'coef_effect', suffix))
+    invisible(to_plot)  # then return the data
 }

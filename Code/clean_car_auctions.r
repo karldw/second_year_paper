@@ -138,7 +138,7 @@ copy_orig_table <- function(con, verbose){
             # as NULL.
             "COALESCE(vin_decoder_model_yr, NULLIF(model_yr, 0)) as model_yr,",
             state_cols,
-            "mmr, bid_ct, veh_type,",
+            "mmr, bid_ct, veh_type, vin_pattern,",
             "NULLIF(auction_code, '') AS auction_code,",
             "NULLIF(buyer_id, '')     AS buyer_id,",
             "NULLIF(cond, '')         AS cond,",
