@@ -1601,7 +1601,7 @@ run_dd_pick_max_effect <- function(outcome,
     } else if (outcome == 'sales_pr_mean') {
         lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
         lab_color_se = 'SE on additional Alaskan anticipation average sale price'
-    TODO: add outcome labels here or figure out a better system.
+    # TODO: add outcome labels here or figure out a better system.
     } else {
         stop("Error!")
     }
