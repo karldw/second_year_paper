@@ -434,27 +434,25 @@ filter_resale <- function(con, resale_min_acceptable_days) {
               as.integer(resale_min_acceptable_days) == resale_min_acceptable_days)
 
     delete_cmd_resale <- paste(
-        # Make a temp table of distinct vin-by-sale_date
-        "WITH distinct_vehicle_sales AS (",
-            "SELECT sale_date, vin FROM", POSTGRES_CLEAN_TABLE,
-                "GROUP BY vin, sale_date",
-                "ORDER BY vin, sale_date",
-        "),",  # close the distinct_vehicle_sales clause
-
-        # Make a temp table of sale date differences.  Note that because of the lead,
+        # Note that because of the lead,
         # the last sale will have a NULL sale_date_diff. Filter out NULLs, since we want
         # the final sales.  Also filter out sales gaps more than
         # resale_min_acceptable_days, since those gaps are okay.
-        "calculated_date_diffs AS (",
-            "SELECT sale_date, vin,",
-            # Calculate lead of sale_date within VINs, call it sale_date_diff
-            "CASE WHEN (vin = LEAD(vin, 1, NULL) OVER (ORDER BY vin, sale_date)) THEN",
-            "(LEAD(sale_date, 1, NULL) OVER (ORDER BY vin, sale_date) - sale_date)",
-            "ELSE (NULL) END AS sale_date_diff",
-            "FROM distinct_vehicle_sales",
-        "),",  # close the calculated_date_diffs clause
-        "resale_vins AS (",
-            "SELECT sale_date, vin FROM calculated_date_diffs",
+        "WITH resale_vins AS (",
+            # distinct_vehicle_sales clause:
+            "SELECT sale_date, vin FROM (",
+                "SELECT sale_date, vin,",
+                # Calculate lead of sale_date within VINs, call it sale_date_diff
+                "CASE WHEN (vin = LEAD(vin, 1, NULL) OVER (ORDER BY vin, sale_date)) THEN",
+                "(LEAD(sale_date, 1, NULL) OVER (ORDER BY vin, sale_date) - sale_date)",
+                "ELSE (NULL) END AS sale_date_diff",
+                "FROM (",
+                    # distinct_vehicle_sales clause:
+                    "SELECT sale_date, vin FROM", POSTGRES_CLEAN_TABLE,
+                        "GROUP BY vin, sale_date",
+                        "ORDER BY vin, sale_date",
+                    ") AS distinct_vehicle_sales",  # close the distinct_vehicle_sales clause
+            ") AS calculated_date_diffs",  # close the calculated_date_diffs clause
             "WHERE (NOT (sale_date_diff IS NULL)) AND",
                 "(sale_date_diff > ", resale_min_acceptable_days, ")",
         ")",  # close the resale_vins clause

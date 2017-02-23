@@ -58,13 +58,22 @@ get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buye
         # event_time and sale_year identify days exactly as well as sale_date.)
         group_vars <- c(group_vars, 'sale_year', 'sale_date')
     }
+    # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
+    # The downside of using log() in dplyr is that it calls the two-argument form of
+    # log, which doesn't work for floating points in postgres.
+    # See: https://github.com/hadley/dplyr/issues/2464
+    # Use ln() instead, which gets passed through.
+    # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
     sales_gpm <- df_base %>%
         select_(.dots = c(group_vars, 'vin_pattern')) %>%
         inner.join(vin_decoder, by = 'vin_pattern') %>%
         group_by_(.dots = group_vars) %>%
         summarize(sale_count = n(),
-                  combined_gpm = mean(mpg_to_L100km_coef / combined)) %>%
-        ungroup() %>% collapse()
+                  combined_gpm = mean(mpg_to_L100km_coef / combined),
+                  combined_gpm_log = mean(ln(mpg_to_L100km_coef / combined))) %>%
+        ungroup() %>%
+        mutate(sale_count_log = ln(sale_count)) %>%
+        collapse()
 
     if (id_var == 'buyer_id') {  # Merge back in buy_state.
         # We've previously ensured that each buyer_id has at most one state.
@@ -165,7 +174,7 @@ make_fuel_cons_plot <- function(freq) {
     #     filter(buy_state %in% c('AK', control_states)) %>%
     #     add_event_time()
 
-    base_df <- aggregate_sales_dd(years = 2002:2005, agg_var = 'sale_week',
+    base_df <- aggregate_sales_dd(years = 2002:2005, agg_var = 'event_week',
         days_before = 70, aggregate_fn = get_sales_efficiency)
 
     if (freq == 'daily') {
@@ -209,7 +218,8 @@ make_fuel_cons_plot <- function(freq) {
 }
 
 # pull_efficiency_data()
-plot_effects_individual_period('combined_gpm')
+# make_fuel_cons_plot('weekly')
+plot_effects_individual_period('combined_gpm', aggregation_level = 'weekly')
 # x <- aggregate_sales_dd(years = 2002:2005, days_before = 60, agg_var = 'event_week',
     # aggregate_fn = get_sales_efficiency)
 

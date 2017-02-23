@@ -37,6 +37,10 @@ if (! methods::existsFunction('find_match_states_crude')) {
 if (! methods::existsFunction('aggregate_sales_dd')) {
     aggregate_sales_dd <- memoise::memoize(aggregate_sales_dd_unmemoized)
 }
+if (! methods::existsFunction('get_state_by_time_variation')) {
+    get_state_by_time_variation <- memoise::memoize(
+        get_state_by_time_variation_unmemoized)
+}
 
 ####    Make joins better    ####
 # Unlike the dplyr versions, these don't (or at least shouldn't) allow many-to-many joins.
@@ -49,7 +53,7 @@ anti.join <- dplyr::anti_join  # already safe, just doing this for consistency
 semi.join <- dplyr::semi_join  # already safe, just doing this for consistency
 
 ####    Plotting stuff!    ####
-install_lazy(c('ggplot2', 'devtools'), verbose = FALSE)
+install_lazy('ggplot2', verbose = FALSE)
 # PLOT_THEME <- ggplot2::theme(
 #     panel.background = ggplot2::element_rect(fill = NA),
 #     panel.border     = ggplot2::element_blank(),
@@ -65,6 +69,7 @@ install_lazy(c('ggplot2', 'devtools'), verbose = FALSE)
 #     strip.background = ggplot2::element_blank()
 # )
 if (! is_pkg_installed('hrbrthemes')) {
+    install_lazy(c('devtools', 'extrafont'))  # ensure proper installation of hrbrthemes
     devtools::install_github("hrbrmstr/hrbrthemes")
 }
 # Instead of specifying all the things above, just use the hrbrmstr hrbrthemes, but then
