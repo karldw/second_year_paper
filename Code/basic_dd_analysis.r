@@ -574,6 +574,7 @@ plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
 
         # rse is apparently the robust standard error, though it's not well documented.
         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        # TODO: use broom::tidy here instead.
         df <- data_frame(start = start, end = end,
             coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
             se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
@@ -665,6 +666,7 @@ plot_effects_by_anticipation <- function(outcome,
 
         # rse is apparently the robust standard error, though it's not well documented.
         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        # TODO: use broom::tidy here instead.
         df <- data_frame(start = start,
             coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
             se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
@@ -683,7 +685,7 @@ plot_effects_by_anticipation <- function(outcome,
     # Now also grab the std dev.
     sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
     data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
-
+    TODO: fix this so data_sd isn't null
     sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
         to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
@@ -772,7 +774,10 @@ generate_snippets <- function() {
 }
 
 
-make_all_plot_types <- function(outcome, aggregation_level = 'weekly') {
+make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose = FALSE) {
+    if (verbose) {
+        message(sprintf('Making plots for %s', outcome))
+    }
     plot_effects_by_anticipation(outcome, aggregation_level, title = FALSE)
     run_dd_pick_max_effect(outcome, aggregation_level = aggregation_level)
     if (aggregation_level == 'daily') {

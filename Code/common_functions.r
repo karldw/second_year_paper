@@ -1168,6 +1168,7 @@ run_dd <- function(years = 2002:2014,
 
         # look up varname (will error if aggregation_level is not in there)
         agg_var <- c(daily = 'event_time', weekly = 'event_week')[[aggregation_level]]
+        agg_fn <- outcome_to_agg_fn(outcomes)
         # grouping_vars <- c('sale_year', 'buy_state', agg_var)
 
         # Set up mutate_ calls.
@@ -1182,8 +1183,10 @@ run_dd <- function(years = 2002:2014,
             post = lazyeval::interp(~ agg_var > high,
                 agg_var = as.name(agg_var), high = anticipation_window[2])
             )
-        aggregate_sales_dd(years, agg_var, days_before = days_before_limit,
-                           days_after = days_after_limit) %>%
+
+        aggregate_sales_dd(years, agg_var, aggregate_fn = agg_fn,
+            days_before = days_before_limit, days_after = days_after_limit) %>%
+        force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE) %>%
             # Make these variables even if they're not used (it's fast)
             mutate_(.dots = mutate_calls_time) %>% # Make anticipation and post
             mutate(alaskan_buyer_anticipation = alaskan_buyer & anticipation,
@@ -1224,6 +1227,26 @@ run_dd <- function(years = 2002:2014,
     return(reg_results)
 }
 
+outcome_to_agg_fn <- function(outcomes) {
+    # TODO: a better way to do this would be have one function that handles all vars.
+    get_sales_counts_vars <- c('sales_pr_mean', 'sale_tot', 'sale_count',
+        'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log')
+    get_sales_efficiency_vars <- 'combined_gpm'
+    stopifnot(is.character(outcomes), outcomes >= 1,
+        all(outcomes %in% c(get_sales_counts_vars, get_sales_efficiency_vars)))
+
+    if (all(outcomes %in% get_sales_counts_vars)) {
+        agg_fn <- get_sales_counts
+    } else if (all(outcomes %in% get_sales_efficiency_vars)) {
+        agg_fn <- get_sales_efficiency
+    } else {
+        err_msg <- sprintf("Sorry, can't handle a mix of variables: '%s'",
+                           paste(outcomes, collapse = "', '"))
+        stop(err_msg)
+    }
+    return(agg_fn)
+}
+
 
 plot_effects_individual_period <- function(
         outcome,
@@ -1239,17 +1262,7 @@ plot_effects_individual_period <- function(
     x_vars <- c(controls, fixed_effects)
     agg_var <- c('daily' = 'event_time', 'weekly' = 'event_week')[[aggregation_level]]
     aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
-    if (outcome %in% c('sales_pr_mean', 'sale_tot', 'sale_count')) {
-        # This branch is to create the plots for 'sales_pr_mean', 'sale_tot', 'sale_count'
-        # It's intended to be called from basic_dd_analysis.r
-        agg_fn <- get_sales_counts
-    } else if (outcome == 'combined_gpm') {
-        # This branch is to create the plots for 'combined_gpm'.
-        # It's intended to be called from efficiency_dd_analysis.r
-        agg_fn <- get_sales_efficiency
-    } else {
-        stop("Unknown outcome")
-    }
+    agg_fn <- outcome_to_agg_fn(outcome)
     aggregated_sales <- aggregate_sales_dd(years, agg_var, aggregate_fn = agg_fn,
         days_before = days_before_limit, days_after = days_after_limit) %>%
         force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE)
@@ -1289,6 +1302,7 @@ plot_effects_individual_period <- function(
 
         })
         # reg_results <- my_felm(reg_formula, data = aggregated_sales_one_period)
+        # TODO: use broom::tidy here instead.
         df <- data_frame(event_period = agg_var_value,
             coef = reg_results$coefficients['alaskan_buyerTRUE', ],
             se   = reg_results$rse[['alaskan_buyerTRUE']],
@@ -1541,6 +1555,7 @@ run_dd_pick_max_effect <- function(outcome,
 
         # rse is apparently the robust standard error, though it's not well documented.
         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        # TODO: use broom::tidy here instead.
         df <- data_frame(start = start, end = end,
             coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
             se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
@@ -1548,9 +1563,14 @@ run_dd_pick_max_effect <- function(outcome,
         return(df)
     }
 
-    # Now also grab the std dev of the sample we're looking at.
-    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
-    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
+    # Now also grab the std dev and mean of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')
+    mean_varname <- paste0(outcome, '_mean')
+    data_sd <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'sd')[[sd_varname]]
+    data_mean <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'mean')[[mean_varname]]
+    stopifnot(! is.null(data_sd), ! is.null(data_mean))
 
     to_plot <- purrr::map_df(windows, get_results_one_window)
     sale_tot_divisor <- 1000
@@ -1559,7 +1579,7 @@ run_dd_pick_max_effect <- function(outcome,
                                       se   = se   / sale_tot_divisor)
         data_sd <- data_sd / sale_tot_divisor
     }
-    to_plot <- calculate_effect_sizes(to_plot, data_sd)
+    to_plot <- calculate_effect_sizes(to_plot, data_sd, data_mean)
     # Define a bunch of labels.
     lab_x <- 'Window end (%s)'
     lab_y <- 'Window start (%s)'
@@ -1581,6 +1601,7 @@ run_dd_pick_max_effect <- function(outcome,
     } else if (outcome == 'sales_pr_mean') {
         lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
         lab_color_se = 'SE on additional Alaskan anticipation average sale price'
+    TODO: add outcome labels here or figure out a better system.
     } else {
         stop("Error!")
     }
