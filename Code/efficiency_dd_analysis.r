@@ -220,6 +220,7 @@ make_fuel_cons_plot <- function(freq) {
 # pull_efficiency_data()
 # make_fuel_cons_plot('weekly')
 plot_effects_individual_period('combined_gpm', aggregation_level = 'weekly')
+run_dd_pick_max_effect('combined_gpm', 'weekly')
 # x <- aggregate_sales_dd(years = 2002:2005, days_before = 60, agg_var = 'event_week',
     # aggregate_fn = get_sales_efficiency)
 
