@@ -107,7 +107,9 @@ get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id
     sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
         summarize(sale_count = n(), sale_tot = sum(sales_pr),
                   sales_pr_mean_log = mean(ln(sales_pr)),
-                  sales_pr_mean = mean(sales_pr)) %>%
+                  sales_pr_mean = mean(sales_pr),
+                  msrp_mean = mean(msrp),
+                  msrp_mean_log = mean(ln(msrp))) %>%
         ungroup() %>%
         mutate(sale_count_log = ln(sale_count), sale_tot_log = ln(sale_tot)) %>%
         collapse()
@@ -655,8 +657,7 @@ plot_effects_by_anticipation <- function(outcome,
     } else {
         stop("aggregation_level must be 'daily' or 'weekly'")
     }
-    stopifnot(outcome %in% c('sale_count', 'sale_tot', 'sales_pr_mean',
-                             'sale_count_log', 'sale_tot_log', 'sales_pr_mean_log'),
+    stopifnot(outcome %in% names(OUTCOME_VARS),
               days_before_limit > 2, loop_start < min_window_length)
 
 
@@ -790,9 +791,13 @@ make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose =
     }
     invisible(NULL)
 }
-all_outcomes <- c('sale_tot', 'sale_count', 'sales_pr_mean', 'sale_tot_log',
-    'sale_count_log', 'sales_pr_mean_log')
-system.time(lapply(all_outcomes, make_all_plot_types))
+
+all_outcomes <- c(
+    'sale_tot', 'sale_tot_log',
+    'sale_count', 'sale_count_log',
+    'sales_pr_mean', 'sales_pr_mean_log',
+    'msrp_mean', 'msrp_mean_log')
+print(system.time(lapply(all_outcomes, make_all_plot_types)))  # ?? seconds
 
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.

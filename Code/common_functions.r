@@ -1110,7 +1110,8 @@ aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
     aggregate_fn <- match.fun(aggregate_fn)
     control_states <- find_match_states_crude()
     df <- auctions %>%
-        select(sale_date, buy_state, sales_pr, vin_pattern) %>%
+    # TODO: could make this faster by selecting vars depending on aggregate_fn
+        select(sale_date, buy_state, sales_pr, vin_pattern, msrp) %>%
         filter_event_window(years = years, days_before = days_before,
                             days_after = days_after) %>%
         filter(buy_state %in% c('AK', control_states)) %>%
@@ -1233,7 +1234,8 @@ outcome_to_agg_fn <- function(outcomes) {
     stopifnot(is.character(outcomes), outcomes >= 1)
     # TODO: a better way to do this would be have one function that handles all vars.
     get_sales_counts_vars <- c('sales_pr_mean', 'sale_tot', 'sale_count',
-        'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log')
+        'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log', 'msrp_mean',
+        'msrp_mean_log')
     get_sales_efficiency_vars <- c('fuel_cons', 'fuel_cons_log')
     combined_vars <- c(get_sales_counts_vars, get_sales_efficiency_vars)
     # outcome_vars <- sort(names(OUTCOME_VARS))
@@ -1407,8 +1409,8 @@ calculate_effect_sizes <- function(df, data_sd = NULL, data_mean = NULL) {
     out <- df %>%
         mutate(conf95_lower = coef - (1.96 * se),
                conf95_upper = coef + (1.96 * se),
-               is_signif = factor(pval < 0.05, levels = c(TRUE, FALSE), ordered = TRUE,
-                                  labels = c('p < 0.05', 'p > 0.05')))
+               is_signif = factor(pval < 0.05, levels = c(FALSE, TRUE), ordered = TRUE,
+                                  labels = c('p > 0.05', 'p < 0.05')))
     if (! is.null(data_sd)) {
         out <- out %>%
             mutate(coef_effect = coef / data_sd,
@@ -1473,7 +1475,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
 
     agg_fn <- outcome_to_agg_fn(vars_to_summarize)
     # Only one of sales_pr or vin_pattern will be relevant in agg_fn, but that's fine.
-    df <- auctions %>% select(sale_date, buy_state, sales_pr, vin_pattern)
+    df <- auctions %>% select(sale_date, buy_state, sales_pr, vin_pattern, msrp)
 
     if (is.null(states_included)) {
         # What states get included in the std dev calculations?
@@ -1559,8 +1561,7 @@ run_dd_pick_max_effect <- function(outcome,
     } else {
         stop("aggregation_level must be 'daily' or 'weekly'")
     }
-    stopifnot(outcome %in% c('sale_count', 'sale_tot', 'sales_pr_mean', 'sale_count_log',
-        'sale_tot_log', 'sales_pr_mean_log', 'fuel_cons', 'fuel_cons_log'),
+    stopifnot(outcome %in% names(OUTCOME_VARS),
         days_before_limit > 2)
     max_window_length <- abs(loop_end) + abs(loop_start) - 2
     windows <- purrr::cross2(
@@ -1697,6 +1698,16 @@ run_dd_pick_max_effect <- function(outcome,
         coef_effect_plot <- coef_effect_plot + guides(color = 'none')
     }
 
+    coef_effect_mean_plot <- common_plot +
+        # geom_tile(aes(fill = coef, alpha = is_signif))
+        geom_point(aes(size = abs(coef_effect_mean), color = sign_as_factor(coef),
+                   alpha = is_signif)) +
+        labs(size = 'Coefficient\nmagnitude')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    if (all(sign(to_plot$coef) == 1)){
+        coef_effect_mean_plot <- coef_effect_mean_plot + guides(color = 'none')
+    }
+
     # These plots are fine, but no longer necessary:
     # se_plot <- common_plot + geom_point(aes(size = se)) + labs(size = 'Standard\nError')
     # conf95_lower_plot <- common_plot +
@@ -1720,17 +1731,22 @@ run_dd_pick_max_effect <- function(outcome,
     conf95_max_mag_plot <- common_plot +
         geom_point(aes(size = conf95_max_mag_effect, color = is_signif)) +
         labs(size = 'Max 95%-CI\nmagnitude',  color = 'Significance')
-
+    conf95_max_mag_mean_plot <- common_plot +
+        geom_point(aes(size = conf95_max_mag_effect_mean, color = is_signif)) +
+        labs(size = 'Max 95%-CI\nmagnitude',  color = 'Significance')
     # Spellcheck my plot labels:
-    lapply(list(coef_effect_plot, conf95_max_mag_plot),
+    lapply(list(coef_effect_plot, conf95_max_mag_plot, coef_effect_mean_plot,
+                conf95_max_mag_mean_plot),
            hrbrthemes::gg_check, ignore = 'conf')
 
     # filename_base <- sprintf('variable_window_dd_%s_%s_tile_', outcome, aggregation_level)
     filename_base <- sprintf('variable_window_dd_%s_%s_area_', outcome, aggregation_level)
     save_plot(coef_effect_plot,    paste0(filename_base, 'coef_effect.pdf'))
+    save_plot(coef_effect_mean_plot, paste0(filename_base, 'coef_effect_mean.pdf'))
     # save_plot(se_plot,             paste0(filename_base, 'se.pdf'))
     # save_plot(conf95_lower_plot,   paste0(filename_base, 'conf95_lower.pdf'))
     # save_plot(conf95_upper_plot,   paste0(filename_base, 'conf95_upper.pdf'))
     save_plot(conf95_max_mag_plot, paste0(filename_base, 'conf95_max_effect.pdf'))
+    save_plot(conf95_max_mag_mean_plot, paste0(filename_base, 'conf95_max_effect_mean.pdf'))
     invisible(to_plot)
 }

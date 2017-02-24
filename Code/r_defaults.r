@@ -106,4 +106,7 @@ OUTCOME_VARS <- c('sale_tot' = 'Sale total',
                  'sales_pr_mean' = 'Average sales price',
                  'sales_pr_mean_log' = 'Average log sales price',
                  'fuel_cons' = 'Fuel consumption',
-                 'fuel_cons_log' = 'Log fuel consumption')
+                 'fuel_cons_log' = 'Log fuel consumption',
+                 'msrp_mean' = 'MSRP',  # Nominal MSRP
+                 'msrp_mean_log' = 'Log MSRP'  # Nominal MSRP
+                 )
