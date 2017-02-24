@@ -1231,7 +1231,7 @@ outcome_to_agg_fn <- function(outcomes) {
     # TODO: a better way to do this would be have one function that handles all vars.
     get_sales_counts_vars <- c('sales_pr_mean', 'sale_tot', 'sale_count',
         'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log')
-    get_sales_efficiency_vars <- 'combined_gpm'
+    get_sales_efficiency_vars <- 'fuel_cons'
     stopifnot(is.character(outcomes), outcomes >= 1,
         all(outcomes %in% c(get_sales_counts_vars, get_sales_efficiency_vars)))
 
@@ -1330,9 +1330,13 @@ plot_effects_individual_period <- function(
         calculate_effect_sizes(data_sd = data_sd, data_mean = data_mean)
     lab_x <- sprintf('Event %s', aggregation_level_noun)
     lab_y <- c('sale_tot' = 'Sale total',
+               'sale_tot_log' = 'Log sale total',
                'sale_count' = 'Cars sold',
+               'sale_count_log' = 'Log cars sold',
                'sales_pr_mean' = 'Average sales price',
-               'combined_gpm' = 'Combined gal/mi')[[outcome]]
+               'sales_pr_mean_log' = 'Average log sales price',
+               'fuel_cons' = 'Fuel consumption',
+               'fuel_cons_log' = 'Log fuel consumption')[[outcome]]
     lab_y_effect <- sprintf("Effect size (std. dev. %s)", tolower(lab_y))
     lab_y_mean  <- sprintf("Effect size (fraction of mean %s)", tolower(lab_y))
     coef_plot <- ggplot(to_plot, aes(x = event_period, y = coef)) +
@@ -1434,7 +1438,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
     if (all(vars_to_summarize %in% c('sale_tot', 'sale_count', 'sales_pr_mean'))) {
         aggregate_fn <- get_sales_counts
         select_auctions_var <- 'sales_pr'
-    } else if (all(vars_to_summarize %in% 'combined_gpm')) {
+    } else if (all(vars_to_summarize %in% 'fuel_cons')) {
         aggregate_fn <- get_sales_efficiency
         select_auctions_var <- 'vin_pattern'
     } else {
@@ -1530,7 +1534,7 @@ run_dd_pick_max_effect <- function(outcome,
         stop("aggregation_level must be 'daily' or 'weekly'")
     }
     stopifnot(outcome %in% c('sale_count', 'sale_tot', 'sales_pr_mean', 'sale_count_log',
-        'sale_tot_log', 'sales_pr_mean_log', 'combined_gpm', 'combined_gpm_log'),
+        'sale_tot_log', 'sales_pr_mean_log', 'fuel_cons', 'fuel_cons_log'),
         days_before_limit > 2)
     max_window_length <- abs(loop_end) + abs(loop_start) - 2
     windows <- purrr::cross2(
@@ -1592,19 +1596,19 @@ run_dd_pick_max_effect <- function(outcome,
     } else {
         stop("Error!")
     }
-    if (outcome == 'sale_tot') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
-        lab_color_se = 'SE on additional Alaskan anticipation cars sold'
-    } else if (outcome == 'sale_count') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
-        lab_color_se = 'SE on additional Alaskan anticipation sale volume'
-    } else if (outcome == 'sales_pr_mean') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
-        lab_color_se = 'SE on additional Alaskan anticipation average sale price'
-    # TODO: add outcome labels here or figure out a better system.
-    } else {
-        stop("Error!")
-    }
+    
+    # if (outcome == 'sale_tot') {
+    #     lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
+    #     lab_color_se = 'SE on additional Alaskan anticipation cars sold'
+    # } else if (outcome == 'sale_count') {
+    #     lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
+    #     lab_color_se = 'SE on additional Alaskan anticipation sale volume'
+    # } else if (outcome == 'sales_pr_mean') {
+    #     lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
+    #     lab_color_se = 'SE on additional Alaskan anticipation average sale price'
+    # } else {
+    #     stop("Error!")
+    # }
     sign_as_factor <- function(x) {
         # edge case: make zero positive:
         sign_x <- if_else(sign(x) != 0, sign(x), 1)

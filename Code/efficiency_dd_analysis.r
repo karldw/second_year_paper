@@ -38,7 +38,7 @@ count_mpg_merge_matches <- function() {  # testing stuff, no need to run this.
 
 get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
     # This is a parallel to get_sales_counts, but for fuel efficiency.
-    # The function signature is the same, but it returns combined_gpm.
+    # The function signature is the same, but it returns fuel_cons.
 
     stopifnot(length(date_var) == 1, length(id_var) == 1,
               date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
@@ -69,8 +69,8 @@ get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buye
         inner.join(vin_decoder, by = 'vin_pattern') %>%
         group_by_(.dots = group_vars) %>%
         summarize(sale_count = n(),
-                  combined_gpm = mean(mpg_to_L100km_coef / combined),
-                  combined_gpm_log = mean(ln(mpg_to_L100km_coef / combined))) %>%
+                  fuel_cons = mean(mpg_to_L100km_coef / combined),
+                  fuel_cons_log = mean(ln(mpg_to_L100km_coef / combined))) %>%
         ungroup() %>%
         mutate(sale_count_log = ln(sale_count)) %>%
         collapse()
@@ -156,7 +156,7 @@ get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buye
 #     group_by_(.dots = group_vars) %>%
 #     # important to take 1/combined before mean()
 #     # combined is combined highway and city efficiency
-#     summarize(combined_gpm = mean(mpg_to_L100km_coef / combined), count = n()) %>%
+#     summarize(fuel_cons = mean(mpg_to_L100km_coef / combined), count = n()) %>%
 #     ungroup() %>%
 #     collect(n = Inf) %>%
 #     return()
@@ -182,7 +182,7 @@ make_fuel_cons_plot <- function(freq) {
     } else if (freq == 'weekly') {
         grouped_df <- base_df %>% group_by(buy_state, sale_year, event_week) %>%
             # aggregate from mean daily to mean weekly (weighted because unequal counts)
-            summarize(combined_gpm = weighted.mean(combined_gpm, w = sale_count))
+            summarize(fuel_cons = weighted.mean(fuel_cons, w = sale_count))
     } else {
         err_msg <- sprintf("Bad value of freq: '%s'", paste(freq, collapse = "', '"))
         stop(err_msg)
@@ -190,16 +190,16 @@ make_fuel_cons_plot <- function(freq) {
     # then standardize the daily or weekly mean within each state/year
     to_plot <- grouped_df %>%
         group_by(buy_state, sale_year) %>%
-        mutate(combined_gpm = scale(combined_gpm))
+        mutate(fuel_cons = scale(fuel_cons))
 
     if (freq == 'daily') {
-        out_plot <- ggplot(to_plot, aes(x = event_time, y = combined_gpm,
+        out_plot <- ggplot(to_plot, aes(x = event_time, y = fuel_cons,
                            color = factor(buy_state)))
         loess_span <- 0.15
         lab_x <- 'Event time (days)'
         lab_title <- 'Efficiency of cars sold in top Alaska-buyer states, daily averages'
     } else if (freq == 'weekly') {
-        out_plot <- ggplot(to_plot, aes(x = event_week, y = combined_gpm,
+        out_plot <- ggplot(to_plot, aes(x = event_week, y = fuel_cons,
                            color = factor(buy_state)))
         loess_span <- 0.25
         lab_x <- 'Event time (weeks)'
@@ -219,8 +219,8 @@ make_fuel_cons_plot <- function(freq) {
 
 # pull_efficiency_data()
 # make_fuel_cons_plot('weekly')
-plot_effects_individual_period('combined_gpm', aggregation_level = 'weekly')
-run_dd_pick_max_effect('combined_gpm', 'weekly')
+plot_effects_individual_period('fuel_cons', aggregation_level = 'weekly')
+run_dd_pick_max_effect('fuel_cons', 'weekly')
 # x <- aggregate_sales_dd(years = 2002:2005, days_before = 60, agg_var = 'event_week',
     # aggregate_fn = get_sales_efficiency)
 
