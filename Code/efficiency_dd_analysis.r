@@ -184,7 +184,7 @@ make_fuel_cons_plot <- function(freq) {
             # aggregate from mean daily to mean weekly (weighted because unequal counts)
             summarize(fuel_cons = weighted.mean(fuel_cons, w = sale_count))
     } else {
-        err_msg <- sprintf("Bad value of freq: '%s'", paste(freq, collapse = "', '"))
+        err_msg <- sprintf("Bad value of freq: '%s'", vec2string(freq))
         stop(err_msg)
     }
     # then standardize the daily or weekly mean within each state/year
@@ -217,10 +217,28 @@ make_fuel_cons_plot <- function(freq) {
     return(out_plot)
 }
 
+
+make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose = FALSE) {
+    if (verbose) {
+        message(sprintf('Making plots for %s', outcome))
+    }
+    # Not implemented yet for fuel_cons:
+    # plot_effects_by_anticipation(outcome, aggregation_level, title = FALSE)
+    run_dd_pick_max_effect(outcome, aggregation_level = aggregation_level)
+    if (aggregation_level == 'daily') {
+        plot_effects_individual_period(outcome, 'daily',
+            fixed_effects = c('sale_year', 'sale_dow'))
+    } else {
+        plot_effects_individual_period(outcome, aggregation_level)
+    }
+    invisible(NULL)
+}
+all_outcomes <- c('fuel_cons', 'fuel_cons_log')
+lapply(all_outcomes, make_all_plot_types)
+
+
 # pull_efficiency_data()
 # make_fuel_cons_plot('weekly')
-plot_effects_individual_period('fuel_cons', aggregation_level = 'weekly')
-run_dd_pick_max_effect('fuel_cons', 'weekly')
 # x <- aggregate_sales_dd(years = 2002:2005, days_before = 60, agg_var = 'event_week',
     # aggregate_fn = get_sales_efficiency)
 

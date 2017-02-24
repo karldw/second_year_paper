@@ -542,90 +542,90 @@ plot_dd_sales <- function(years = 2002:2014) {
 }
 
 
-plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
-        aggregation_level = 'daily', days_before_limit = 70) {
-    stop("This is an old function.  You probably don't want it.")
-    if (aggregation_level == 'daily') {
-        loop_start <- (-days_before_limit) + 1
-        min_window_length <- 7
-    } else if (aggregation_level == 'weekly'){
-        loop_start <- ((-days_before_limit) %/% 7) + 1
-        min_window_length <- 1
-    } else {
-        stop("aggregation_level must be 'daily' or 'weekly'")
-    }
-    stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2)
-
-    windows <- purrr::cross2(
-        # Form the cross of all possible window starts
-        seq.int(loop_start, -1, by = 1),
-        # crossed by all possible window ends:
-        seq.int(loop_start, -1, by = 1),
-        .filter = function(start, end) {
-            # and then filter combos we don't want
-            end - start < min_window_length
-        }
-    )
-    get_results_one_window <- function(start_end_list) {
-        start <- start_end_list[[1]]
-        end <- start_end_list[[2]]
-        reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
-            anticipation_window = c(start, end), days_before_limit = days_before_limit)
-
-        # rse is apparently the robust standard error, though it's not well documented.
-        # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
-        # TODO: use broom::tidy here instead.
-        df <- data_frame(start = start, end = end,
-            coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
-            se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
-            pval = reg_results$rpval[['alaskan_buyer_anticipationTRUE']])
-        return(df)
-
-    }
-
-    to_plot <- purrr::map_df(windows, get_results_one_window)
-
-    # Define a bunch of labels.
-    lab_x <- 'Window end (%s)'
-    lab_y <- 'Window start (%s)'
-    if (aggregation_level == 'daily') {
-        lab_x <- sprintf(lab_x, 'days')
-        lab_y <- sprintf(lab_y, 'days')
-    } else if (aggregation_level == 'weekly') {
-        lab_x <- sprintf(lab_x, 'weeks')
-        lab_y <- sprintf(lab_y, 'weeks')
-    } else {
-        stop("Error!")
-    }
-    if (outcome == 'sale_tot') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
-        lab_color_se = 'SE on additional Alaskan anticipation cars sold'
-    } else if (outcome == 'sale_count') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
-        lab_color_se = 'SE on additional Alaskan anticipation sale volume'
-    } else if (outcome == 'sales_pr_mean') {
-        lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
-        lab_color_se = 'SE on additional Alaskan anticipation average sale price'
-    } else {
-        stop("Error!")
-    }
-
-    coef_plot <- ggplot(to_plot, aes(x = end, y = start, fill = coef)) +
-        geom_tile() +
-        scale_fill_distiller(palette = 'RdBu') +
-        labs(x = lab_x, y = lab_y, color = lab_color_coef) +
-        PLOT_THEME
-    se_plot <- ggplot(to_plot, aes(x = end, y = start, fill = se)) +
-        geom_tile() +
-        scale_fill_distiller(palette = 'RdBu') +
-        labs(x = lab_x, y = lab_y, color = lab_color_se) +
-        PLOT_THEME
-
-    save_plot(coef_plot, sprintf('anticipation_window_%s_tile_coef.pdf', outcome))
-    save_plot(se_plot,   sprintf('anticipation_window_%s_tile_se.pdf', outcome))
-
-    return(to_plot)
-}
+# plot_effects_by_anticipation_variable_start_and_end <- function(outcome,
+#         aggregation_level = 'daily', days_before_limit = 70) {
+#     stop("This is an old function.  You probably don't want it.")
+#     if (aggregation_level == 'daily') {
+#         loop_start <- (-days_before_limit) + 1
+#         min_window_length <- 7
+#     } else if (aggregation_level == 'weekly'){
+#         loop_start <- ((-days_before_limit) %/% 7) + 1
+#         min_window_length <- 1
+#     } else {
+#         stop("aggregation_level must be 'daily' or 'weekly'")
+#     }
+#     stopifnot(outcome %in% c('sale_count', 'sale_tot'), days_before_limit > 2)
+#
+#     windows <- purrr::cross2(
+#         # Form the cross of all possible window starts
+#         seq.int(loop_start, -1, by = 1),
+#         # crossed by all possible window ends:
+#         seq.int(loop_start, -1, by = 1),
+#         .filter = function(start, end) {
+#             # and then filter combos we don't want
+#             end - start < min_window_length
+#         }
+#     )
+#     get_results_one_window <- function(start_end_list) {
+#         start <- start_end_list[[1]]
+#         end <- start_end_list[[2]]
+#         reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
+#             anticipation_window = c(start, end), days_before_limit = days_before_limit)
+#
+#         # rse is apparently the robust standard error, though it's not well documented.
+#         # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+#         # TODO: use broom::tidy here instead.
+#         df <- data_frame(start = start, end = end,
+#             coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
+#             se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
+#             pval = reg_results$rpval[['alaskan_buyer_anticipationTRUE']])
+#         return(df)
+#
+#     }
+#
+#     to_plot <- purrr::map_df(windows, get_results_one_window)
+#
+#     # Define a bunch of labels.
+#     lab_x <- 'Window end (%s)'
+#     lab_y <- 'Window start (%s)'
+#     if (aggregation_level == 'daily') {
+#         lab_x <- sprintf(lab_x, 'days')
+#         lab_y <- sprintf(lab_y, 'days')
+#     } else if (aggregation_level == 'weekly') {
+#         lab_x <- sprintf(lab_x, 'weeks')
+#         lab_y <- sprintf(lab_y, 'weeks')
+#     } else {
+#         stop("Error!")
+#     }
+#     if (outcome == 'sale_tot') {
+#         lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
+#         lab_color_se = 'SE on additional Alaskan anticipation cars sold'
+#     } else if (outcome == 'sale_count') {
+#         lab_color_coef = 'Estimated additional Alaskan anticipation sale volume'
+#         lab_color_se = 'SE on additional Alaskan anticipation sale volume'
+#     } else if (outcome == 'sales_pr_mean') {
+#         lab_color_coef = 'Estimated additional Alaskan anticipation average sale price'
+#         lab_color_se = 'SE on additional Alaskan anticipation average sale price'
+#     } else {
+#         stop("Error!")
+#     }
+#
+#     coef_plot <- ggplot(to_plot, aes(x = end, y = start, fill = coef)) +
+#         geom_tile() +
+#         scale_fill_distiller(palette = 'RdBu') +
+#         labs(x = lab_x, y = lab_y, color = lab_color_coef) +
+#         PLOT_THEME
+#     se_plot <- ggplot(to_plot, aes(x = end, y = start, fill = se)) +
+#         geom_tile() +
+#         scale_fill_distiller(palette = 'RdBu') +
+#         labs(x = lab_x, y = lab_y, color = lab_color_se) +
+#         PLOT_THEME
+#
+#     save_plot(coef_plot, sprintf('anticipation_window_%s_tile_coef.pdf', outcome))
+#     save_plot(se_plot,   sprintf('anticipation_window_%s_tile_se.pdf', outcome))
+#
+#     return(to_plot)
+# }
 
 
 render_title <- function(title, default = '') {
@@ -682,17 +682,22 @@ plot_effects_by_anticipation <- function(outcome,
         to_plot <- to_plot %>% mutate(start = factor(start))
     }
 
-    # Now also grab the std dev.
-    sd_varname <- paste0(outcome, '_sd')  # either sale_tot_sd or sale_count_sd
-    data_sd <- get_state_by_time_variation(aggregation_level)[[sd_varname]]
-    TODO: fix this so data_sd isn't null
+    # Now also grab the std dev and mean of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')
+    mean_varname <- paste0(outcome, '_mean')
+    data_sd <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'sd')[[sd_varname]]
+    data_mean <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'mean')[[mean_varname]]
+    stopifnot(! is.null(data_sd), ! is.null(data_mean))
+
     sale_tot_divisor <- 1000
     if (outcome == 'sale_tot') {
         to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
                                       se   = se   / sale_tot_divisor)
         data_sd <- data_sd / sale_tot_divisor
     }
-    to_plot <- calculate_effect_sizes(to_plot, data_sd)
+    to_plot <- calculate_effect_sizes(to_plot, data_sd = data_sd, data_mean = data_mean)
 
     # NB: If you uncomment this block, you have to rejigger the sale_tot_divisor.
     # control_states <- find_match_states_crude()
@@ -718,10 +723,7 @@ plot_effects_by_anticipation <- function(outcome,
     # Define a bunch of labels.
     aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
     lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
-
-    lab_y <- c('sale_tot' = 'sale total', 'sale_count' = 'cars sold',
-               'sales_pr_mean' = 'average sales price')[[outcome]]
-    lab_y <- sprintf("Effect size (std. dev. %s)", lab_y)
+    lab_y <- sprintf("Effect size (std. dev. %s)", tolower(OUTCOME_VARS[[outcome]]))
 
     coef_plot <- ggplot(to_plot, aes(x = start, y = coef_effect)) +
         geom_point() +
@@ -790,7 +792,7 @@ make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose =
 }
 all_outcomes <- c('sale_tot', 'sale_count', 'sales_pr_mean', 'sale_tot_log',
     'sale_count_log', 'sales_pr_mean_log')
-lapply(all_outcomes, make_all_plot_types)
+system.time(lapply(all_outcomes, make_all_plot_types))
 
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.

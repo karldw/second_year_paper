@@ -96,3 +96,14 @@ BLUE_AND_YELLOW <- c('#0066CC', '#FFBD17')
 # The palette with black:
 PALETTE_8_COLOR_START_WITH_BLACK <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
                                       "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+# Define some variable lists
+OUTCOME_VARS <- c('sale_tot' = 'Sale total',
+                 'sale_tot_log' = 'Log sale total',
+                 'sale_count' = 'Cars sold',
+                 'sale_count_log' = 'Log cars sold',
+                 'sales_pr_mean' = 'Average sales price',
+                 'sales_pr_mean_log' = 'Average log sales price',
+                 'fuel_cons' = 'Fuel consumption',
+                 'fuel_cons_log' = 'Log fuel consumption')

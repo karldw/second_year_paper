@@ -10,8 +10,8 @@
         if(! all(col_name %in% known_cols)) {
             unknown_cols <- setdiff(col_name, known_cols)
             column_columns <- if (length(unknown_cols) > 1) 'Columns' else 'Column'
-            unknown_cols_str <- paste(unknown_cols, collapse = ', ')
-            err_msg <- sprintf("%s '%s' not found in table '%s'.",
+            unknown_cols_str <- vec2string(unknown_cols)
+            err_msg <- sprintf("%s %s not found in table '%s'.",
                                column_columns, unknown_cols_str, table_name)
             stop(err_msg)
         }
@@ -318,8 +318,8 @@ dots_to_names <- function(..., strict = TRUE) {
         function(i) {as.character(lzydots[[i]]$expr)}, character(1))
     mismatched_names <- out_names[make.names(out_names) != out_names]
     if (strict && length(mismatched_names) > 0) {
-        err_msg <- sprintf("Some names don't look right: '%s'",
-                           paste(mismatched_names, collapse = "', '"))
+        err_msg <- sprintf("Some names don't look right: %s",
+                           vec2string(mismatched_names))
         stop(err_msg)
     }
     return(out_names)
@@ -350,7 +350,7 @@ is_id_ <- function(df, claimed_id_vars, quiet = FALSE) {
     if (length(not_found_vars) > 0) {
         if (! quiet) {
             err_msg <- sprintf("Claimed ID vars not in dataset: %s",
-                               paste(not_found_vars, collapse = ', '))
+                               vec2string(not_found_vars))
             warning(err_msg)
         }
         return(FALSE)
@@ -530,7 +530,11 @@ lapply_parallel <- function(X, FUN, ..., mc.cores = NULL) {
         }
     }
     stopifnot(length(mc.cores) == 1, mc.cores == as.integer(mc.cores))
-
+    # mclapply only gives a warning if scheduled cores experience errors.
+    # set warn = 2 so warnings become errors
+    orig_warn <- getOption('warn')
+    on.exit(options(warn = orig_warn), add = TRUE)
+    options(warn = 2)
     list_results <- parallel::mclapply(X = X, FUN = FUN, mc.cores = mc.cores, ...)
     return(list_results)
 }
@@ -645,8 +649,8 @@ filter_event_window_one_year <- function(.data, year, days_before = 30,
             dplyr::filter(dplyr::between(sale_date, window_begin, window_end))
     } else {
         err_msg <- sprintf(
-            "Sorry, I don't know how to subset sale_date for data of class '%s'",
-            paste(class(.data), collapse = "', '"))
+            "Sorry, I don't know how to subset sale_date for data of class %s",
+            vec2string(class(.data)))
         stop(err_msg)
     }
     return(data_one_year)
@@ -1041,8 +1045,7 @@ fill_tbl <- function(.tbl, replace_what = NA) {
         } else if ('Date' %in% cls) {
             default_val <- as.Date('1970-01-01')
         } else {
-            stop(sprintf('Default value for class "%s" not written yet.',
-                         paste(cls, collapse = ', ')))
+            stop(sprintf('Default value for class %s not written yet.', vec2string(cls)))
         }
         return(default_val)
     }
@@ -1082,8 +1085,8 @@ make_factor <- function(.tbl, varnames, strict = TRUE) {
 
     varnames_in_tbl <- intersect(varnames, names(.tbl))
     if (strict && length(varnames_in_tbl) < length(varnames)) {
-        missing_vars <- paste(setdiff(varnames, varnames_in_tbl), collapse = "', '")
-        err_msg <- sprintf("Mising variables: '%s'", missing_vars)
+        missing_vars <- vec2string(setdiff(varnames, varnames_in_tbl))
+        err_msg <- sprintf("Mising variables: %s", missing_vars)
         stop(err_msg)
     }
     if (length(varnames_in_tbl) == 0) {
@@ -1157,8 +1160,7 @@ run_dd <- function(years = 2002:2014,
         anticipation_window[1] > anticipation_window[2] ||
         (-days_before_limit) > anticipation_window[1] ||
         days_after_limit < anticipation_window[2] ) {
-        err_msg <- sprintf('Bad anticipation_window: %s',
-                           paste(anticipation_window, collapse = ', '))
+        err_msg <- sprintf('Bad anticipation_window: %s', vec2string(anticipation_window))
         stop(err_msg)
     }
 
@@ -1228,23 +1230,64 @@ run_dd <- function(years = 2002:2014,
 }
 
 outcome_to_agg_fn <- function(outcomes) {
+    stopifnot(is.character(outcomes), outcomes >= 1)
     # TODO: a better way to do this would be have one function that handles all vars.
     get_sales_counts_vars <- c('sales_pr_mean', 'sale_tot', 'sale_count',
         'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log')
-    get_sales_efficiency_vars <- 'fuel_cons'
-    stopifnot(is.character(outcomes), outcomes >= 1,
-        all(outcomes %in% c(get_sales_counts_vars, get_sales_efficiency_vars)))
+    get_sales_efficiency_vars <- c('fuel_cons', 'fuel_cons_log')
+    combined_vars <- c(get_sales_counts_vars, get_sales_efficiency_vars)
+    # outcome_vars <- sort(names(OUTCOME_VARS))
+    if (! setequal(combined_vars, names(OUTCOME_VARS))) {
+        err_msg <- paste('Please update the list of outcome variables in OUTCOME_VARS,',
+            'get_sales_counts_vars or get_sales_efficiency_vars.')
+        stop(err_msg)
+    }
+    if (! all(outcomes %in% names(OUTCOME_VARS))) {
+        err_msg <- paste('Please update the list of outcome variables in OUTCOME_VARS,',
+            'get_sales_counts_vars or get_sales_efficiency_vars to include',
+            vec2string(setdiff(outcomes, names(OUTCOME_VARS))))
+        stop(err_msg)
+    }
 
     if (all(outcomes %in% get_sales_counts_vars)) {
         agg_fn <- get_sales_counts
     } else if (all(outcomes %in% get_sales_efficiency_vars)) {
         agg_fn <- get_sales_efficiency
     } else {
-        err_msg <- sprintf("Sorry, can't handle a mix of variables: '%s'",
-                           paste(outcomes, collapse = "', '"))
+        err_msg <- sprintf("Sorry, can't handle a mix of variables: %s",
+                           vec2string(outcomes))
         stop(err_msg)
     }
     return(agg_fn)
+}
+
+vec2string <- function(x, quoted = TRUE, add_and = TRUE) {
+    # Like the toString function, but better
+    stopifnot(length(x) > 0, is.logical(quoted), is.logical(add_and))
+    if (quoted) {
+        collapse_pattern <- "', '"
+        sprintf_pattern <- "'%s'"
+    } else {
+        collapse_pattern <- ", "
+        sprintf_pattern <- "%s"
+    }
+    end <- length(x)
+    if (end == 1) {
+        return(sprintf(sprintf_pattern, x))
+    }
+    first_elements <- x[-end]
+    last_element <- x[[end]]
+    if (add_and && end > 2) {
+        last_element <- paste(' and', sprintf(sprintf_pattern, last_element))
+    } else {
+        last_element <- paste(',', sprintf(sprintf_pattern, last_element))
+    }
+
+    first_elements <- sprintf(sprintf_pattern, paste(first_elements,
+                                                     collapse = collapse_pattern))
+    out <- paste0(first_elements, last_element)
+
+    return(out)
 }
 
 
@@ -1329,14 +1372,7 @@ plot_effects_individual_period <- function(
         purrr::map_df(get_results_one_period) %>%
         calculate_effect_sizes(data_sd = data_sd, data_mean = data_mean)
     lab_x <- sprintf('Event %s', aggregation_level_noun)
-    lab_y <- c('sale_tot' = 'Sale total',
-               'sale_tot_log' = 'Log sale total',
-               'sale_count' = 'Cars sold',
-               'sale_count_log' = 'Log cars sold',
-               'sales_pr_mean' = 'Average sales price',
-               'sales_pr_mean_log' = 'Average log sales price',
-               'fuel_cons' = 'Fuel consumption',
-               'fuel_cons_log' = 'Log fuel consumption')[[outcome]]
+    lab_y <- OUTCOME_VARS[[outcome]]
     lab_y_effect <- sprintf("Effect size (std. dev. %s)", tolower(lab_y))
     lab_y_mean  <- sprintf("Effect size (fraction of mean %s)", tolower(lab_y))
     coef_plot <- ggplot(to_plot, aes(x = event_period, y = coef)) +
@@ -1422,7 +1458,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         stop("Bad aggregation_level, should be daily or weekly.")
     }
 
-    # The names aren't the most clear, but aggregate_fn takes the original auction data
+    # The names aren't the most clear, but agg_fn takes the original auction data
     # and aggregates to daily/weekly totals or averages, then summary_fn takes those
     # totals and finds their mean / sd
     stopifnot(is.character(summary_fn), length(summary_fn) == 1,
@@ -1435,19 +1471,9 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         stop(sprintf('Not sure how to work with this function: %s', summary_fn))
     }
 
-    if (all(vars_to_summarize %in% c('sale_tot', 'sale_count', 'sales_pr_mean'))) {
-        aggregate_fn <- get_sales_counts
-        select_auctions_var <- 'sales_pr'
-    } else if (all(vars_to_summarize %in% 'fuel_cons')) {
-        aggregate_fn <- get_sales_efficiency
-        select_auctions_var <- 'vin_pattern'
-    } else {
-        err_msg <- sprintf(
-            "Not sure what aggregation function to use for variables: '%s'",
-            paste(vars_to_summarize, collapse = "', '"))
-        stop(err_msg)
-    }
-    df <- auctions %>% select_(.dots = c('sale_date', 'buy_state', select_auctions_var))
+    agg_fn <- outcome_to_agg_fn(vars_to_summarize)
+    # Only one of sales_pr or vin_pattern will be relevant in agg_fn, but that's fine.
+    df <- auctions %>% select(sale_date, buy_state, sales_pr, vin_pattern)
 
     if (is.null(states_included)) {
         # What states get included in the std dev calculations?
@@ -1470,7 +1496,7 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
         # (date_part is a postges function)
         df <- mutate(df, sale_week = date_part('week', sale_date))
     }
-    df <- df %>% aggregate_fn(date_var = time_var, id_var = 'buy_state') %>%
+    df <- df %>% agg_fn(date_var = time_var, id_var = 'buy_state') %>%
         # Some state-days don't have trades; fill these with zeros.
         force_panel_balance(c(time_var, 'buy_state'), fill_na = TRUE)
     if (should_demean) {
@@ -1596,7 +1622,7 @@ run_dd_pick_max_effect <- function(outcome,
     } else {
         stop("Error!")
     }
-    
+
     # if (outcome == 'sale_tot') {
     #     lab_color_coef = 'Estimated additional Alaskan anticipation cars sold'
     #     lab_color_se = 'SE on additional Alaskan anticipation cars sold'

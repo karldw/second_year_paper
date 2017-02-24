@@ -7,7 +7,7 @@
 - [x] Plot the daily FE within each event (to look for anticipation)
     - Nothing much there -- just pick something based on the time-to-sell literature.
 - Note from the plot in overall_sale_count_ak_vs.pdf that AK sales in later years are way down.
-- [ ] Estimate the whole event study (with year FE)
+- [x] Estimate the whole event study (with year FE)
 - [ ] See if I can correlate the year FE to the dividend amount (not causal)
 - [ ] Merge in state gdp as a control
 - [ ] Check how unbalanced the panel is when I do buyer-by-day
@@ -19,7 +19,7 @@
 - [ ] Run generalized synthetic controls
 - [ ] Write an explanation about why the announcements are not likely to be informative
 - [ ] Get announcement dates to test anyway
-- [ ] Improve data cleaning table
+- [x] Improve data cleaning table
     - Automate numbers (avoid copy-paste)
     - Add counts of rows dropped for unintelligible date
 - [ ] Run a Hsieh-style quarter-over-quarter regression for new vehicle registrations
@@ -30,6 +30,10 @@
 ### Data cleaning to-do
 - [ ] For observations that have no valid state, bring in the state from other observations of the same buyer/seller/auction (as long as there's a unique other state).
 - [ ] Use Derek's improved zip code mapping.
+
+### Logistics to-do
+- [ ] Finish SConstruct file
+- [ ] Update pdf link away from github (link will always be out of date)
 
 ## To read:
 - [ ] Original synthetic controls paper
