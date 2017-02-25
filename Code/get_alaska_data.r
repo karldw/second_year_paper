@@ -11,6 +11,7 @@ suppressPackageStartupMessages(library(lubridate))
 suppressPackageStartupMessages(library(readr))
 library(ggplot2)
 DATA_DIR <- '../Data'
+SAVED_DATA <- file.path(DATA_DIR, 'permanent_fund_payments.rda')
 stopifnot(dir.exists(DATA_DIR))
 if (! memoise::is.memoised(read_html)) {
     read_html <- memoise::memoise(xml2::read_html)
@@ -28,7 +29,6 @@ if (! memoise::is.memoised(read_html)) {
 
 
 download_summary_table <- function(){
-    outfile <- file.path(DATA_DIR, 'permanent_fund_payments.rda')
     url <- 'https://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments'
 
     expected_names <- c("DividendYear",
@@ -57,7 +57,17 @@ download_summary_table <- function(){
         select(-pct_change, -total_disbursed2) %>%
         slice(., c(-1, -nrow(.)))  %>%  # first and last rows aren't data
         mutate_all(as_numeric_smart) %>%
-        readr::write_rds(outfile, compress = 'gz')
+        readr::write_rds(SAVED_DATA, compress = 'gz')
+    return(df)
+}
+
+
+load_summary_table <- function(must_download = FALSE) {
+    if (must_download || (! file.exists(SAVED_DATA))) {
+        df <- download_summary_table()
+    } else {
+        df <- readr::read_rds(SAVED_DATA)
+    }
     return(df)
 }
 
@@ -89,7 +99,7 @@ adjust_pfd_payments <- function() {
     # In 2008 there was a bonus paid to every APF recipient
     # bill: http://www.legis.state.ak.us/basis/get_bill_text.asp?hsid=SB4002A&session=25
     bonus_2008 <- 1200
-    pfd_payments <- download_summary_table() %>%
+    pfd_payments <- load_summary_table() %>%
         mutate(n_ = total_disbursed / amount,
                total_disbursed = if_else(year == 2008, total_disbursed + bonus_2008 * n_,
                                         total_disbursed),
@@ -121,9 +131,6 @@ plot_payments <- function() {
         geom_bar(stat='identity') +
         labs(x='', y='Millions of 2016 dollars', title='Alaska Permanent Fund payments, state total') +
         PLOT_THEME
-
-    plot_dir <- '../Text/Plots'
-    stopifnot(dir.exists(plot_dir))
 
     save_plot(plt_individual, 'permanent_fund_payments_individual.pdf')
     save_plot(plt_individual_notitle, 'permanent_fund_payments_individual_notitle.pdf')

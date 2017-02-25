@@ -6,6 +6,7 @@ Text/Presentations/ei_rip_2016_12_12/KDW_EI_RIP_2016_12_12.pdf
 Text/cars_in_alaska.pdf
 Data/
 Text/Plots/*.pdf
+Text/Plots/Daily/*.pdf
 Grocery
 dependency_map.pdf
 .sconsign.dblite
