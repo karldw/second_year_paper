@@ -9,6 +9,7 @@ options(
 
 source('common_functions.r')
 
+
 # Prevent R from forgetting about the user's home folder (when calling from the command
 # line in Windows)
 if (length(.libPaths()) < 2) {
@@ -29,6 +30,21 @@ if (length(.libPaths()) < 2) {
 }
 
 
+install_lazy('dplyr', verbose = FALSE)
+# Establish the Postgres connection and tables.
+POSTGRES_DB <- 'second_year_paper'
+POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
+POSTGRES_VIN_DECODER_TABLE <- 'vin_decoder'
+# These tbl names should be all-caps, but I'm lazy.
+if (! exists('con')) {
+    pg_user <- tolower(Sys.info()[["user"]])
+    con <- dplyr::src_postgres(POSTGRES_DB, user = pg_user, password = pg_user)
+}
+auctions    <- dplyr::tbl(con, POSTGRES_CLEAN_TABLE)
+states      <- dplyr::tbl(con, 'states')
+vin_decoder <- dplyr::tbl(con, POSTGRES_VIN_DECODER_TABLE)  # rows identified by vin_pattern
+
+
 ####     Memoise stuff from common_functions.r    ####
 install_lazy('memoise', FALSE)
 if (! methods::existsFunction('find_match_states_crude')) {
@@ -44,7 +60,6 @@ if (! methods::existsFunction('get_state_by_time_variation')) {
 
 ####    Make joins better    ####
 # Unlike the dplyr versions, these don't (or at least shouldn't) allow many-to-many joins.
-install_lazy('dplyr', verbose = FALSE)
 left.join <- make_join_safer(dplyr::left_join)
 right.join <- make_join_safer(dplyr::right_join)
 full.join <- make_join_safer(dplyr::full_join)
@@ -79,12 +94,18 @@ if (! is_pkg_installed('hrbrthemes')) {
     ggplot2::theme(
         # Make legend text smaller
         legend.title     = ggplot2::element_text(size = 9),
+        strip.text       = ggplot2::element_text(size = 9),
+        legend.text      = ggplot2::element_text(size = 8),
         axis.line.x      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
         axis.line.y      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
         panel.grid.major = ggplot2::element_line(color = "gray86"),
         panel.grid.minor = ggplot2::element_line(color = "gray95"),
         # Make plots with thin margins (top, right, bottom, and left)
-        plot.margin      = ggplot2::unit(c(0.1, 0.2, 0.2, 0.2), "cm")
+        plot.margin      = ggplot2::margin(t = 0.1, r = 0.2, b = 0.1, l = 0.1, unit="cm"),
+        legend.margin    = ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
+        legend.box.margin= ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
+        legend.box.spacing=ggplot2::unit(0, 'cm'),
+        panel.spacing.y  = ggplot2::unit(1.4, 'lines')
     )
 
 # Colors from http://haas.berkeley.edu/style-guide/colors.html
@@ -110,3 +131,14 @@ OUTCOME_VARS <- c('sale_tot' = 'Sale total',
                  'msrp_mean' = 'MSRP',  # Nominal MSRP
                  'msrp_mean_log' = 'Log MSRP'  # Nominal MSRP
                  )
+# TODO: a better way to do this would be have one function that handles all vars.
+GET_SALES_COUNTS_VARS <- c('sales_pr_mean', 'sale_tot', 'sale_count',
+    'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log', 'msrp_mean',
+    'msrp_mean_log')
+GET_SALES_EFFICIENCY_VARS <- c('fuel_cons', 'fuel_cons_log')
+stopifnot(setequal(c(GET_SALES_COUNTS_VARS, GET_SALES_EFFICIENCY_VARS),
+                   names(OUTCOME_VARS)))
+# For some applications, log outcomes are treated differently. Ensure that these two ways
+# of selecting log variables are the same.
+stopifnot(all(grepl('log', names(OUTCOME_VARS), fixed = TRUE) ==
+              endsWith(names(OUTCOME_VARS), 'log')))

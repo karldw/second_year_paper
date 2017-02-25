@@ -249,14 +249,17 @@ clear_all <- function() {
 }
 
 
-save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio = 16/9) {
+save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio = 16/9,
+    spell_ignore = c('conf', 'dev', 'msrp', 'frac', hunspell::en_stats)) {
+
     # aspect_ratio is a scale factor for height vs width. The default is width:height of
     # 16:9, like a lot of TV screens. Other good choices might be 4/3 or 2/sqrt(2).
     # The default will exactly match a full screen 16:9 beamer slide.
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
               grepl('.+\\.pdf$', name, perl = TRUE, ignore.case = TRUE),
-              is.logical(overwrite))
+              is.logical(overwrite), is_pkg_installed('hrbrthemes'),
+              is_pkg_installed('hunspell'))
     outfile <- file.path(plot_dir, name)
     if (file.exists(outfile) && (! overwrite)) {
         # This isn't perfect, since there's now a sliver of time between the file
@@ -267,7 +270,8 @@ save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio 
     # Chose 6.3 in to match a 16:9 beamer slide.
     width <- 6.3 * scale_mult
     height <- width / aspect_ratio
-
+    # Spellcheck my plot labels:
+    hrbrthemes::gg_check(plt, ignore = spell_ignore)
     ggplot2::ggsave(outfile, plt, device = cairo_pdf,
                     width = width, height = height, units = 'in')
 }
@@ -1097,6 +1101,136 @@ make_factor <- function(.tbl, varnames, strict = TRUE) {
 }
 
 
+get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
+    # This is a parallel to get_sales_counts, but for fuel efficiency.
+    # The function signature is the same, but it returns fuel_cons.
+    mpg_to_L100km_coef <- (100 * 3.785411784 / 1.609344)  # 3.7 L/gal, 1.6 km/mi
+
+    stopifnot(length(date_var) == 1, length(id_var) == 1,
+              date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
+              # other IDs are possible, but haven't been written yet:
+              id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
+
+    group_vars <- c(id_var, date_var)
+    if (date_var == 'event_week') {
+        # Add sale_year because event_week is just a week integer, something like -10,
+        # and I don't want to total over year.
+        df_base <- df_base %>% add_sale_year()
+        group_vars <- c(group_vars, 'sale_year')
+    } else if (date_var == 'event_time') {
+        # Add sale_date because (1) we need to differentiate years, same as event_week,
+        # and (2) it's convenient to have sale_date included in the output variables,
+        # without actually changing the level of aggregation. (Put differently,
+        # event_time and sale_year identify days exactly as well as sale_date.)
+        group_vars <- c(group_vars, 'sale_year', 'sale_date')
+    }
+    # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
+    # The downside of using log() in dplyr is that it calls the two-argument form of
+    # log, which doesn't work for floating points in postgres.
+    # See: https://github.com/hadley/dplyr/issues/2464
+    # Use ln() instead, which gets passed through.
+    # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
+    sales_gpm <- df_base %>%
+        select_(.dots = c(group_vars, 'vin_pattern')) %>%
+        inner.join(vin_decoder, by = 'vin_pattern') %>%
+        group_by_(.dots = group_vars) %>%
+        summarize(sale_count = n(),
+                  fuel_cons = mean(mpg_to_L100km_coef / combined),
+                  fuel_cons_log = mean(ln(mpg_to_L100km_coef / combined))) %>%
+        ungroup() %>%
+        mutate(sale_count_log = ln(sale_count)) %>%
+        collapse()
+
+    if (id_var == 'buyer_id') {  # Merge back in buy_state.
+        # We've previously ensured that each buyer_id has at most one state.
+
+        # dplyr bug (#2290) means this doesn't work:
+        # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
+        #     summarize(sale_count = n(),
+        #               sale_tot = sum(sales_pr),
+        #               buy_state = first(buy_state),
+        #               alaskan_buyer = first(alaskan_buyer),
+        #               post_dividend = first(post_dividend)) %>%
+        #     collect()
+        # Instead, do the aggregation, then join buy_state back in.
+        #
+        # (the collapse() here tells dplyr to think hard about the sql query (but not
+        # actually go and process in the database), preventing it from getting confused in
+        # the merge any trying to rename sale_date to sale_date.y.)
+        buyer_info <- df_base %>% ungroup() %>%
+            distinct(buyer_id, buy_state) %>% collapse()
+        sales_gpm <- inner.join(sales_gpm, buyer_info, by = 'buyer_id') %>%
+            collapse()
+    } else if (id_var == 'seller_id') {
+        stop("Not implemented yet.")
+    }
+    return(sales_gpm)
+}
+
+
+get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
+    # Aggregate sale counts and sales_pr at some level of date and ID.
+    stopifnot(length(date_var) == 1, length(id_var) == 1,
+              date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
+              # other IDs are possible, but haven't been written yet:
+              id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
+
+    group_vars <- c(id_var, date_var)
+    if (date_var == 'event_week') {
+        # Add sale_year because event_week is just a week integer, something like -10,
+        # and I don't want to total over year.
+        df_base <- df_base %>% add_sale_year()
+        group_vars <- c(group_vars, 'sale_year')
+    } else if (date_var == 'event_time') {
+        # Add sale_date because (1) we need to differentiate years, same as event_week,
+        # and (2) it's convenient to have sale_date included in the output variables,
+        # without actually changing the level of aggregation. (Put differently,
+        # event_time and sale_year identify days exactly as well as sale_date.)
+        group_vars <- c(group_vars, 'sale_year', 'sale_date')
+    }
+    # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
+    # The downside of using log() in dplyr is that it calls the two-argument form of
+    # log, which doesn't work for floating points in postgres.
+    # See: https://github.com/hadley/dplyr/issues/2464
+    # Use ln() instead, which gets passed through.
+    # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
+    sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
+        summarize(sale_count = n(), sale_tot = sum(sales_pr),
+                  sales_pr_mean_log = mean(ln(sales_pr)),
+                  sales_pr_mean = mean(sales_pr),
+                  msrp_mean = mean(msrp),
+                  msrp_mean_log = mean(ln(msrp))) %>%
+        ungroup() %>%
+        mutate(sale_count_log = ln(sale_count), sale_tot_log = ln(sale_tot)) %>%
+        collapse()
+
+    if (id_var == 'buyer_id') {  # Merge back in buy_state.
+        # We've previously ensured that each buyer_id has at most one state.
+
+        # dplyr bug (#2290) means this doesn't work:
+        # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
+        #     summarize(sale_count = n(),
+        #               sale_tot = sum(sales_pr),
+        #               buy_state = first(buy_state),
+        #               alaskan_buyer = first(alaskan_buyer),
+        #               post_dividend = first(post_dividend)) %>%
+        #     collect()
+        # Instead, do the aggregation, then join buy_state back in.
+        #
+        # (the collapse() here tells dplyr to think hard about the sql query (but not
+        # actually go and process in the database), preventing it from getting confused in
+        # the merge any trying to rename sale_date to sale_date.y.)
+        buyer_info <- df_base %>% ungroup() %>%
+            distinct(buyer_id, buy_state) %>% collapse()
+        sales_counts <- inner.join(sales_counts, buyer_info, by = 'buyer_id') %>%
+            collapse()
+    } else if (id_var == 'seller_id') {
+        stop("Not implemented yet.")
+    }
+    return(sales_counts)
+}
+
+
 aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
         days_after = days_before, aggregate_fn = get_sales_counts) {
     # Create the dataset for the difference-in-differences analysis.
@@ -1233,17 +1367,6 @@ run_dd <- function(years = 2002:2014,
 outcome_to_agg_fn <- function(outcomes) {
     stopifnot(is.character(outcomes), outcomes >= 1)
     # TODO: a better way to do this would be have one function that handles all vars.
-    get_sales_counts_vars <- c('sales_pr_mean', 'sale_tot', 'sale_count',
-        'sales_pr_mean_log', 'sale_tot_log', 'sale_count_log', 'msrp_mean',
-        'msrp_mean_log')
-    get_sales_efficiency_vars <- c('fuel_cons', 'fuel_cons_log')
-    combined_vars <- c(get_sales_counts_vars, get_sales_efficiency_vars)
-    # outcome_vars <- sort(names(OUTCOME_VARS))
-    if (! setequal(combined_vars, names(OUTCOME_VARS))) {
-        err_msg <- paste('Please update the list of outcome variables in OUTCOME_VARS,',
-            'get_sales_counts_vars or get_sales_efficiency_vars.')
-        stop(err_msg)
-    }
     if (! all(outcomes %in% names(OUTCOME_VARS))) {
         err_msg <- paste('Please update the list of outcome variables in OUTCOME_VARS,',
             'get_sales_counts_vars or get_sales_efficiency_vars to include',
@@ -1251,9 +1374,9 @@ outcome_to_agg_fn <- function(outcomes) {
         stop(err_msg)
     }
 
-    if (all(outcomes %in% get_sales_counts_vars)) {
+    if (all(outcomes %in% GET_SALES_COUNTS_VARS)) {
         agg_fn <- get_sales_counts
-    } else if (all(outcomes %in% get_sales_efficiency_vars)) {
+    } else if (all(outcomes %in% GET_SALES_EFFICIENCY_VARS)) {
         agg_fn <- get_sales_efficiency
     } else {
         err_msg <- sprintf("Sorry, can't handle a mix of variables: %s",
@@ -1367,11 +1490,16 @@ plot_effects_individual_period <- function(
     # Pull the unique values of agg_var into a vector, sort it, and pass the values to
     # get_results_one_period. Then collect the output dataframe into one, then use the
     # standard deviation we just calculated to get effect sizes.
-
-    to_plot <- aggregated_sales %>%
+    event_period_list <- aggregated_sales %>%
         distinct_(agg_var) %>%
-        extract2(1) %>% sort() %>%
-        purrr::map_df(get_results_one_period) %>%
+        extract2(1) %>% sort()
+    # The last week for MSRP is ridiculous, and makes it hard to see what's going on with the
+    # rest of the weeks.
+    if (outcome %in% c('msrp_mean', 'msrp_mean_log', 'sales_pr_mean', 'sales_pr_mean_log') &&
+        days_after_limit == 70 && aggregation_level == 'weekly') {
+        event_period_list <- event_period_list[-length(event_period_list)]
+    }
+    to_plot <- purrr::map_df(event_period_list, get_results_one_period) %>%
         calculate_effect_sizes(data_sd = data_sd, data_mean = data_mean)
     lab_x <- sprintf('Event %s', aggregation_level_noun)
     lab_y <- OUTCOME_VARS[[outcome]]
@@ -1396,9 +1524,15 @@ plot_effects_individual_period <- function(
     filename_part <- sprintf('effects_individual_period_%s_%s_',
                              outcome, aggregation_level)
     suffix <- '_notitle.pdf'
-    save_plot(coef_plot,             paste0(filename_part, 'coef',        suffix))
-    save_plot(coef_effect_plot,      paste0(filename_part, 'coef_effect', suffix))
-    save_plot(coef_effect_mean_plot, paste0(filename_part, 'coef_effect_mean', suffix))
+    save_plot(coef_plot, paste0(filename_part, 'coef', suffix))
+
+    if (! endsWith(outcome, 'log')) {
+        # Don't make effect plots for logged outcomes because that doesn't make much
+        # sense.(Don't worry about ggplot making the plots above; it doesn't do any work
+        # until you actually display the plot.)
+        save_plot(coef_effect_plot,      paste0(filename_part, 'coef_effect', suffix))
+        save_plot(coef_effect_mean_plot, paste0(filename_part, 'coef_effect_mean', suffix))
+    }
     invisible(to_plot)  # then return the data
 }
 
@@ -1409,6 +1543,8 @@ calculate_effect_sizes <- function(df, data_sd = NULL, data_mean = NULL) {
     out <- df %>%
         mutate(conf95_lower = coef - (1.96 * se),
                conf95_upper = coef + (1.96 * se),
+               # pmax because I want rowwise max, not max of all.
+               conf95_max_mag = pmax(abs(conf95_lower), abs(conf95_upper)),
                is_signif = factor(pval < 0.05, levels = c(FALSE, TRUE), ordered = TRUE,
                                   labels = c('p > 0.05', 'p < 0.05')))
     if (! is.null(data_sd)) {
@@ -1416,17 +1552,14 @@ calculate_effect_sizes <- function(df, data_sd = NULL, data_mean = NULL) {
             mutate(coef_effect = coef / data_sd,
                    conf95_lower_effect = conf95_lower / data_sd,
                    conf95_upper_effect = conf95_upper / data_sd,
-                   # pmax because I want rowwise max, not max of all.
-                   conf95_max_mag_effect = pmax(abs(conf95_lower_effect),
-                                                abs(conf95_upper_effect)))
+                   conf95_max_mag_effect = conf95_max_mag / data_sd)
     }
     if (! is.null(data_mean)) {
         out <- out %>%
             mutate(coef_effect_mean = coef / data_mean,
                    conf95_lower_effect_mean = conf95_lower / data_mean,
                    conf95_upper_effect_mean = conf95_upper / data_mean,
-                   conf95_max_mag_effect_mean = pmax(abs(conf95_lower_effect_mean),
-                                                     abs(conf95_upper_effect_mean)))
+                   conf95_max_mag_effect_mean = conf95_max_mag / data_mean)
     }
     return(out)
 }
@@ -1545,6 +1678,7 @@ demean <- function(.tbl, ...) {
 run_dd_pick_max_effect <- function(outcome,
         aggregation_level = 'weekly', days_before_limit = 70,
         days_after_limit = days_before_limit) {
+
     # This function is very similar to the previous one,
     # plot_effects_by_anticipation_variable_start_and_end, but instead of searching for
     # an ancitipation window before the dividend day and then having a post-dividend
@@ -1649,7 +1783,7 @@ run_dd_pick_max_effect <- function(outcome,
     #     scale_alpha_discrete(range = c(0.5,1)) +
     #     PLOT_THEME
 
-    common_plot <- ggplot(to_plot, aes(x = end, y = start)) +
+    common_plot <- ggplot(to_plot, aes(x = end, y = start, alpha = is_signif)) +
         scale_fill_distiller(palette = 'YlGnBu', direction = 1) +
         labs(x = lab_x, y = lab_y, fill = '', color = 'Sign', size = '',
              alpha = 'Significance') +
@@ -1679,34 +1813,30 @@ run_dd_pick_max_effect <- function(outcome,
     #     scale_fill_distiller(palette = 'RdBu') +
     #     labs(x = lab_x, y = lab_y, fill = lab_color_se) +
     #     PLOT_THEME
-    # TODO: do this instead?
-    # ggplot(filter(to_plot, end < 10), aes(x = end, y = start)) +
-    #     scale_fill_distiller(palette = 'PuOr', direction = 1) +
-    #     labs(x = lab_x, y = lab_y, fill = '') +
-    #     PLOT_THEME + geom_tile(aes(fill = coef, alpha = is_signif)) +
-    #     guides(alpha = 'none') + scale_alpha_discrete(range = c(0,1))
     # TODO: the geom_point plot looks terrible for daily data. Maybe use
     # `geom_tile(aes(fill = coef, alpha = is_signif))` for daily and geom_point for weekly
 
-    coef_effect_plot <- common_plot +
-        # geom_tile(aes(fill = coef, alpha = is_signif))
-        geom_point(aes(size = abs(coef_effect), color = sign_as_factor(coef),
+    coef_plot <- common_plot +
+        geom_point(aes(size = abs(coef), color = sign_as_factor(coef),
                    alpha = is_signif)) +
         labs(size = 'Coefficient\nmagnitude')
     # If the plot has only positive values, don't show a legend (but keep the color)
-    if (all(sign(to_plot$coef) == 1)){
-        coef_effect_plot <- coef_effect_plot + guides(color = 'none')
-    }
+    coef_plot <- remove_color_if_pos(coef_plot, to_plot$coef)
+
+    coef_effect_plot <- common_plot +
+        geom_point(aes(size = abs(coef_effect), color = sign_as_factor(coef_effect))) +
+        labs(size = 'Coefficient magnitude\n(frac. of std. dev.)')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    coef_effect_plot <- remove_color_if_pos(coef_effect_plot, to_plot$coef_effect)
 
     coef_effect_mean_plot <- common_plot +
         # geom_tile(aes(fill = coef, alpha = is_signif))
-        geom_point(aes(size = abs(coef_effect_mean), color = sign_as_factor(coef),
-                   alpha = is_signif)) +
-        labs(size = 'Coefficient\nmagnitude')
+        geom_point(aes(size = abs(coef_effect_mean),
+                       color = sign_as_factor(coef_effect_mean))) +
+        labs(size = 'Coefficient magnitude\n(frac. of mean)')
     # If the plot has only positive values, don't show a legend (but keep the color)
-    if (all(sign(to_plot$coef) == 1)){
-        coef_effect_mean_plot <- coef_effect_mean_plot + guides(color = 'none')
-    }
+    coef_effect_mean_plot <- remove_color_if_pos(coef_effect_mean_plot,
+                                                 to_plot$coef_effect_mean)
 
     # These plots are fine, but no longer necessary:
     # se_plot <- common_plot + geom_point(aes(size = se)) + labs(size = 'Standard\nError')
@@ -1728,25 +1858,217 @@ run_dd_pick_max_effect <- function(outcome,
     # if (all(sign(to_plot$conf95_upper) == 1)){
     #     conf95_upper_plot <- conf95_upper_plot + guides(color = 'none')
     # }
-    conf95_max_mag_plot <- common_plot +
-        geom_point(aes(size = conf95_max_mag_effect, color = is_signif)) +
-        labs(size = 'Max 95%-CI\nmagnitude',  color = 'Significance')
-    conf95_max_mag_mean_plot <- common_plot +
-        geom_point(aes(size = conf95_max_mag_effect_mean, color = is_signif)) +
-        labs(size = 'Max 95%-CI\nmagnitude',  color = 'Significance')
-    # Spellcheck my plot labels:
-    lapply(list(coef_effect_plot, conf95_max_mag_plot, coef_effect_mean_plot,
-                conf95_max_mag_mean_plot),
-           hrbrthemes::gg_check, ignore = 'conf')
 
-    # filename_base <- sprintf('variable_window_dd_%s_%s_tile_', outcome, aggregation_level)
+
+    # In these three conf95 plots, we color by the sign of the coefficient, since we still
+    # care whether the effect is positive or negative.
+    # Note that the symmetry of CIs is helpful here -- iff coef is negative, the maximum
+    # magnitude CI bound will be the lower bound.
+    conf95_max_mag_plot <- common_plot +
+        geom_point(aes(size = conf95_max_mag, color = sign_as_factor(coef))) +
+        labs(size = 'Max 95%-CI\nmagnitude')
+    # If the plot has only positive values, don't show a legend (but keep the color)
+    conf95_max_mag_plot <- remove_color_if_pos(conf95_max_mag_plot, to_plot$coef)
+
+    conf95_max_mag_effect_plot <- common_plot +
+        geom_point(aes(size = conf95_max_mag_effect, color = sign_as_factor(coef))) +
+        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of std. dev.)')
+    conf95_max_mag_effect_plot <- remove_color_if_pos(conf95_max_mag_effect_plot,
+                                                      to_plot$coef)
+    conf95_max_mag_effect_mean_plot <- common_plot +
+        geom_point(aes(size = conf95_max_mag_effect_mean, color = sign_as_factor(coef))) +
+        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of mean)')
+    conf95_max_mag_effect_mean_plot <- remove_color_if_pos(
+        conf95_max_mag_effect_mean_plot, to_plot$coef)
+
     filename_base <- sprintf('variable_window_dd_%s_%s_area_', outcome, aggregation_level)
-    save_plot(coef_effect_plot,    paste0(filename_base, 'coef_effect.pdf'))
-    save_plot(coef_effect_mean_plot, paste0(filename_base, 'coef_effect_mean.pdf'))
+
+    save_plot(coef_plot,           paste0(filename_base, 'coef.pdf'))
+    save_plot(conf95_max_mag_plot, paste0(filename_base, 'conf95_max.pdf'))
     # save_plot(se_plot,             paste0(filename_base, 'se.pdf'))
     # save_plot(conf95_lower_plot,   paste0(filename_base, 'conf95_lower.pdf'))
     # save_plot(conf95_upper_plot,   paste0(filename_base, 'conf95_upper.pdf'))
-    save_plot(conf95_max_mag_plot, paste0(filename_base, 'conf95_max_effect.pdf'))
-    save_plot(conf95_max_mag_mean_plot, paste0(filename_base, 'conf95_max_effect_mean.pdf'))
+
+    if (! endsWith(outcome, 'log')) {
+        # Don't make effect plots for logged outcomes because that doesn't make much
+        # sense.(Don't worry about ggplot making the plots above; it doesn't do any work
+        # until you actually display the plot.)
+        save_plot(coef_effect_plot, paste0(filename_base, 'coef_effect.pdf'))
+        save_plot(coef_effect_mean_plot, paste0(filename_base, 'coef_effect_mean.pdf'))
+        save_plot(conf95_max_mag_effect_plot,
+                  paste0(filename_base, 'conf95_max_effect.pdf'))
+        save_plot(conf95_max_mag_effect_mean_plot,
+                  paste0(filename_base, 'conf95_max_effect_mean.pdf'))
+    }
+
     invisible(to_plot)
+}
+
+
+render_title <- function(title, default = '') {
+    stopifnot(length(title) <= 1, length(default) == 1)
+    if (is.null(title) || isTRUE(title)){
+        out <- default
+    } else if (is.character(title) && title != '') {
+        out <- title
+    } else if (identical(title, FALSE) || tile == '') {
+        out <- ''
+    } else {
+        stop(sprintf("Can't process title: '%s'", title))
+    }
+    return(out)
+}
+
+
+remove_color_if_pos <- function(plt, x) {
+    # Remove the color legend if x is always positive.
+    # (Not the same as removing color because the graph will still be colorful)
+    # There's a better way to do this by rendering the plot and figuring out the color
+    # variable, but it's not worth it.
+    if (all(sign(x) == 1)) {
+        plt <- plt + guides(color = 'none')
+    }
+    return(plt)
+}
+
+
+plot_effects_by_anticipation <- function(outcome,
+        aggregation_level = 'daily', days_before_limit = 70, title = NULL) {
+
+    if (aggregation_level == 'daily') {
+        loop_start <- (-days_before_limit) + 1
+        min_window_length <- 7
+    } else if (aggregation_level == 'weekly'){
+        loop_start <- ((-days_before_limit) %/% 7) + 1
+        min_window_length <- 1
+    } else {
+        stop("aggregation_level must be 'daily' or 'weekly'")
+    }
+    stopifnot(outcome %in% names(OUTCOME_VARS),
+              days_before_limit > 2, loop_start < min_window_length)
+
+
+    get_results_one_window <- function(start) {
+        reg_results <- run_dd(outcomes = outcome, aggregation_level = aggregation_level,
+            anticipation_window = c(start, -1), days_before_limit = days_before_limit)
+
+        # rse is apparently the robust standard error, though it's not well documented.
+        # e.g. identical(sqrt(diag(reg_results$robustvcv)), reg_results$rse)
+        # TODO: use broom::tidy here instead.
+        df <- data_frame(start = start,
+            coef = reg_results$coefficients['alaskan_buyer_anticipationTRUE', ],
+            se   = reg_results$rse[['alaskan_buyer_anticipationTRUE']],
+            pval = reg_results$rpval[['alaskan_buyer_anticipationTRUE']])
+        return(df)
+
+    }
+    windows <- seq.int(loop_start, -min_window_length, by = 1)
+    to_plot <- purrr::map_df(windows, get_results_one_window)
+    # For weekly, force ggplot to label all weeks, rather than having ridiculous
+    # half-weeks.
+    if (aggregation_level == 'weekly') {
+        to_plot <- to_plot %>% mutate(start = factor(start))
+    }
+
+    # Now also grab the std dev and mean of the sample we're looking at.
+    sd_varname <- paste0(outcome, '_sd')
+    mean_varname <- paste0(outcome, '_mean')
+    data_sd <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'sd')[[sd_varname]]
+    data_mean <- get_state_by_time_variation(aggregation_level = aggregation_level,
+        vars_to_summarize = outcome, summary_fn = 'mean')[[mean_varname]]
+    stopifnot(! is.null(data_sd), ! is.null(data_mean))
+
+    sale_tot_divisor <- 1000
+    if (outcome == 'sale_tot') {
+        to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
+                                      se   = se   / sale_tot_divisor)
+        data_sd <- data_sd / sale_tot_divisor
+    }
+    to_plot <- calculate_effect_sizes(to_plot, data_sd = data_sd, data_mean = data_mean)
+
+    # NB: If you uncomment this block, you have to rejigger the sale_tot_divisor.
+    # control_states <- find_match_states_crude()
+    # individual_state_std_dev <- lapply_bind_rows(c('AK', control_states),
+    #     get_state_by_time_variation,
+    #     aggregation_level = aggregation_level, winsorize_pct = NULL,
+    #     rbind_src_id = 'state', parallel_cores = 1) %>%
+    #     select_(.dots = c('state', sd_varname)) %>%
+    #     # use a common name regardless of outcome so I don't have to fuss with dplyr and
+    #     # ggplot standard evaluation later
+    #     setNames(c('state', 'outcome_sd'))
+    # std_devs <- data_frame(state = 'Pooled', outcome_sd = data_sd) %>%
+    #     bind_rows(individual_state_std_dev) %>%
+    #     # Explicitly set the factor and its ordered levels for a better plot legend
+    #     mutate(state = factor(state, levels = c('Pooled', 'AK', control_states),
+    #                           labels = c('Pooled', 'AK', control_states), ordered = TRUE))
+    # if (outcome == 'sale_tot') {
+    #     # data_sd <- data_sd / sale_tot_divisor
+    #     std_devs <- std_devs %>% mutate(outcome_sd = outcome_sd / sale_tot_divisor)
+    # #    data_sd_ak_only <- data_sd_ak_only / sale_tot_divisor
+    # }
+
+    # Define a bunch of labels.
+    aggregation_level_noun <- c('daily' = 'day', 'weekly' = 'week')[[aggregation_level]]
+    lab_x <- sprintf('Window start (event %ss)', aggregation_level_noun)
+
+    outcome_str <- tolower(OUTCOME_VARS[[outcome]]) %>% gsub('msrp', 'MSRP', .)
+    lab_y <- outcome_str
+    lab_y_effect <- sprintf("Effect size (std. dev. %s)", outcome_str)
+    lab_y_effect_mean <- sprintf("Effect size (fraction of mean %s)", outcome_str)
+    coef_plot <- ggplot(to_plot,
+        aes(x = start, y = coef, ymin = conf95_lower, ymax = conf95_upper)) +
+        geom_point() +
+        geom_errorbar() +
+        labs(x = lab_x, y = lab_y) +
+        scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
+        PLOT_THEME
+    coef_effect_plot <- ggplot(to_plot,
+        aes(x = start, y = coef_effect, ymin = conf95_lower_effect,
+            ymax = conf95_upper_effect)) +
+        geom_point() +
+        geom_errorbar() +
+        labs(x = lab_x, y = lab_y_effect) +
+        scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
+        PLOT_THEME
+    coef_effect_mean_plot <- ggplot(to_plot,
+        aes(x = start, y = coef_effect_mean,ymin = conf95_lower_effect_mean,
+            ymax = conf95_upper_effect_mean)) +
+        geom_point() +
+        geom_errorbar() +
+        labs(x = lab_x, y = lab_y_effect_mean) +
+        scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
+        PLOT_THEME
+
+    title <- render_title(title,
+        default = 'Anticipation window treatment coefficient for varying window starts')
+    title_pattern <- if_else(title == '', '_notitle', '')
+    coef_effect_plot <- coef_effect_plot + labs(title = title)
+    coef_effect_mean_plot <- coef_effect_mean_plot + labs(title = title)
+    # Then make the versions with lines for the standard deviations
+    # First, the one with a single, pooled std dev
+    # coef_plot_with_pooled_sd <- coef_plot + geom_hline(yintercept = data_sd)
+
+    # Then, to make sure it's not one state swamping the std dev calculation, do each
+    # separately.
+    # TODO: consider bringing this back, but it will require a bit of adjustment with
+    # dividing by different standard deviations:
+    # coef_plot_with_states_sd <- coef_plot +
+        # geom_hline(data = std_devs, aes(yintercept = outcome_sd, color = state))
+
+    # Make filenames like anticipation_window_sale_count_weekly_notitle.pdf
+    filename_part <- sprintf('anticipation_window_%s_%s%s', outcome, aggregation_level,
+                             title_pattern)
+    save_plot(coef_plot, paste0(filename_part, '_coef.pdf'))
+
+    if (! endsWith(outcome, 'log')) {
+        # Don't make effect plots for logged outcomes because that doesn't make much
+        # sense.(Don't worry about ggplot making the plots above; it doesn't do any work
+        # until you actually display the plot.)
+        save_plot(coef_effect_plot,      paste0(filename_part, '_coef_effect.pdf'))
+        save_plot(coef_effect_mean_plot, paste0(filename_part, '_coef_effect_mean.pdf'))
+    }
+    # save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
+    # save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
+    invisible(to_plot)  # then return the data
 }

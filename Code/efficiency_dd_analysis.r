@@ -1,25 +1,12 @@
-source('r_defaults.r')
-# library(RPostgreSQL)
-install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'),
-             verbose = FALSE)
+source('r_defaults.r')  # set common parameters and call common_functions.r
+# NB: con, auctions, states and vin_decoder are defined in r_defaults.r
+
+install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate'))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
 suppressPackageStartupMessages(library(lfe))
 library(memoise)
-
-POSTGRES_DB <- 'second_year_paper'
-POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
-POSTGRES_VIN_DECODER_TABLE <- 'vin_decoder'
-if (! exists('con')) {
-    pg_user <- Sys.info()[["user"]] %>% tolower()
-    con <- src_postgres(POSTGRES_DB, user = pg_user, password = pg_user)
-}
-auctions    <- tbl(con, POSTGRES_CLEAN_TABLE)
-states      <- tbl(con, 'states')
-vin_decoder <- tbl(con, POSTGRES_VIN_DECODER_TABLE)  # uniquely identified by vin_pattern
-
-mpg_to_L100km_coef <- (100 * 3.785411784 / 1.609344)  # 3.7 L/gal, 1.6 km/mi
 
 
 count_mpg_merge_matches <- function() {  # testing stuff, no need to run this.
@@ -35,71 +22,6 @@ count_mpg_merge_matches <- function() {  # testing stuff, no need to run this.
     print(paste0(100 * auctions_unmatched / auctions_nrow, "% of sales unmatched."))
 }
 
-
-get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
-    # This is a parallel to get_sales_counts, but for fuel efficiency.
-    # The function signature is the same, but it returns fuel_cons.
-
-    stopifnot(length(date_var) == 1, length(id_var) == 1,
-              date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
-              # other IDs are possible, but haven't been written yet:
-              id_var %in% c('buyer_id', 'buy_state', 'sell_state', 'auction_state'))
-
-    group_vars <- c(id_var, date_var)
-    if (date_var == 'event_week') {
-        # Add sale_year because event_week is just a week integer, something like -10,
-        # and I don't want to total over year.
-        df_base <- df_base %>% add_sale_year()
-        group_vars <- c(group_vars, 'sale_year')
-    } else if (date_var == 'event_time') {
-        # Add sale_date because (1) we need to differentiate years, same as event_week,
-        # and (2) it's convenient to have sale_date included in the output variables,
-        # without actually changing the level of aggregation. (Put differently,
-        # event_time and sale_year identify days exactly as well as sale_date.)
-        group_vars <- c(group_vars, 'sale_year', 'sale_date')
-    }
-    # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
-    # The downside of using log() in dplyr is that it calls the two-argument form of
-    # log, which doesn't work for floating points in postgres.
-    # See: https://github.com/hadley/dplyr/issues/2464
-    # Use ln() instead, which gets passed through.
-    # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
-    sales_gpm <- df_base %>%
-        select_(.dots = c(group_vars, 'vin_pattern')) %>%
-        inner.join(vin_decoder, by = 'vin_pattern') %>%
-        group_by_(.dots = group_vars) %>%
-        summarize(sale_count = n(),
-                  fuel_cons = mean(mpg_to_L100km_coef / combined),
-                  fuel_cons_log = mean(ln(mpg_to_L100km_coef / combined))) %>%
-        ungroup() %>%
-        mutate(sale_count_log = ln(sale_count)) %>%
-        collapse()
-
-    if (id_var == 'buyer_id') {  # Merge back in buy_state.
-        # We've previously ensured that each buyer_id has at most one state.
-
-        # dplyr bug (#2290) means this doesn't work:
-        # sales_counts <- df_base %>% group_by(sale_date, buyer_id) %>%
-        #     summarize(sale_count = n(),
-        #               sale_tot = sum(sales_pr),
-        #               buy_state = first(buy_state),
-        #               alaskan_buyer = first(alaskan_buyer),
-        #               post_dividend = first(post_dividend)) %>%
-        #     collect()
-        # Instead, do the aggregation, then join buy_state back in.
-        #
-        # (the collapse() here tells dplyr to think hard about the sql query (but not
-        # actually go and process in the database), preventing it from getting confused in
-        # the merge any trying to rename sale_date to sale_date.y.)
-        buyer_info <- df_base %>% ungroup() %>%
-            distinct(buyer_id, buy_state) %>% collapse()
-        sales_gpm <- inner.join(sales_gpm, buyer_info, by = 'buyer_id') %>%
-            collapse()
-    } else if (id_var == 'seller_id') {
-        stop("Not implemented yet.")
-    }
-    return(sales_gpm)
-}
 
 ## No longer needed:
 # add_vin_pattern <- function(.tbl) {
@@ -222,8 +144,7 @@ make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose =
     if (verbose) {
         message(sprintf('Making plots for %s', outcome))
     }
-    # Not implemented yet for fuel_cons:
-    # plot_effects_by_anticipation(outcome, aggregation_level, title = FALSE)
+    plot_effects_by_anticipation(outcome, aggregation_level, title = FALSE)
     run_dd_pick_max_effect(outcome, aggregation_level = aggregation_level)
     if (aggregation_level == 'daily') {
         plot_effects_individual_period(outcome, 'daily',

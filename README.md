@@ -1,5 +1,10 @@
 # Cars in Alaska
 
+## First draft must-dos:
+- Rebuild all plots (run make_all_plots.sh)
+- Two copies
+- Signature
+- Post to website
 
 ## To do:
 ### Analysis to-do
@@ -33,7 +38,8 @@
 
 ### Logistics to-do
 - [ ] Finish SConstruct file
-- [ ] Update pdf link away from github (link will always be out of date)
+- [x] Update pdf link away from github (link will always be out of date)
+- [ ] Make separate plots directories by outcome and for daily/weekly.
 
 ## To read:
 - [ ] Original synthetic controls paper

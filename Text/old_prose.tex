@@ -1,0 +1,258 @@
+
+
+%
+%
+%\part{One-sentence blurb}
+%How do the Alaska Permanent Fund payments affect consumers' behavior, particularly in the used car market?
+%
+%
+%\part{Question \& abstract (rough)}
+%\section{Consumption Effects of the Alaska Permanent Fund}
+%\noindent Residents of Alaska are eligible for large payments from the Alaska Permanent Fund, a government organization created to distribute oil revenues.
+%In 2015, 86\% of the population received the dividend, \$2072. (See table~\ref{table:APF-payment-summary} for details.)
+%If consumers deviate from perfect consumption smoothing, we might think that such a large payment would affect their purchase behavior.
+%Somewhat surprisingly, \textcite{hsieh2003} found that consumption was smoothed out in Consumer Expenditure Survey (\cex) data from 1980--2001.
+%I'm hoping to do two things in my second-year paper: extend Hsieh's analysis of consumers and expand the scope to firms.
+%
+%Extending Hsieh's analysis is straightforward.
+%There's a decade more \cex{} data, including the recent financial crisis and substantial variation in the Permanent Fund payments, and it would be interesting to see if the original conclusions still hold.
+%Additionally, Hsieh's identification is a difference-in-differences between Alaska and the other 49 states.
+%I won't be able to fundamentally improve  % I have no qualms about splitting infinitives
+%on the underlying assumption of parallel trends, but I will be able to apply slightly newer methods, like synthetic controls.
+%
+%Expanding the scope of analysis to firms is more interesting.
+%I have data on used wholesale car auctions from 2002 to 2014, where the buyers and sellers are auto dealerships and other players in the wholesale market.
+%In those data Alaskan firms buy vehicles from other states, presumably to sell in Alaska.
+%If consumers are actually smoothing their consumption, even of large purchases like cars, I would expect the Permanent Fund payments to have no effect on Alaskan wholesalers' behavior.
+%If I make the same diff-in-diff assumptions about wholesalers, I can test the hypothesis of consumption smoothing with the used car data, since wholesalers' auction behavior should be unchanged if their end-consumers' behavior has been smoothed out.
+%
+%But I can go further.
+%If the consumption smoothing hypothesis didn't hold, I would expect auto wholesalers to smooth out consumers' behavior.
+%(But I wouldn't expect wholesalers to be totally unaffected by Permanent Fund timing, since it's costly to hold extra cars in inventory.)
+%That's to say, if consumers weren't smoothing their auto purchases, I'd expect to find that:
+%\begin{itemize}
+%    \item Alaskan wholesalers would increase their auction \emph{purchases} (and be willing to pay higher prices) in the days and weeks before the Permanent Fund payouts, bringing more cars to Alaska.
+%    \item Alaskan wholesalers would decrease their auction \emph{sales} (or require higher sale prices) in advance of the payouts, keeping cars in Alaska.
+%    \item Alaskan wholesalers would preferentially accumulate cars of the type that would be bought by people using their Permanent Fund dividends.%
+%    \footnote{I think this will be too noisy to measure, and it's not clear to me whether consumers would tend toward lower-price cars, since that's what they can afford, or higher-price cars, pooling together the dividend and their own savings to get a nicer used car.}
+%\end{itemize}
+%I need to think a bit more about the implications here.
+%Consumer spending and the permanent-income hypothesis are a big deal, and it probably matters how local firms act to smooth out consumers' behavior, but I'm not up enough on macro to know why.
+%
+%
+%There are, of course, a lot of caveats.
+%Alaska is different than other states.
+%For one thing, shipping cars there is probably expensive, and that cost probably varies by time of year, possibly violating the diff-in-diff assumptions.
+%
+%I don't observe wholesalers' inventory or final prices, so if wholesalers (temporarily) draw down their inventory instead of buying in the auctions, I wouldn't be able to observe any behavior changes and it would look like consumers were smoothing their consumption, even if they weren't.
+%On the other hand, if wholesalers are credit constrained and unable to respond to consumers' changes in demand, I would again see little change in the auctions, regardless of consumers' smoothing behavior.
+%
+%\noindent\begin{minipage}{\textwidth}
+%	\centering
+%%\begin{table}
+%%	\caption{Alaska Permanent Fund payment summary	\footnote{Numbers not adjusted for inflation. Accessed Sept.\ 16, 2016 from \url{http://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments}.}}
+%	\label{table:APF-payment-summary}
+%	\textsc{Table} \ref{table:APF-payment-summary}: Alaska Permanent Fund payment summary%
+%	\footnote{Numbers not adjusted for inflation. Accessed Sept.\ 16, 2016 from \url{http://pfd.alaska.gov/Division-Info/Summary-of-Applications-and-Payments}.}
+%
+%	\vspace{1em}
+%%    \input{alaska_permanent_fund_payments_summary_1982_2015.tex}
+%%\end{table}
+%%\footnotetext{text}
+%\end{minipage}
+
+\section{Introduction}
+
+% TODO: talk about permanent income hypothesis
+% TODO: Explain why I can't learn much from announcement date (too fuzzy; rational actors would have been updating their beliefs of the payout from the behavior of the stock market, or just newspaper predictions)
+
+\subsection{Hsieh's Model}
+
+\textcite{hsieh2003} looks to differences between third- and fourth-quarter consumption in the \cex{} data.
+Let $C_h^{\textsc{q3}}$ and $C_h^{\textsc{q4}}$ be the total consumption of household $h$ in quarters 3 and 4.
+Let $\textit{\textsc{pfd}}_t$ be the Fund payout in year $t$, $\textit{Family size}_h$ be the number of Fund-eligible members of family $h$ and $\textit{Family income}_h$ be the income of family $h$.
+(The family characteristics don't have time subscripts because each \cex{} household is in the panel for one year at most.)
+Therefore, $ \textit{\textsc{pfd}}_t \times \textit{Family size}_h / \textit{Family income}_h$ is the fraction of the household's annual income received through the \apf{} dividend.
+$\mathbf{z}_h'$ is a vector of family characteristics.%
+\footnote{Hsieh says
+“$z$ contains variables for
+changes in the number of adults, number
+children, and a second-order polynomial in age
+of the head of the household”.}  % Feminist economics: why just the household head?
+\[
+\log\, \left(\frac{ C_h^{\textsc{q4}} }{ C_h^{\textsc{q3}} } \right) = \alpha_1
+\frac{ \textit{\textsc{pfd}}_t \times \textit{Family size}_h }{\textit{Family income}_h} + \mathbf{z}_h' \mathbf{\alpha}_2
+\]
+Hsieh then conducts inference on $\alpha_1$, arguing that if it's non-zero, the household is exhibiting “excess sensitivity” to the dividend.
+He ultimately concludes that he can't reject the null hypothesis of $\alpha_1 = 0$, thereby failing to reject the consumption smoothing hypothesis.
+
+There are a number of issues to make one hesitant about this specification.
+Particularly concerning is the risk of correlation with unobserved year or household variables that are correlated with consumption.
+The structure of the data -- with households in the panel for one year or less -- means that household fixed effects would absorb both time effects and family sizes.%
+\footnote{The only exception is that household FE wouldn't be collinear with the family size measure for families that changed size between \textsc{q}3 and \textsc{q}4, but this is not useful variation, since the new household members are only eligible for the dividend if they have been Alaska residents for a year.}
+Even without household fixed effects, time fixed effects seem important for, e.g., business cycle effects.
+However, as Hsieh points out, including year effects reduces the source of identifying variation to differences in family size, which requires the unsavory assumption that families of different sizes have the same seasonal consumption patterns.
+
+%TODO: talk about Hsieh's preferred spec and the confidence intervals -- what's the biggest effect he can't reject?
+
+	%TODO: mention the point about the dividend being correlated with other things, such as stock market performance and, possibly, the Alaskan oil industry
+\section{Data}
+
+% A couple of sentences here  about the overall structure
+The goal here is to investigate the behavior of people and firms affected by the \apf{} payout.
+To do that, I'll first discuss the various data sources, then comment on the assumptions that are necessary for a causal interpretation.
+
+
+\subsection{Alaska Permanent Fund}
+
+\begin{figure}[hbtp]
+	\caption{\large Alaska Permanent Fund payments, per individual}
+	\label{fig:apf_payments}
+	\vspace*{-1.05em}
+	\includegraphics[width=\linewidth]{Plots/permanent_fund_payments_individual_notitle.pdf}
+	{\footnotesize
+		\textsc{Source:} Alaska Permanent Fund Division \parencite{apfd_payments_summary}.\par
+		Figures are adjusted for inflation using the annual average \textsc{cpi} \parencite{fred_inflation}.
+		The 2008 total includes a \$1200 one-time bonus.
+	}
+\end{figure}
+
+The Alaska Permanent Fund (\apf) receives revenue from oil leases in Alaska into a constitutionally-established fund.
+Since 1982, the Fund has sent out dividend payments to Alaska residents.
+The dividend is uniform in a given year, not conditioned on age or income, and the amount is calculated from the Fund's recent investment earnings.
+Figure~\ref{fig:apf_payments} plots the dividend for each individual%
+\footnote{The figure includes a one-time, \$1200 bonus in 2008. Payments have been adjusted to 2016 dollars \parencite{fred_inflation}.}
+\parencite{apfd_payments_summary}.
+
+All Alaskan residents are eligible, as long as they've lived in Alaska for a year and plan to live there permanently.
+Alaskans can be disqualified for that year's payment because of, e.g., felony sentencing that year.
+Some absences from the state are allowed, including for military service and education.
+To receive the payment, Alaskans must apply in the spring to receive a payment that fall
+\parencite{apfd_regulations}.
+
+The payments are quite predictable, calculated with a publicly-known formula.
+While the final amount is announced a few weeks before payment, Alaskan newspapers publish accurate predictions beforehand.%
+\footnote{In 2014, the forecast from 20 days out was \$46 (2.4\%) too high.
+	\parencite{adn_dividend_prediction, adn_dividend_realization}}
+The formula is to take 10.5\% of the previous five years' earnings, subtract administration costs and divide by the number of eligible applicants.
+
+\textcite{hsieh2003}, citing personal correspondence with Permanent Fund staff, notes that since 1984 the payment has been in the last quarter of the year.
+Since 1994, all payments have been made in early October.
+Currently the rule is the first Thursday in October, allowing for a crisp before and after comparison.
+
+
+
+\subsection{Consumer Expenditure Survey}
+
+% TODO: Discuss setup, frequency, sample size
+
+Details here\ldots
+\subsection{Wholesale vehicle auctions}
+
+
+To look at vehicle supply, I'm using data from the largest US auction house, Manheim.
+These transaction-level data include IDs for the buyer, seller and auction site, as well as variables about the vehicle being sold.
+For most sales, I have the buyer and seller billing zip codes, allowing me to identify Alaskan purchasers.
+There are 308,186 distinct buyers in the data, 247 of them from Alaska. % TODO: automate this number placement
+
+% TODO: how many missing zips are there?
+
+
+
+
+
+
+\subsection{Vehicle registrations}
+
+\begin{figure}[hbtp]
+	\caption{\large Vehicle registrations, Alaska vs.\ other states}
+	\label{fig:polk_registrations_alaska_vs}
+	\vspace*{-1.05em}
+	\includegraphics[width=\linewidth]{Plots/vehicle_registrations_alaska_vs_notitle.pdf}
+	{\footnotesize
+		\textsc{Source:} R.L. Polk and Co, aggregated from county-by-quarter observations.\par
+		Dotted lines mark the fourth quarter of each year.
+	}
+\end{figure}
+
+To have a measure of vehicle expenditures that's more immediately related to consumers, I have county-by-quarter registration data from R.L. Polk \& Co.
+These data cover all new registrations of passenger cars and light trucks from 2000 to 2011 in every county of the US.
+There are 150,581 county--quarter observations, representing 181,723,012 vehicle registrations.%
+\footnote{In Alaska, the 19 counties are called boroughs, plus one “Unorganized Borough” that includes 10 additional census areas.
+	All 29 are present in the vehicle registration data.}
+I will assume that the state and quarter of registration is the state and quarter of vehicle sale.
+
+
+
+
+\section{Assumptions for identification}
+\label{sec:assumptions}
+% something about alaska being comparable
+
+\subsection{Assumptions for a Hsieh-style model}
+\subsection{Assumptions for a DD-style model}
+\subsubsection{DD}
+\subsubsection{Synthetic controls}
+\subsubsection{Generalized synthetic controls}
+
+%\section{Next Steps}
+
+
+
+
+
+
+
+
+
+
+
+
+
+\pagebreak
+\appendix %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Data cleaning}
+
+
+\subsection{Consumer Expenditure Survey}
+
+
+\subsection{Wholesale vehicle auctions}
+
+%TODO (low priority): Make these numbers auto-place.
+
+\begin{tabular}{l S p{0.5\linewidth}}
+	Elimination category & \multicolumn{1}{l}{Count removed} & Details\\
+	\midrule
+	%TODO: add counts for unintelligible dates
+%	Unintelligible sale date &&\\
+%	\addlinespace
+	Weird vehicles & 20299 & Trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, ATVs and RVs.\\
+	\addlinespace
+	Bad odometer & 586941 & Auction comments indicate reported miles are inaccurate.\\
+	\addlinespace
+	Damaged & 2665224 & Auction comments indicate vehicle is substantially damaged. \\
+	\addlinespace
+	Bad price & 59193 & Auction price seems unreasonable, outside the interval $[100, \min\{80000, 1.5\times \textsc{msrp} \}]$.\\
+	\addlinespace
+	Canadian & 132118 & Auction comments indicate vehicle is Canadian.\\
+\end{tabular}
+
+
+\subsection{Vehicle registrations}
+In the Polk vehicle registrations data, there are eight rows (county--quarter observations) where the county and state are not identified.
+I've dropped these.
+
+\pagebreak
+% References
+% TODO: single-space bibliography
+\printbibliography
+
+
+Other data sources I don't have, but might want:
+\begin{itemize}
+	\item Equifax household debt, default, and origination? (zip--quarter data, 1991--2014)  (Access via Chicago Booth people)
+	\item Medical expenditures (MEPS)
+	\item Safeway expenditures
+\end{itemize}
