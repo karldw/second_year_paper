@@ -83,29 +83,25 @@ install_lazy('ggplot2', verbose = FALSE)
 #     legend.background= ggplot2::element_blank(),
 #     strip.background = ggplot2::element_blank()
 # )
-if (! is_pkg_installed('hrbrthemes')) {
-    install_lazy(c('devtools', 'extrafont'))  # ensure proper installation of hrbrthemes
-    devtools::install_github("hrbrmstr/hrbrthemes")
-}
-# Instead of specifying all the things above, just use the hrbrmstr hrbrthemes, but then
-# add back in axis lines and make the grid lines grey.
-    PLOT_THEME <- hrbrthemes::theme_ipsum_rc(base_family = "Carlito",
-        subtitle_family = "Carlito", caption_family = "Carlito") +
+
+PLOT_THEME <- ggplot2::theme_minimal(base_family = "Carlito", base_size = 11) +
     ggplot2::theme(
-        # Make legend text smaller
-        legend.title     = ggplot2::element_text(size = 9),
-        strip.text       = ggplot2::element_text(size = 9),
-        legend.text      = ggplot2::element_text(size = 8),
-        axis.line.x      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
-        axis.line.y      = ggplot2::element_line(color = 'gray15', lineend = 'round'),
-        panel.grid.major = ggplot2::element_line(color = "gray86"),
-        panel.grid.minor = ggplot2::element_line(color = "gray95"),
-        # Make plots with thin margins (top, right, bottom, and left)
-        plot.margin      = ggplot2::margin(t = 0.1, r = 0.2, b = 0.1, l = 0.1, unit="cm"),
-        legend.margin    = ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
-        legend.box.margin= ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
-        legend.box.spacing=ggplot2::unit(0, 'cm'),
-        panel.spacing.y  = ggplot2::unit(1.4, 'lines')
+    # Make legend text smaller
+    legend.title       = ggplot2::element_text(size = 9),
+    strip.text         = ggplot2::element_text(size = 9, color = 'black'),
+    legend.text        = ggplot2::element_text(size = 8),
+    axis.text          = ggplot2::element_text(color = 'black'),
+    axis.line.x        = ggplot2::element_line(color = 'black', lineend = 'round'),
+    axis.line.y        = ggplot2::element_line(color = 'black', lineend = 'round'),
+    # These grid lines look a little dark on the screen, but they're okay in print
+    panel.grid.major   = ggplot2::element_line(color = "gray60", size = 0.15),
+    panel.grid.minor   = ggplot2::element_line(color = "gray75", size = 0.1),
+    # Make plots with thin margins (top, right, bottom, and left)
+    plot.margin        = ggplot2::margin(t = 0.1, r = 0.2, b = 0.1, l = 0.1, unit="cm"),
+    legend.margin      = ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
+    legend.box.margin  = ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),
+    legend.box.spacing = ggplot2::unit(0, 'cm'),
+    panel.spacing.y    = ggplot2::unit(1.4, 'lines')
     )
 
 # Colors from http://haas.berkeley.edu/style-guide/colors.html

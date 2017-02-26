@@ -258,8 +258,11 @@ save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio 
     plot_dir <- '../Text/Plots'
     stopifnot(dir.exists(plot_dir), is.character(name), length(name) == 1,
               grepl('.+\\.pdf$', name, perl = TRUE, ignore.case = TRUE),
-              is.logical(overwrite), is_pkg_installed('hrbrthemes'),
-              is_pkg_installed('hunspell'))
+              is.logical(overwrite))
+    if (! is_pkg_installed('hrbrthemes')) {
+        install_lazy(c('devtools', 'hunspell'))
+        devtools::install_github('hrbrmstr/hrbrthemes')
+    }
     outfile <- file.path(plot_dir, name)
     if (file.exists(outfile) && (! overwrite)) {
         # This isn't perfect, since there's now a sliver of time between the file
@@ -272,7 +275,7 @@ save_plot <- function(plt, name, scale_mult = 1, overwrite = TRUE, aspect_ratio 
     height <- width / aspect_ratio
     # Spellcheck my plot labels:
     hrbrthemes::gg_check(plt, ignore = spell_ignore)
-    ggplot2::ggsave(outfile, plt, device = cairo_pdf,
+    ggplot2::ggsave(outfile, plt, device = cairo_pdf, dpi = 600,
                     width = width, height = height, units = 'in')
 }
 

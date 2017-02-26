@@ -590,7 +590,7 @@ plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
     v1 <- intersect(outcomes, GET_SALES_COUNTS_VARS)
     v2 <- intersect(outcomes, GET_SALES_EFFICIENCY_VARS)
     to_plot <- list(states_incl_list, list(v1, v2), c('sd', 'mean'), c(TRUE, FALSE)) %>%
-        purrr::cross_n() %>% lapply_bind_rows(get_variation_once)
+        purrr::cross_n() %>% purrr::map_df(get_variation_once)
     all_year_pooled_vals <- filter(to_plot, all_year==TRUE, alaska_pooled == 'Pooled') %>%
         select(variable, value, summary_fn) %>%
         rename(value_default = value) %>%
@@ -672,10 +672,8 @@ all_outcomes <- c(
     'sales_pr_mean', 'sales_pr_mean_log',
     'msrp_mean', 'msrp_mean_log')
 # ~4 minutes for first run (if weekly, ~5 hours if daily)
-# print(system.time(lapply(all_outcomes, make_all_plot_types)))
-# plot_effects_individual_period('msrp_mean', aggregation_level = 'weekly')
-# plot_effects_individual_period('msrp_mean_log', aggregation_level = 'weekly')
-df <- plot_alaska_vs_pooled_mean_sd()
+print(system.time(lapply(all_outcomes, make_all_plot_types)))
+plot_alaska_vs_pooled_mean_sd()
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
 # generate_snippets()
