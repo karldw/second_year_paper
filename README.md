@@ -6,6 +6,7 @@
 - Signature
 - Post to website
 - Replace acronyms with sc version: MSRP, APF, PIH, VIN, CEX
+- Search pdf for unresolved references: "??"
 
 ## To do:
 ### Analysis to-do
