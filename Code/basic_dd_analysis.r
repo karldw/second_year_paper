@@ -563,6 +563,7 @@ plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
         # Don't bother with the log outcomes
         outcomes <- names(OUTCOME_VARS)[! endsWith(names(OUTCOME_VARS), '_log')]
     }
+    # TODO: consider tweaking this so it reuses the cache from the other plotting fns
     get_variation_once <- function(params) {
         states_included <- params[[1]]
         vars_to_summarize <- params[[2]]

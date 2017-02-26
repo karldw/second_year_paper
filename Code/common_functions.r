@@ -1746,6 +1746,7 @@ run_dd_pick_max_effect <- function(outcome,
         to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
                                       se   = se   / sale_tot_divisor)
         data_sd <- data_sd / sale_tot_divisor
+        data_mean <- data_mean / sale_tot_divisor
     }
     to_plot <- calculate_effect_sizes(to_plot, data_sd, data_mean)
     # Define a bunch of labels.
@@ -1987,6 +1988,7 @@ plot_effects_by_anticipation <- function(outcome,
         to_plot <- to_plot %>% mutate(coef = coef / sale_tot_divisor,
                                       se   = se   / sale_tot_divisor)
         data_sd <- data_sd / sale_tot_divisor
+        data_mean <- data_mean / sale_tot_divisor
     }
     to_plot <- calculate_effect_sizes(to_plot, data_sd = data_sd, data_mean = data_mean)
 
