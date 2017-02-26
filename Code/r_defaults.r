@@ -95,7 +95,7 @@ PLOT_THEME <- ggplot2::theme_minimal(base_family = "Carlito", base_size = 11) +
     axis.line.y        = ggplot2::element_line(color = 'black', lineend = 'round'),
     # These grid lines look a little dark on the screen, but they're okay in print
     panel.grid.major   = ggplot2::element_line(color = "gray60", size = 0.15),
-    panel.grid.minor   = ggplot2::element_line(color = "gray75", size = 0.1),
+    panel.grid.minor   = ggplot2::element_line(color = "gray75", size = 0.13),
     # Make plots with thin margins (top, right, bottom, and left)
     plot.margin        = ggplot2::margin(t = 0.1, r = 0.2, b = 0.1, l = 0.1, unit="cm"),
     legend.margin      = ggplot2::margin(t = 0, r = 0, b = 0, l = 0, unit = "cm"),

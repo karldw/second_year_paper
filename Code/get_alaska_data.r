@@ -90,8 +90,9 @@ load_cpi <- function() {
         summarize(cpi_year_mean = mean(cpiaucsl))
 
     cpi_adj_2016 <- filter(df, year == 2016) %$% cpi_year_mean
-    df <- mutate(df, cpi_base_2016 = cpi_year_mean / cpi_adj_2016) %>% select(-cpi_year_mean)
-    return(df)
+    mutate(df, cpi_base_2016 = cpi_year_mean / cpi_adj_2016) %>%
+        select(-cpi_year_mean) %>%
+        return()
 }
 
 
@@ -107,7 +108,7 @@ adjust_pfd_payments <- function() {
 
     cpi <- load_cpi()
 
-    merged <- left.join(pfd_payments, cpi, by='year') %>%
+    merged <- left.join(pfd_payments, cpi, by = 'year') %>%
         ensure(! anyNA(.$cpi_base_2016)) %>%
         mutate(amount_2016dollars = amount / cpi_base_2016,
                total_disbursed_2016dollars = total_disbursed / cpi_base_2016) %>%
@@ -118,19 +119,23 @@ adjust_pfd_payments <- function() {
 
 plot_payments <- function() {
     payments <- adjust_pfd_payments()
-    plt_individual <- ggplot(payments, aes(x=year, y=amount_2016dollars)) +
-        geom_bar(stat='identity') +
-        labs(x='', y='2016 dollars', title='Alaska Permanent Fund payments, per individual') +
-        PLOT_THEME
-    plt_individual_notitle <- ggplot(payments, aes(x=year, y=amount_2016dollars)) +
-        geom_bar(stat='identity') +
-        labs(x='', y='2016 dollars', title='') +
-        PLOT_THEME
+    no_margin <- theme(plot.margin = margin(t = 0, r = 0.2, b = 0, l = 0.1, unit = "cm"))
+    plt_individual <- ggplot(payments, aes(x = year, y = amount_2016dollars)) +
+        geom_bar(stat = 'identity') +
+        labs(x = '', y = '2016 dollars',
+             title = 'Alaska Permanent Fund payments, per individual') +
+        PLOT_THEME + no_margin
+    plt_individual_notitle <- ggplot(payments, aes(x = year, y = amount_2016dollars)) +
+        geom_bar(stat = 'identity') +
+        labs(x = '', y = '2016 dollars', title = '') +
+        PLOT_THEME + no_margin
 
-    plt_aggregate <- ggplot(payments, aes(x=year, y=total_disbursed_2016dollars/10^6)) +
-        geom_bar(stat='identity') +
-        labs(x='', y='Millions of 2016 dollars', title='Alaska Permanent Fund payments, state total') +
-        PLOT_THEME
+    plt_aggregate <- ggplot(payments,
+        aes(x = year, y = total_disbursed_2016dollars / 10^6)) +
+        geom_bar(stat = 'identity') +
+        labs(x = '', y = 'Millions of 2016 dollars',
+             title = 'Alaska Permanent Fund payments, state total') +
+        PLOT_THEME + no_margin
 
     save_plot(plt_individual, 'permanent_fund_payments_individual.pdf')
     save_plot(plt_individual_notitle, 'permanent_fund_payments_individual_notitle.pdf')
