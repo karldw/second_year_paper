@@ -5,6 +5,7 @@
 - Two copies
 - Signature
 - Post to website
+- Replace acronyms with sc version: MSRP, APF, PIH, VIN, CEX
 
 ## To do:
 ### Analysis to-do
