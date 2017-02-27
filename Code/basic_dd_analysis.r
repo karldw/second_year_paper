@@ -558,7 +558,7 @@ plot_dd_sales <- function(years = 2002:2014) {
 #     return(to_plot)
 # }
 
-plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
+pull_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
     if (is.null(outcomes)) {
         # Don't bother with the log outcomes
         outcomes <- names(OUTCOME_VARS)[! endsWith(names(OUTCOME_VARS), '_log')]
@@ -590,8 +590,14 @@ plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
     states_incl_list <- list(c('AK', find_match_states_crude()), 'AK')
     v1 <- intersect(outcomes, GET_SALES_COUNTS_VARS)
     v2 <- intersect(outcomes, GET_SALES_EFFICIENCY_VARS)
-    to_plot <- list(states_incl_list, list(v1, v2), c('sd', 'mean'), c(TRUE, FALSE)) %>%
+    df <- list(states_incl_list, list(v1, v2), c('sd', 'mean'), c(TRUE, FALSE)) %>%
         purrr::cross_n() %>% purrr::map_df(get_variation_once)
+    return(df)
+}
+
+
+plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
+    to_plot <- pull_alaska_vs_pooled_mean_sd(outcomes = outcomes)
     all_year_pooled_vals <- filter(to_plot, all_year==TRUE, alaska_pooled == 'Pooled') %>%
         select(variable, value, summary_fn) %>%
         rename(value_default = value) %>%
@@ -632,19 +638,44 @@ plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
 
 
 generate_snippets <- function() {
-    # standard deviation of sales counts and volumes, weekly
-    sales_std_dev <- get_state_by_time_variation(aggregation_level = 'weekly')
-    make_snippet(sales_std_dev$sale_tot_sd / 1000,
-                 'sales_tot_weekly_thousands_std_dev.tex')
-    make_snippet(sales_std_dev$sale_count_sd, 'sales_count_weekly_std_dev.tex')
+    summary_stats <- pull_alaska_vs_pooled_mean_sd()
+    # Don't be lazy here because there's not point. We've already expensively calcuated
+    # summary_stats, so might as well use it.
+    snippet <- purrr::partial(make_snippet, lazy = FALSE)
+    # standard deviation of sales volumes in thousands, weekly
+    summary_stats %>% filter(variable == 'sale_tot', summary_fn == 'sd',
+        all_year == TRUE, alaska_pooled == 'Pooled') %>%
+        mutate(value = value / 1000) %>%
+        extract2('value') %>%
+        snippet('sales_tot_weekly_thousands_std_dev.tex')
+
+    # standard deviation of sales counts, weekly
+    summary_stats %>% filter(variable == 'sale_count', summary_fn == 'sd',
+        all_year == TRUE, alaska_pooled == 'Pooled') %>%
+        extract2('value') %>%
+        snippet('sales_count_weekly_std_dev.tex')
 
     # Repeat for window only
-    sales_std_dev2 <- get_state_by_time_variation(aggregation_level = 'weekly',
-                                                 all_year = FALSE)
-    make_snippet(sales_std_dev2$sale_tot_sd / 1000,
-                 'sales_tot_weekly_thousands_std_dev_window_only.tex')
-    make_snippet(sales_std_dev2$sale_count_sd,
-                 'sales_count_weekly_std_dev_window_only.tex')
+    summary_stats %>% filter(variable == 'sale_tot', summary_fn == 'sd',
+        all_year == FALSE, alaska_pooled == 'Pooled') %>%
+        mutate(value = value / 1000) %>%
+        extract2('value') %>%
+        snippet('sales_tot_weekly_thousands_std_dev_window_only.tex', dollars = TRUE)
+    summary_stats %>% filter(variable == 'sale_count', summary_fn == 'sd',
+        all_year == FALSE, alaska_pooled == 'Pooled') %>%
+        extract2('value') %>%
+        snippet('sales_count_weekly_std_dev_window_only.tex', sig_figs = 3)
+
+    # Do pooled means for all year
+    summary_stats %>% filter(variable == 'sale_tot', summary_fn == 'mean',
+        all_year == TRUE, alaska_pooled == 'Pooled') %>%
+        mutate(value = value / 1000) %>%
+        extract2('value') %>%
+        snippet('sales_tot_weekly_thousands_mean.tex', dollars = TRUE)
+    summary_stats %>% filter(variable == 'sale_count', summary_fn == 'mean',
+        all_year == TRUE, alaska_pooled == 'Pooled') %>%
+        extract2('value') %>%
+        snippet('sales_count_weekly_mean.tex', sig_figs = 3)
 }
 
 
@@ -673,11 +704,11 @@ all_outcomes <- c(
     'sales_pr_mean', 'sales_pr_mean_log',
     'msrp_mean', 'msrp_mean_log')
 # ~4 minutes for first run (if weekly, ~5 hours if daily)
-print(system.time(lapply(all_outcomes, make_all_plot_types)))
+# print(system.time(lapply(all_outcomes, make_all_plot_types)))
 plot_alaska_vs_pooled_mean_sd()
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
-# generate_snippets()
+generate_snippets()
 
 # quality_control_graphs()
 # plot_dd_sales(2002)
