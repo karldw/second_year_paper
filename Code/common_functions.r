@@ -1874,14 +1874,17 @@ run_dd_pick_max_effect <- function(outcome,
     # If the plot has only positive values, don't show a legend (but keep the color)
     conf95_max_mag_plot <- remove_color_if_pos(conf95_max_mag_plot, to_plot$coef)
 
+    # Need a slightly taller margin for these plots with three-line legend labels
+    special_margin <- theme(plot.margin = margin(t = 0.15, r = 0.2, b = 0.1,
+                                                 l = 0.1, unit = "cm"))
     conf95_max_mag_effect_plot <- common_plot +
         geom_point(aes(size = conf95_max_mag_effect, color = sign_as_factor(coef))) +
-        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of std. dev.)')
+        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of std. dev.)') + special_margin
     conf95_max_mag_effect_plot <- remove_color_if_pos(conf95_max_mag_effect_plot,
                                                       to_plot$coef)
     conf95_max_mag_effect_mean_plot <- common_plot +
         geom_point(aes(size = conf95_max_mag_effect_mean, color = sign_as_factor(coef))) +
-        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of mean)')
+        labs(size = 'Max 95%-CI\nmagnitude\n(frac. of mean)') + special_margin
     conf95_max_mag_effect_mean_plot <- remove_color_if_pos(
         conf95_max_mag_effect_mean_plot, to_plot$coef)
 

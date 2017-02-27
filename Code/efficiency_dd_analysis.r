@@ -155,7 +155,7 @@ make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose =
     invisible(NULL)
 }
 all_outcomes <- c('fuel_cons', 'fuel_cons_log')
-lapply(all_outcomes, make_all_plot_types)
+print(system.time(lapply(all_outcomes, make_all_plot_types)))
 
 
 # pull_efficiency_data()

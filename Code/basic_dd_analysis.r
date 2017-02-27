@@ -621,13 +621,17 @@ plot_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
         aes(x = variable, y = value_frac_default, color = alaska_pooled_by_all_year)) +
         # geom_bar(stat = 'identity', position = 'dodge') +
         geom_point(alpha = 0.7, size = 3.5, shape = 18) +
+        # TODO: consider using shape on alaska_pooled_by_all_year too.
+        # geom_point(alpha = 0.7, size = 3.5) +
         # geom_jitter(height = 0, width = 0.05) +
-        facet_grid(summary_fn ~ ., scales = 'free_y',
+        facet_grid(summary_fn ~ .,# scales = 'free_y',
             labeller = labeller(summary_fn = proper_summary_fn)) +
         ylim(c(0, NA)) +
         labs(x = '', y = 'Value relative to pooled, all year', color = '' ) +
         scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
+        scale_shape_manual(values = c(18, 21, 0, 4)) +
         PLOT_THEME +
+        guides(shape = 'none') +
         theme(panel.grid.major.y =  element_line(color = 'gray75', lineend = 'round'),
         legend.position = 'bottom',
         legend.margin = margin(t = 0.15, r = 2, b = 0, l = 0, unit = "cm")
@@ -704,7 +708,7 @@ all_outcomes <- c(
     'sales_pr_mean', 'sales_pr_mean_log',
     'msrp_mean', 'msrp_mean_log')
 # ~4 minutes for first run (if weekly, ~5 hours if daily)
-# print(system.time(lapply(all_outcomes, make_all_plot_types)))
+print(system.time(lapply(all_outcomes, make_all_plot_types)))
 plot_alaska_vs_pooled_mean_sd()
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.

@@ -18,7 +18,8 @@
 \SetProtrusion{encoding={*},family={bch},series={*},size={6,7}}
               {1={ ,750},2={ ,500},3={ ,500},4={ ,500},5={ ,500},
                6={ ,500},7={ ,600},8={ ,500},9={ ,500},0={ ,500}}
-\widowpenalty=9999  % as bad as possible without being 'infinitely' bad
+\widowpenalty=10000
+% \raggedbottom
 % \usepackage[headsep=0pt]{typearea}
 \usepackage[top=1.2in, bottom=1.4in]{geometry}
 \usepackage{fancyhdr}
@@ -45,23 +46,8 @@
 \renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
 \renewcommand{\right}{\aftergroup\egroup\originalright}
 
-% Remove section numbering
-\makeatletter
-% we use \prefix@<level> only if it is defined
-\renewcommand{\@seccntformat}[1]{%
-    \ifcsname prefix@#1\endcsname
-    \csname prefix@#1\endcsname
-    \else
-    \csname the#1\endcsname\quad
-    \fi}
-% define \prefix@section
-
-%\newcommand\prefix@section{}
-%\newcommand\prefix@subsection{}
-%\newcommand\prefix@subsubsection{}
-\makeatother
-
-\setlength{\parskip}{0.5\parindent}
+% \setlength{\parskip}{0.5\parindent plus 0.1\parindent minus 0.1\parindent}
+% \setlength{\parskip}{\baselineskip}
 \usepackage{url}
 \usepackage{xcolor}
 
@@ -149,6 +135,7 @@ The dividend day starts week zero.
 In plot (a), the values are scaled by the sample mean weekly sale count.
 (Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
 Sign is the sign of the coefficient estimate. %, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
+A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
 }
 
 \begin{document}
@@ -179,19 +166,18 @@ Sign is the sign of the coefficient estimate. %, and because confidence interval
         \begin{center}
             \textit{Abstract}
         \end{center}
-        The Alaska Permanent Fund sends substantial dividend checks state residents every October.
-        We might think these payments would change residents' decisions to purchase durable goods, including automobiles.
-        Looking at a variety of outcomes from wholesale used vehicle auctions, I find small point estimates for the number, value and fuel efficiency.
-        For some specifications, I'm able to rule out effects larger than a change of a couple of percentage points.
+        The Alaska Permanent Fund sends substantial dividend checks to state residents every October, possibly changing residents' decisions to purchase durable goods, including automobiles.
+        Looking at a variety of outcomes from wholesale used vehicle auctions, I find small point estimates for the count, value and fuel efficiency of cars sold.
+        For some specifications, I'm able to rule out changes larger than a change of a couple of percentage points.
         For others my estimates are less precise and I can't exclude moderate effect sizes.
-        These results are consistent with the permanent income hypothesis, dealers absorbing demand shocks with inventory or real\hyp{}but\hyp{}moderately\hyp{}sized effects.
+        These results are consistent with the permanent income hypothesis, dealers absorbing demand shocks with inventory or real\hyp{}but\hyp{}not\hyp{}huge effects.
     \end{minipage}
 \end{center}
 
 \vspace{3in plus 2in minus 1.7in}
 {\footnotesize
 \noindent
-$^*$Many thanks to the Claire Duquennois, Elisa Duran Micco, Gabe Englander, Hal Gordon, Andy Hultgren, Stephen Jarvis, Scott Kaplan, Ben Krause, Megan Lang, Peiley Lau, Kate Pennington, Wenfeng Qiu, Eleanor Wiseman, Derek Wolfson, Jim Sallee and the faculty of the Energy Institute.
+$^*$Many thanks to the Claire Duquennois, Elisa Duran Micco, Gabe Englander, Hal Gordon, Andy Hultgren, Stephen Jarvis, Scott Kaplan, Ben Krause, Megan Lang, Peiley Lau, Kate Pennington, Wenfeng Qiu, Eleanor Wiseman, Derek Wolfson, Jim Sallee, the faculty of the Energy Institute and Harrison Decker.
 The numerous remaining errors are, of course, my own.
 }
 %
@@ -270,21 +256,8 @@ The numerous remaining errors are, of course, my own.
 %         \item Acknowledge the issues of multiple testing -- they cut both ways, with my ``precise'' zeros being somewhat less precise.
 %     \end{itemize}
 %
-%
-%     \item Papers to compare
-%     \begin{itemize}
-%         \item Hsieh
-%         \item \textcite{Busse2015_weather_on_cars} about fickle car buying
-%         \item Presentation about subsidy in EVs
-%         \item \eitc{} literature (e.g.\ \cite{goodman2008eitc})
-%     \end{itemize}
 % \end{itemize}
 
-% {\Large Questions for Jim}
-% \begin{itemize}
-%     \item What papers should I cite when I mention the energy efficiency gap?
-%     \item Am I interpreting the log analysis right?  It seems odd that the confidence intervals there would be so large.
-% \end{itemize}
 
 \pagebreak
 \setcounter{page}{1}
@@ -292,22 +265,24 @@ The numerous remaining errors are, of course, my own.
 \section{Introduction}
 
 Automobile sales make up a large portion of the US economy, generate significant externalities and are some of the largest purchases consumers make.
-For these reasons, we should be interested in what factors drive automobile purchases.
-Since vehicles are substantial investments, it's natural to expect income effects -- if a consumer's budget constraint is relaxed (exogenously and without anticipation), their purchase decisions should change.
+For these reasons and others, we should be interested in what factors drive automobile purchases.
+Since vehicles are substantial investments, it's natural to expect income effects -- when a consumer's budget constraint is relaxed (exogenously and without anticipation), their purchase decisions change.
 The  Alaska Permanent Fund provides an interesting source of income variation, allowing me to look at a few aspects of the income effect in car purchases.
-In the results below, I find statistically insignificant and economically small effects for most results.
+In the results below, I find small and statistically insignificant effects for most outcomes.
 
 The Alaska Permanent Fund is an account set up to hold and invest a portion of the state's mineral rights revenue.
-Since the 1980s, the fund has been sending dividend payments in the fourth quarter of each year to Alaskan residents \parencite{hsieh2003}.
-These dividends are substantial, roughly \$1000--2000 per person, as shown in figure~\ref{fig:permanent-fund-payments-individual} \parencite{apfd_payments_summary}.
-In the figure and for the rest of this article, all dollar amounts are in 2016 dollars, unless indicated otherwise.
-The dividend amount is not contingent on age or income, so a large family may receive more than \$10,000.
-In recent years, the payment has happened on the first Thursday in October.
+The fund has been sending dividend payments in the fourth quarter of each year to Alaskan residents since the 1980s, and in recent years the payment has happened on the first Thursday in October \parencite{hsieh2003}.
 I will use this somewhat\hyp{}arbitrary payment date as a source of variation in household's income, and therefore willingness to buy vehicles.
-% It's worth mentioning a few of the dividend details before going on.
-The dividend is paid out of investment earnings -- 10.5\% of the past five years' earnings -- not out of present\hyp{}day oil revenue.
-The Permanent Fund investments are made in a broad variety of stocks and bonds, and the dividend amount is predictable.
+These dividends are substantial, roughly \$1000--2000 per person, as shown in figure~\ref{fig:permanent-fund-payments-individual} \parencite{apfd_payments_summary} -- a large family may receive more than \$10,000.
+(In the figure and for the rest of this article, all dollar amounts are in 2016 dollars.)
+The dividend the same amount for all recipients, not contingent on age or income, and almost everyone in Alaska gets the dividend.
+Major exceptions are people who have lived in the state for less than a year and people serving time for some crimes.
+Approximately 91\% of the state's population applies and about 95\% of those applications are granted.
+
+It's worth mentioning a few of the dividend details before going on.
+The Permanent Fund investments are made in a broad variety of stocks and bonds, and the dividend amount is predictable.%
 \footnote{The asset allocation is detailed in the Alaska Permanent Fund Corporation's website, \url{http://apfc.org/home/Content/investments/assetAllocation2009.cfm}}
+The dividend is paid out of investment earnings -- 10.5\% of the past five years' earnings -- not out of present\hyp{}day oil revenue, so the amounts are correlated with financial market returns, not directly with oil prices.
 The dividend amount is finalized and announced a few weeks before payment, and Alaskan newspapers publish accurate predictions before that \parencite{adn_dividend_prediction, adn_dividend_realization}.
 
 \begin{figure}[bht]
@@ -320,46 +295,37 @@ The dividend amount is finalized and announced a few weeks before payment, and A
 		The 2008 total includes a one-time bonus of \$1200 (nominal dollars).
 \end{figure}
 
-
-The dividend the same amount for all recipients, with no means testing or other adjustments and almost everyone in Alaska gets the dividend.
-Major exceptions are people who have lived in the state for less than a year and people serving time for some crimes.
-Approximately 91\% of the state's population applies and about 95\% of those applications are granted.
-
-
 The principal data source in my analysis is the Manheim wholesale used vehicle auction data.
-The dataset records sale prices, vehicle identifiers, buyer and seller IDs and locations.
+The dataset records sale prices, vehicle identifiers, buyer and seller IDs and locations for sales between wholesalers such as auto dealerships, rental car agencies and vehicle leasing programs.
 After various cleaning measures described in section~\ref{sec:manheim-data}, I have
 \snippet{auctions_cleaned_total_obs_count.tex}
 observations of vehicle sales,
 \snippet{auctions_cleaned_alaska_obs_count.tex} in Alaska.
-These sales are between wholesalers such as auto dealerships, rental car agencies and vehicle leasing programs.
 In the following analysis, I focus on wholesalers with billing zip codes in Alaska who buy vehicles in the auctions, and for simiplicity, I call all wholesalers ``dealers.''
 
-Manheim auctions occur in 32 states, but there are no auction sites in Alaska, so all of the purchases I observe for these dealers are from out of state.
-While I see when the vehicles were bought at auction, I don't know when they were delivered to the dealer or sold to the final customer.
-Presumably, there can be some substantial delay shipping to Alaska; I examine the delay and anticipation effects as part of my analysis.
+The Manheim auctions occur in 32 states, but there are no auction sites in Alaska, so all of the purchases I observe for these dealers are from out of state.
+While I see when the vehicles were auctioned, I don't know when they were delivered to the dealer or sold to the final customer.
+Presumably, there can be some substantial delay shipping to Alaska, and I will examine delay and anticipation effects as part of my analysis.
 
-Importantly, I don't observe final sales to customers, so I don't know the timing or their purchases or the prices they are charged.
-I assume that cars bought by Alaskan dealers are sold to consumers with a not\hyp{}to\hyp{}long delay -- since it's costly to hold unsold cars on the lot -- and not resold to another wholesaler.
-To minimize the resale observations, I exclude cars that are bought and resold within a year, though this only addresses resales where both the initial sale and the second are in the auction data.
+Importantly, I don't observe final sales to customers, so I don't know the timing or their purchases or the prices they are charged, nor can I relate purchases to individuals' characteristics.
+I assume that cars bought by Alaskan dealers are sold to consumers with a not\hyp{}too\hyp{}long delay (since it's costly to hold unsold cars on the lot) and not resold to another wholesaler.
 The Manheim data include \emph{used} vehicles only, so I will only be able to discuss the market for new vehicles in my theoretical speculation (section~\ref{sec:model}).
-% The Manheim data are described in more detail in section~\ref{sec:manheim-data}.
 
 
 % \subsection{Literature}
 I mentioned that a large, \emph{unanticipated} income shock may have substantial effects.
 The permanent income hypothesis literature emphasizes the importance of anticipation.
 Since the Alaskan dividend timing and amount are not surprises, the strong form of the hypothesis would predict no response at all.
-The permanent income hypothesis would also predict an increase in consumption when the payment is \emph{announced}, but because the dividend date has been well known many years, I'm not able to examine the consumption decisions around a specific announcement date.
+The permanent income hypothesis would also predict an increase in consumption when the payment is \emph{announced}.
+Because the dividend date has been well known many years, I'm not able to examine the consumption decisions around a specific announcement date.
 In the real world, liquidity constraints, uncertainty and behavioral factors may mean that people don't smooth their consumption perfectly.
 
 The previous paper analyzing the Alaska Permanent Fund dividends, \textcite{hsieh2003}, used the consumer expenditure survey to look at changes in consumption from the third quarter to the fourth.
 Hsieh also didn't reject the consumption smoothing hypothesis, though his identifying variation relied on potentially\hyp{}endogenous differences in family size and year\hyp{}to\hyp{}year dividend variation.
-
 I'm unaware of other papers looking at the consumption effects of the Alaskan dividend, but many researchers have looked at tax returns.
 For example, \textcite{goodman2008eitc} look at \eitc{} payments and find that \eitc{} recipients seem to spend their refunds on automobiles.
 
-In addition to consumption smoothing, we may be interested in durable goods purchases because those goods determine energy use.
+In addition to consumption smoothing, we may be interested in durable goods purchases because those goods determine energy use and generate externalities.
 Some authors have argued that consumers undervalue fuel efficiency, and if so, it's possible that having more cash on hand would lead a consumer to make a longer\hyp{}sighted decision and include the full value of fuel efficiency savings.
 On the other hand, more recent empirical work has found that consumers' vehicle choices include most or all of the value of saved fuel \parencite{busse2013consumers, allcott2014gasoline, grigolon2014consumer, sallee2016consumers}.
 
@@ -368,24 +334,22 @@ On the other hand, more recent empirical work has found that consumers' vehicle 
 \section{Simple Model}
 \label{sec:model}
 
-% TODO First explain in words, then make formal in math.  Figure out good, non-conflicting syntax.
-
 \subsection{Consumers}
 
+People value the stream of services provided by owning a vehicle, so they have preferences for vehicle traits and vehicle ownership.
+Consumers are constrained by their budgets, and may therefore choose differently when they receive a check from the government.
+Even though the payment is anticipated, they may not fully smooth their consumption because they don't build up enough savings in the course of their normal consumption path (if, for example, they act as buffer\hyp{}stock savers).
 
-People value the stream of services provided by owning a vehicle, ad so they have preferences for vehicle traits and vehicle ownership.
-Consumers are constrained by their budgets, so they may therefore change what they buy when they have a check from the government.
-Even though the check is anticipated, they may not fully smooth because they don't build up enough savings in the course of their normal consumption path (if, for example, they act as buffer\hyp{}stock savers).
-
-There are also behavioral possibilities.
-It may be that people treating dividend checks differently than they would treat their own savings, or that people buy expensive durable goods for somewhat capricious reasons \parencite{Busse2015_weather_on_cars}.
-I won't really be able to disentangle these, since I don't have any situations where saved wealth is exogenously manipulated, but it's important to consider that responses may differ between this situation and others.
+There are also behavioral possibilities for non\hyp{}smooth consumption.
+It may be that people treating dividend checks differently than they would treat their own savings, or that people buy expensive durable goods for capricious reasons \parencite{Busse2015_weather_on_cars}.
+I won't be able to disentangle these, since I don't have any situations where saved wealth is exogenously manipulated, but it's important to consider that responses may differ between this setting and other changes in consumers' wealth.
 
 For simplicity, I'll assume each buyer purchases at most one car, indexed by $v$.
 I'll also assume each vehicle's life ($L_v$) is known with certainty, and that there are no maintenance costs.
 Let $\mathcal{V}_u$ and $\mathcal{V}_n$ be the set of available used and new vehicles, and $\mathcal{V}_0$ be a non\hyp{}purchase, so the consumer's full choice set is $\mathcal{V} \equiv \mathcal{V}_u \cup \mathcal{V}_n \cup \mathcal{V}_0$.
 Let $g_v$ be the (endogenous) discounted gasoline expenditures associated with vehicle $v$, and $p_v$ the retail price of the vehicle.
-$w$ is the wealth, including Alaskan dividends, of the consumer, so with perfect borrowing and lending markets, the net wealth is $w - g_v - p_v$.
+$w$ is the wealth, including Alaskan dividends, of the consumer.
+With perfect borrowing and lending markets, net wealth is $w - g_v - p_v$.
 The consumer then chooses $v$ to maximize the integral of instantaneous utility:
 \[
 \max_{v \in \mathcal{V}} \ \ \int_0^{L_v} u(v, w - p_v - g_v) e^{-rt} dt
@@ -399,14 +363,12 @@ For instance, US News offers the advice, ``If the car has been there for more th
 
 To make the model less complex, I'll assume auto\hyp{}dealers don't exercise market power when they buy their used cars, that they know consumers' preferences, and that it's costly to hold inventory.
 I don't exclude market power on the retail side, and since I don't have data on retail sales.
-
-Assuming away market power is clearly a big assumption, but Alaska is a small part of the overall used car market, and making it unlikely that individual Alaskan buyers act as monopsonists in the auction market.
+Assuming away market power is clearly a big assumption, but Alaska is a small part of the overall used car market, and making it unlikely that Alaskan buyers act as monopsonists in the auction market.
 
 With undifferentiated products, prices $p$, quantity $q(p)$, unit cost $c$, time-to-sell $T(p)$ and interest rate $r$, the dealer's problem is:
 \[
 \max_p \ \ p \cdot q(p) - c \int_o^{T(p)} e^{-rt}dt
 \]
-
 With differentiated products, the problem becomes harder.
 Assuming consumers buy more used cars upon receiving their dividend checks, dealers adjust.
 Specifically, the dealers know what kinds of cars will be popular and will buy these beforehand, making sure they're available when the dividends arrive.
@@ -424,11 +386,9 @@ Some dealers specialize in used vehicles, while others sell both used and new ve
 \label{sec:manheim-data}
 
 
-
-% TODO: Repeat a little about the used car data and the things I can observe. Make clear again that I can't see sales to final consumers.
 The Manhiem auctions dataset includes a rich set of variables; I've only used the more basic ones.
-The data include identifiers for buyers, sellers and auction sites, as well as the billing zipcodes for all three.
-I use the zipcodes to identify which wholesalers are in Alaska or one of my control states.
+The data include identifiers for buyers, sellers and auction sites, as well as the billing zip codes for all three.
+I use the zip codes to identify which wholesalers are in Alaska and my control states.
 
 \begin{table}[!hbtp]
     \caption{Cleaning Manheim auction data}
@@ -491,17 +451,18 @@ Cars that are listed for auction but not sold are not included.
 Rows are removed in the order listed.
 \end{table}
 
-The Manheim data are voluminous, and they include many kinds of sales outside the scope of this research.
+The auctions they include many kinds of sales outside the scope of this research.
 In table~\ref{tab:cleaning_manheim}, I detail the cleaning I've done and the observation count removed in each.
-When I observe the same vehicle (same 17-digit \vin{}) sold two or more times in a one-year period, I only use the last sale.
+To minimize the resale observations, When I observe the same vehicle (same 17-digit \vin{}) sold two or more times in a one-year period, I only use the last sale.
+(This filter only addresses resales where both the initial sale and the second are in the auction data.)
 Some items in the auction are a bit odd, such as trailers, boats, air compressors, golf carts, vehicles with incomplete bodies, \textsc{atv}s and \textsc{rv}s.
 I exclude all of these, keeping only cars and trucks.
 The Manheim data include a variable for the vehicle's odometer, as well as a field of the auction comments.
 In some cases, the comments indicate that the odometer is wrong, either because it's broken or because it is a five\hyp{}digit odometer that can't record more than 100,000 miles.
 I drop these as well because I'm eventually planning to include the odometer in my analysis.
-Many vehicles are designated as damaged, some very severely.  I drop these, since they're often not in a condition to be sold as a retail vehicle.
-Some of the prices in the data seem unreasonable, either too high or too low, possibly indicating an error in data entry or something strange with that particular auction.
-I drop cars sold for less than \$100 (in 2016 dollars) and cars sold for more than \$80,000 or 150\% of their $\textsc{msrp}$.
+Many vehicles are designated as damaged, some severely.  I drop these, since they're often not in a condition to be sold as a retail vehicle.
+Some of the prices in the data seem unreasonable, either too high or too low, possibly indicating an error in data entry.
+I drop cars sold for less than \$100 and cars sold for more than \$80,000 or 150\% of their $\textsc{msrp}$.
 Finally, I drop cars that are flagged as Canadian, since these are presumably in a different market than US cars.
 (The odometer may be measured in kilometers, there may be product differences and so on.)
 Of these, only the duplicate sales and damaged vehicles eliminate a significant number of sales.
@@ -511,31 +472,30 @@ Of these, only the duplicate sales and damaged vehicles eliminate a significant 
 
 Every modern vehicle has a unique 17-digit vehicle identification number (\vin{}).
 The ID is broken in to pieces that identify the country, manufacturer, vehicle, model, trim, year and plant, plus a sequential identifier \parencite{vin_details}.
-I have a database of vehicle characteristics at the country\hyp{}manufacturer\hyp{}vehicle\hyp{}model\hyp{}trim\hyp{}year level, which I match with the auction data to find the vehicles' suggested retail price (\msrp{}) and fuel economy.
+I have a database of vehicle characteristics at the country\hyp{}manufacturer\hyp{}vehicle\hyp{}model\hyp{}trim\hyp{}year level, which I match with the auction data to find the vehicles' list price (\msrp{}) and fuel economy.
 % TODO: how many aren't matched?
 % TODO: add N to the regression plots.
 
 For fuel economy I use the \textsc{epa} combined rating -- a weighted average of city and highway miles per gallon -- and convert to liters per 100~km.
 I do this because fuel consumption is generally much better behaved than fuel efficiency; the reciprocal can lead to unintuitive or poorly behaved estimates.
-Rather than simply taking the reciprocal and having gallons per mile, I convert to liters per 100~km because no one uses gallons per mile, while liters per 100~km is at least interpretable by people who have lived outside the US\@.
+Rather than simply calculating gallons per mile, I convert to liters per 100~km.
+No one uses gallons per mile, while liters per 100~km is the standard used by most other countries.
 
 \subsection{Alaskan dividends}
 
 For the Alaskan dividends, I've pulled the amounts from the Alaska Permanent Fund Division's website \parencite{apfd_payments_summary}.
 \textcite{hsieh2003} provides the history of the dividend\hyp{}payment dates, obtained in personal correspondence with Permanent\hyp{}Fund staff.
-Note that while the dividend amounts vary from year to year, in any given year, the dividend is the same for all recipients.
+Note that while the dividend amounts vary from year to year, the dividend is the same for all recipients in any given year.
 Therefore, my year fixed effects control for the amount.
 
 
 \section[DD Results]{Difference-in-Differences Results}
 
-The auction data have before- and after\hyp{}dividend data for treated and untreated states, so a difference\hyp{}in\hyp{}differences framework is a natural framing.
+The auction data have before- and after\hyp{}dividend observations for treated and untreated states, so a difference\hyp{}in\hyp{}differences framework is a natural framing.
 Alaska is different from many other states, so picking appropriate controls is an important and somewhat subjective endeavor.
 Below, in section~\ref{sec:picking-controls} I discuss how I've chosen the current set of controls: Utah, Idaho and Montana.
-In section~\ref{sec:synthetic-controls} I discuss next steps to formalize the selection of control states.
-
 For the difference\hyp{}in\hyp{}differences analysis, I've chosen a default window of 70~days (10~weeks) before and after the early\hyp{}October dividend.
-This fairly wide window allows for various anticipation or delayed effects without getting too close to the end of the year and the associated sales slowdown.
+This fairly wide window allows for various anticipation or delayed effects without getting too close to the end of the year and associated sales slowdown.
 My preferred specification aggregates the data to state\hyp{}by\hyp{}week averages or totals. Using daily data instead produces similar results that are broadly similar, but somewhat noisier.
 
 
@@ -549,7 +509,7 @@ For the simple difference\hyp{}in\hyp{}differences below, I've chosen Idaho, Ore
 The choice is somewhat subjective -- I chose these states because they have a large fraction of their out\hyp{}of\hyp{}state purchases in the auction states where Alaskan dealers are buying.
 This heuristic is appealing because it captures the markets where Alaska is operating, as well as additional factors, such as transportation costs, that arise from dealers buying their vehicles out of state.
 % See the code in find_match_states_crude_unmemoized for full details..
-A more robust approach is to use best\hyp{}subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD} and section~\ref{sec:synthetic-controls}, and I plan to implement these in a future iteration of this project.
+A more robust approach is to use best\hyp{}subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD}; I plan to implement these in a future iteration of this project.
 
 \begin{figure}[bth]
 	\caption{Alaska-only and pooled mean and standard deviations}
@@ -557,14 +517,14 @@ A more robust approach is to use best\hyp{}subset or synthetic controls methods 
 	\includegraphics[width=\linewidth]{comparison_alaska_vs_pooled_mean_sd.pdf}
 \end{figure}
 
-In addition to worrying about the control group for difference\hyp{}in\hyp{}differences, one might also worry about the effect size measurements.
+In addition to considering the control group for difference\hyp{}in\hyp{}differences, one might also worry about the effect size measurements.
 In some of the analyses below, I divide by the sample mean or standard deviation to look at the size of the estimated coefficient.
 Figure~\ref{fig:alaska_vs_pooled_mean_sd} plots out the mean and standard deviation I use for these normalizations.
-Using the event window sample (70 days before to 70 days after the dividend) is almost identical to the full\hyp{}year sample, but Alaska is a smaller market than the controls I've chosen.
+Using the event window sample (70~days before to 70~days after the dividend) is almost identical to the full\hyp{}year sample, but Alaska is a smaller market than the controls I've chosen.
 Alaska has a lower mean and standard deviation in cars sold, and therefore the total value of sales.
 As well, the cars sold in Alaska are a bit more expensive and a bit less efficient.
 It's worth keeping these differences in mind in the outcomes below.
-The log specifications adjust for percentage differences more directly.
+The log specifications adjust for percentage differences more directly; I don't need to divide by the mean.
 
 \subsection{Picking an anticipation window}
 
@@ -604,43 +564,54 @@ In this style of plot, I estimate all possible windows longer than one week and 
 Let $t$ represent time, measured in event weeks, $t \in [-10, 10]$.
 The week the dividend is received is $t=0$.
 Let $s$ index states and $y$ index years: $s \in \{\textsc{ak}, \textsc{id},\textsc{mt},\textsc{ut} \}$ and $y \in [2002, 2014]$.
-Let $W_0$ be the start of the anticipation window and $W_1$ be the end, so $[W_0, W_1]$ is the window and $\anticipation$ is a dummy for $t$ in the window.
+Let $W_0$ be the start of the anticipation window and $W_1$ be the end, so $[W_0, W_1]$ is the window interval and $\anticipation$ is a dummy for $t$ in the window.
 Though I'm calling it an ``anticipation window,'' I'm going to estimate some versions with $W_0$ or $W_1 > 0$.
-For brevity, let $F{\, sty}$ be the vector of state and year fixed effects, 17 in all.
-The capital Greek letter premultiplying $F$ represents a vector of the 17 coefficients.
+For brevity, let $F_{sty}$ be the vector of state and year fixed effects, four for states and 13~for years.
+The capital Greek letter premultiplying $F$ represents a vector of the 17~coefficients.
 In a slight abuse of notation, let $\varepsilon$ be the error term in each of the equations below, though it represents a different error term in each.
 The difference\hyp{}in\hyp{}differences specification is the same in all eight equations, but the left\hyp{}hand side is different in each.
-Listing out all of the outcomes in gory detail, we have the following.
-The terms to be estimated are the $\alpha_i$, $A$, $\beta_i$, $B$, $\gamma_i$, $\Gamma$, $\delta_i$, $\Delta$, $\zeta_i$, $Z$, $\eta_i$, $H$, $\theta_i$, $\Theta$, $\lambda_i$, $\Lambda$ (for $i = 1,2,3,4$).
+% Listing out all of the outcomes in gory detail, we have the following.
+The terms to be estimated are, for $i = 1,2,3,4$,
+$\alpha_i$ and $A$ (eqn.~\ref{eqn:cars-sold});
+$\beta_i$ and $B$ (eqn.~\ref{eqn:log-cars-sold});
+$\gamma_i$ and $\Gamma$ (eqn.~\ref{eqn:sale-price});
+$\delta_i$ and $\Delta$ (eqn.~\ref{eqn:log-sale-price});
+$\zeta_i$ and $Z$ (eqn.~\ref{eqn:msrp});
+$\eta_i$ and $H$ (eqn.~\ref{eqn:log-msrp});
+$\theta_i$ and $\Theta$ (eqn.~\ref{eqn:fuel-cons}); and
+$\lambda_i$ and $\Lambda$ (eqn.~\ref{eqn:log-fuel-cons}).
+To provide one example, the equation for cars sold is:
 \begin{align}
     \label{eqn:cars-sold}
-    \ddEqn{Cars sold}{\alpha}{A} \\
-    %
-    \label{eqn:log-cars-sold}
-    \ddEqnLog{Cars sold}{\beta}{B} \\
-    %
-    \label{eqn:sale-price}
-    \ddEqn{Sale price}{\gamma}{\Gamma}\\
-    %
-    \label{eqn:log-sale-price}
-    \ddEqnLog{Sale price}{\delta}{\Delta} \\
-    %
-    \label{eqn:msrp}
-    \ddEqn{\msrp{}\!}{\zeta}{Z} \\
-    %
-    \label{eqn:log-msrp}
-    \ddEqnLog{\msrp{}\!}{\eta}{H} \\
-    %
-    \label{eqn:fuel-cons}
-    \ddEqn{Fuel cons}{\theta}{\Theta} \\
-    %
-    \label{eqn:log-fuel-cons}
-    \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
-    % Greek letters that could be useful here, in order:
-    % \alpha, \beta, \gamma, \delta, \zeta, \eta, \theta, \iota, \kappa, \lambda, \mu,\nu, \xi, \phi, \chi, \psi, \omega
+    \ddEqn{Cars sold}{\alpha}{A}
 \end{align}
+%     %
+%     \label{eqn:log-cars-sold}
+%     \ddEqnLog{Cars sold}{\beta}{B} \\
+%     %
+%     \label{eqn:sale-price}
+%     \ddEqn{Sale price}{\gamma}{\Gamma}\\
+%     %
+%     \label{eqn:log-sale-price}
+%     \ddEqnLog{Sale price}{\delta}{\Delta} \\
+%     %
+%     \label{eqn:msrp}
+%     \ddEqn{\msrp{}\!}{\zeta}{Z} \\
+%     %
+%     \label{eqn:log-msrp}
+%     \ddEqnLog{\msrp{}\!}{\eta}{H} \\
+%     %
+%     \label{eqn:fuel-cons}
+%     \ddEqn{Fuel cons}{\theta}{\Theta} \\
+%     %
+%     \label{eqn:log-fuel-cons}
+%     \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
+%     % Greek letters that could be useful here, in order:
+%     % \alpha, \beta, \gamma, \delta, \zeta, \eta, \theta, \iota, \kappa, \lambda, \mu,\nu, \xi, \phi, \chi, \psi, \omega
+% \end{align}
 
 \subsection{Volume of cars sold}
+
 
 \begin{figure}[!hbtp]
     \caption{$\alpha_2$ and $\beta_2$, the treatment coefficients on Alaska $\times$ anticipation, for varying windows}
@@ -662,8 +633,15 @@ The terms to be estimated are the $\alpha_i$, $A$, $\beta_i$, $B$, $\gamma_i$, $
 \end{figure}
 
 
-Let's first consider the most direct outcome variable, the number of cars sold, equations~\ref{eqn:cars-sold} and~\ref{eqn:log-cars-sold} above.
-Note that The effect on used car sales is theoretically ambiguous.
+Let's first consider the most direct outcome variable, the number of cars sold:
+\begin{align}
+    \tag{\ref{eqn:cars-sold}}
+    \ddEqn{Cars sold}{\alpha}{A}\\
+    %
+    \label{eqn:log-cars-sold}
+    \ddEqnLog{Cars sold}{\beta}{B}
+\end{align}
+Note that the effect on used car sales is theoretically ambiguous.
 If the permanent income hypothesis holds, there should be no change.
 If not, I expect overall car sales to increase, but it could be that people purchase more new cars and fewer used cars.
 
@@ -673,19 +651,19 @@ The levels estimates ($\alpha_2$) are fairly precise, allowing me to reject an e
 (Effect sizes measured in standard deviations, rather than as a fraction of the mean, are also small.)
 Different states have somewhat different means, as shown in the comparison of figure~\ref{fig:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
 I default to calculating the pooled mean across Alaska and the control states and across all weeks in the data.
-Calculating the mean on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives very similar results as the all\hyp{}year sample.
+Calculating the mean on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives similar results as the all\hyp{}year sample.
 The log regression, estimates of $\beta_2$, are also not huge, but the standard errors are wide enough that I can't rule out fairly large effects.
 
 \begin{figure}[!hbtp]
-    \caption{Sales count effects with varying windows ($\alpha_2$ and $\beta_2$)}
+    \caption{Sales count effects with varying windows}
     \label{fig:variable_window_sale_count}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels, scaled by weekly mean sales}
+        \caption{Estimate in levels ($\alpha_2$), scaled by weekly mean sales}
         \centering
         \includegraphics[width=\linewidth]{variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs}
+        \caption{Estimate in logs ($\beta_2$)}
         \includegraphics[width=\linewidth]{variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
@@ -699,7 +677,7 @@ As mentioned previously, it's possible that dealers aren't anticipating sales, i
 This behavior wouldn't lead to any anticipation effect, but might lead to effects after the dividend date.
 To show that there is still no effect on vehicle sales, I'll estimate an even more flexible treatment window.
 In figure~\ref{fig:variable_window_sale_count}, I've estimated all possible windows longer than one week.
-(I've excluded windows that span more than 19 of the 21 week event period, as these are irrelevant and imprecisely estimated.)
+(I've excluded windows that span more than 19 of the 21~week event period, as these are irrelevant and imprecisely estimated.)
 The area of each point is scaled to the 95\% confidence interval, since this is the largest value we can tell an economic story about.
 I can only plot one bound of the 95\% confidence interval in each point, so I've chosen the bound with the larger magnitude.
 That is, for negative point estimates, I've plotted the lower bound of the confidence interval, and for positive point estimates, I've plotted the upper bound.
@@ -716,80 +694,105 @@ In addition to the number of cars sold, we could look at total sales volume in d
 I find the component pieces -- the number of cars and the price of each -- more interesting, so I won't linger on the total sales volume analysis.
 As with sales count, the effects are quite small when estimated in levels, with wider confidence intervals when estimated in logs.
 
-\subsection{Quality of cars sold}
-% TODO talk about sale price here too.
+\subsection{Quality of cars sold: sale price and MSRP}
+Though there weren't huge effects in the number of cars sold, one might also anticipate a change in vehicle prices or quality.
+With the very\hyp{}detailed auction data, there are many possible measures of quality: age, odometer reading, luxury car status and so on.
+For this analysis, I'll focus on the manufacturer's suggested retail price (\msrp{}) and sales price.
+The \msrp{} is fixed for each car, so it captures a measure of the original luxuriousness of the car.
+The sales price may change over time, because of vehicle depreciation or market dynamics.
+Alaskan buyers are a small segment of the market, so I'm assuming their purchases don't shift the prices in the market.
+If that's the case, and if there are no other market failures, sales price measures the depreciated vehicle quality.
+(In practice, auction participants have some behavioral biases, including discontinuous valuation around round odometer readings; \cite{sallee2016consumers}.)
+For brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots in the style of figure~\ref{fig:variable_window_sale_count}.
 
 
-
-For the sake of brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots, in the style of figure~\ref{fig:variable_window_sale_count}.
 \begin{figure}[!hbtp]
     \caption{Sales price effects with varying windows}
-    % \label{}
+    \label{fig:variable_window_sales_price}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels, scaled by weekly mean sales price}
+        \caption{Estimate in levels ($\gamma_2$), scaled by weekly mean sales price}
         \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs}
+        \caption{Estimate in logs ($\delta_2$)}
         \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
     {\footnotesize
     \textsc{Notes:}
     \varWindowDDnotes
-    % A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
-    % TODO: put in the appropriate greek letter.
     }
 \end{figure}
 
 \begin{figure}[!hbtp]
     \caption{MSRP effects with varying windows}
-    % \label{}
+    \label{fig:variable_window_msrp}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels, scaled by weekly mean MSRP}
+        \caption{Estimate in levels ($\zeta_2$), scaled by weekly mean MSRP}
         \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
     \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs}
+        \caption{Estimate in logs ($\eta_2$)}
         \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
     {\footnotesize
     \textsc{Notes:}
     \varWindowDDnotes
-    % A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
-    % TODO: put in the appropriate greek letter.
     }
 \end{figure}
+The equations for price and \msrp{} are:
+\begin{align}
+    \label{eqn:sale-price}
+    \ddEqn{Sale price}{\gamma}{\Gamma}\\
+    %
+    \label{eqn:log-sale-price}
+    \ddEqnLog{Sale price}{\delta}{\Delta}\\
+    %
+    \label{eqn:msrp}
+    \ddEqn{\msrp{}\!}{\zeta}{Z} \\
+    %
+    \label{eqn:log-msrp}
+    \ddEqnLog{\msrp{}\!}{\eta}{H}
+\end{align}
 
+
+Sales price effects are noisier, relative to the mean, than the sales count effects.
+The point estimates are still small, maybe 5\% of the mean, but the confidence intervals don't rule out effects as large as 20 or 30\%.
+In logs, the point estimates are somewhat larger, indicating a 30\% increase, and the confidence intervals don't rule out effects of 100\% price increases.
 
 For \msrp{} the conclusions are dramatically different for levels and logs.
     For levels, the estimated effects are insignificant, and the confidence intervals rule out large effects -- anything larger than 10 or 20\% of the mean.
-
     For logs, the point estimates and confidence intervals allow for much larger results.
     With point estimates around 0.35 and confidence interval upper bounds around 0.7 (for reasonable specifications; not those starting at the beginning), we can't reject large effects.
-    At the same time, the lower bound of the CIs is \emph{just} above zero, so I don't want to put too much stock in the statistical significance shown in the plot.
+    At the same time, the lower bound of the confidence intervals is \emph{just} above zero, so I don't want to put too much stock in the statistical significance shown in the plot.
 
 
 \subsection{Efficiency of cars sold}
 
 Why look at efficiency?
+% TODO: talk about the purchasing behavior of people in Alaska: trucks etc
 Some people have speculated that there's an energy efficiency gap, where people are failing to appreciate the energy efficiency implications of their purchases.
 If that's true, it may be that the dividend check provides liquidity and allows the consumer to more optimally trade off current and future costs.
 More recent literature has found that people buy incorporate much \parencite{allcott2014gasoline} or all \parencite{busse2013consumers, grigolon2014consumer, sallee2016consumers} of the expected discounted fuel expenditures in their vehicle purchase decisions.
 
 As \textcite{kiso2013automobilefueleconomy} reminds us, fuel economy is intimately related to other vehicle characteristics, so even if consumers are already pricing in fuel costs, having more money to spend on a vehicle may change the fuel economy.
-Since burning fuel generates externalities, the question still matters,
-
+Since burning fuel generates externalities, the question still matters. %TODO: flesh this out?
+\begin{align}
+    \label{eqn:fuel-cons}
+    \ddEqn{Fuel cons}{\theta}{\Theta} \\
+    %
+    \label{eqn:log-fuel-cons}
+    \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
+\end{align}
 In the difference\hyp{}in\hyp{}differences analysis, the effect is rather small.
 I can rule out any effect larger than about 10\% of the mean, and the coefficients aren't statistically significant.
-
+The effect in logs is slightly larger, with point estimates around 10\% and confidence intervals around 30\%.
 
 
 \begin{figure}[!hbtp]
-    % TODO: better title.
     \caption{Fuel consumption effects with varying windows}
-    % \label{bonusfig:anticipation_window_sale_count_daily}
+    \label{fig:variable_window_fuel_cons}
     \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in levels, scaled by weekly mean sales}
         \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_weekly_area_conf95_max_effect_mean.pdf}
@@ -799,7 +802,6 @@ I can rule out any effect larger than about 10\% of the mean, and the coefficien
         \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
-
     {\footnotesize
     \textsc{Notes:}
     \varWindowDDnotes
@@ -807,62 +809,71 @@ I can rule out any effect larger than about 10\% of the mean, and the coefficien
 \end{figure}
 
 
-
 \section{Planned Extensions}
 
-\subsection{Synthetic controls}
+\subsection{Synthetic controls and standard errors}
 \label{sec:synthetic-controls}
-% TODO: elaborate
-Do the previous DD section again, but with synthetic controls or, maybe, the fancier frameworks of
-\textcite{DoudchenkoImbens2016DD} or \textcite{Xu2016}
+As I discussed in section~\ref{sec:picking-controls},  I picked control states that seemed to be appropriate controls for Alaska.
+These control states participate in similar markets and, as Alaska does, they buy many of their vehicles in out\hyp{}of\hyp{}state auctions.
+In future iterations of this research project, I plan to use synthetic controls to pick the control states.
+I'll also consider the more general frameworks presented by
+\textcite{DoudchenkoImbens2016DD} and \textcite{Xu2016}.
 
-\subsection{Standard errors}
-% TODO Elaborate:
-The standard errors are only robust to heteroskedasticity, not any form of autocorrelation, so the \textcite{bertrand_duflo2004DD} critique applies.
-I haven't clustered because I don't have enough clusters for the asymptotics to be valid.
+The standard errors I've used and discussed are only robust to heteroskedasticity, not any form of autocorrelation.
+Therefore, the \textcite{bertrand_duflo2004DD} critique applies, and my inferences of narrow confidence intervals are somewhat overstated.
+Clustering would be inappropriate because I'm only using a few states, but I can also draw inferences from the synthetic controls without clustering on individual states.
+%
+% \subsection{Robustness}
+% Not all years are the same.
+% A natural robustness check is to exclude one year at a time and see if the results change dramatically.
 
-\subsection{Other measures of vehicle quality}
-% TODO: explain
-\begin{itemize}
-    \item Age
-    \item Depreciated value
-\end{itemize}
+% \subsection{Other measures of vehicle quality}
+% \begin{itemize}
+%     \item Age
+%     \item Depreciated value
+% \end{itemize}
 
 \subsection{Consumer side}
-Quarterly Polk data
-% TODO: run a regression with Hsieh-style quarter-over-quarter registration counts
-
-
-Other registration data
-
-\subsection{Robustness}
-Not all years are the same.
-A natural robustness check is to exclude one year at a time and see if the results change dramatically.
-
+Many of my analyses and inferences are limited by using wholesale data.
+Without more information on consumers, it's hard to draw conclusions about timing or welfare.
+I've obtained a quarter\hyp{}by\hyp{}zip code database of registration counts, but much more detailed datasets are available.
+%
 \subsection{Auto market IO}
-\begin{itemize}
-    \item Buyer-dealer interactions and market power
-    \item Repeating the while analysis at the buyer\hyp{}week or buyer category\hyp{}week level.
-    \item Price effects -- dealers in Alaska paying more for the same \vin10 in years with high dividends.
-    % To get that right, it's important to control for vehicle quality carefully; a higher price could indicate market shifts, or just that Alaskan dealers are shifting to newer used cars.
-    % (Both are interesting, but they're different stories.)
-
-\end{itemize}
-
+One of the strongest aspects of this dataset is to examine the behavior of buyers and sellers in the market, rather than focusing on sales to end-consumers.
+I plan to look further into the specifics of buyers and sellers, beyond their state.
+It's possible that buyer--seller interactions are important, or that certain buyers and sellers respond differently to the dividend.
+Finally, I plan to look in more detail at the price effects I've assumed away, examining if dealers in Alaska pay more for the same type of vehicle in years with larger dividends.
+%
+% \begin{itemize}
+%     \item Buyer-dealer interactions and market power
+%     \item Repeating the while analysis at the buyer\hyp{}week or buyer category\hyp{}week level.
+%     \item Price effects -- dealers in Alaska paying more for the same \vin10 in years with high dividends.
+%     % To get that right, it's important to control for vehicle quality carefully; a higher price could indicate market shifts, or just that Alaskan dealers are shifting to newer used cars.
+%     % (Both are interesting, but they're different stories.)
+%
+% \end{itemize}
 
 
 \section{Conclusion}
 
-\begin{itemize}
-    \item Generally, not huge effects.
-    \item Mention the outcomes specifically.
-    \item Why would that be?
-    \begin{itemize}
-        \item Possible that people aren't responding in a dramatic way
-        \item Possible that consumers \emph{are} responding dramatically, but the shifts are absorbed in inventory, which the dealers gradually replenish.
+In the analyses above, I've found mostly\hyp{}small and generally insignificant effects.
+Looking at changes in sales counts, prices, \msrp{} and fuel consumption, I can rule out large effects.
+On one hand,  the results are unsurprising.
+The dividend is known in advance by both dealers and consumers.
+Buyers who are not liquidity constrained may not change their behavior at all, and dealers may adjust their inventory smoothly.
+On the other, consumers have been shown to be mercurial \parencite{Busse2015_weather_on_cars}.
 
-    \end{itemize}
-\end{itemize}
+%
+% \begin{itemize}
+%     \item Generally, not huge effects.
+%     \item Mention the outcomes specifically.
+%     \item Why would that be?
+%     \begin{itemize}
+%         \item Possible that people aren't responding in a dramatic way
+%         \item Possible that consumers \emph{are} responding dramatically, but the shifts are absorbed in inventory, which the dealers gradually replenish.
+%
+%     \end{itemize}
+% \end{itemize}
 
 \FloatBarrier
 
