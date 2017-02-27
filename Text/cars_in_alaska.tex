@@ -2,18 +2,25 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amssymb,amsmath,amsthm}
-\usepackage{enumitem}
+\allowdisplaybreaks
+\usepackage{dsfont}
 \usepackage[mathlf]{MinionPro}
 \usepackage{carlito}
-% \usepackage{roboto}
 \usepackage{inconsolata}
 \usepackage{sectsty}
 \usepackage{setspace}
 \usepackage[font=sf]{caption}
 \allsectionsfont{\sffamily\mdseries}
-\usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
+
+\usepackage[activate={true,nocompatibility}, final, tracking=true, spacing=true, letterspace=80% only letterspace 80, rather than 100 (units are 1/1000 em)
+]{microtype}
 \microtypecontext{spacing=nonfrench}
-\usepackage{typearea}   % Let the typearea package work out the best margins (wider than the defaults)
+\SetProtrusion{encoding={*},family={bch},series={*},size={6,7}}
+              {1={ ,750},2={ ,500},3={ ,500},4={ ,500},5={ ,500},
+               6={ ,500},7={ ,600},8={ ,500},9={ ,500},0={ ,500}}
+\widowpenalty=9999  % as bad as possible without being 'infinitely' bad
+% \usepackage[headsep=0pt]{typearea}
+\usepackage[top=1.2in, bottom=1.4in]{geometry}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \lhead{}
@@ -23,7 +30,7 @@
 \cfoot{}
 \rfoot{\thepage}
 \renewcommand{\headrulewidth}{0pt}
-\renewcommand{\headheight}{10pt}
+% \setlength{\headheight}{10pt}
 
 \newcommand{\proofsep}{\vspace{-0.75em}}
 \usepackage{booktabs}
@@ -54,22 +61,6 @@
 %\newcommand\prefix@subsubsection{}
 \makeatother
 
-% Define new commands for "such that", the blackboard-bold letters and "closure".
-\newcommand{\st}{\textit{ s.t.\ }}
-\newcommand{\R}{\ensuremath{\mathbb{R}}}
-\newcommand{\N}{\ensuremath{\mathbb{N}}}
-\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
-\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
-\newcommand{\cl}{\ensuremath{\text{cl\hspace{0.1em}}}}
-
-\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
-\DeclareMathOperator{\blackboardE}{\mathbb{E}}
-\newcommand{\expected}[1]{\blackboardE\left[#1\right]}
-\newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
-\newlength{\postparenlength}
-\setlength{\postparenlength}{0.14em}
-\newcommand{\postparen}{\hspace{\postparenlength}}
-
 \setlength{\parskip}{0.5\parindent}
 \usepackage{url}
 \usepackage{xcolor}
@@ -85,7 +76,7 @@
 	input-decimal-markers = {.}
 	}
 \usepackage[authordate,isbn=false,backend=biber,autopunct=true,url=false]{biblatex-chicago}
-%\DefineBibliographyExtras{american}{\stdpunctuation}
+% \DefineBibliographyExtras{american}{\stdpunctuation}
 \renewcommand{\finalnamedelim}{\addspace \bibstring {and}\space}
 %\renewcommand*{\bibfont}{\footnotesize}
 %\DefineBibliographyStrings{english}{references = {References}}
@@ -123,6 +114,43 @@
 
 
 \graphicspath{{./Plots/}, {./Plots/Daily/}}
+
+
+
+% Define new commands for "such that", the blackboard-bold letters and "closure".
+\newcommand{\st}{\textit{ s.t.\ }}
+\newcommand{\indicator}[1]{\mathds{1}\left\{#1\right\}}
+\newcommand{\anticipation}{\indicator{t \in [W_0, W_1]}}
+\newcommand{\isAlaska}{\indicator{s = \textsc{ak}}}
+\newcommand{\postWindow}{\indicator{t > W_1}}
+\newcommand{\ddEqn}[3]{%
+\text{#1}_{\, sty} = & \  #2_1 \ \anticipation + #2_2 \ \isAlaska \times \anticipation + #2_3 \ \postWindow \\ \nonumber
+&+ #2_4 \ \isAlaska \times \postWindow + #3 F_{ sty} + \varepsilon_{\, sty}
+}
+\newcommand{\ddEqnLog}[3]{%
+\ln\left(\text{#1}_{\, sty}\right) = & \  #2_1 \ \anticipation + #2_2 \ \isAlaska \times \anticipation + #2_3 \ \postWindow \\ \nonumber
+&+ #2_4 \ \isAlaska \times \postWindow + #3 F_{ sty} + \varepsilon_{\, sty}
+}
+
+% \newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
+% \DeclareMathOperator{\blackboardE}{\mathbb{E}}
+% \newcommand{\expected}[1]{\blackboardE\left[#1\right]}
+% \newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
+\newlength{\postparenlength}
+\setlength{\postparenlength}{0.14em}
+\newcommand{\postparen}{\hspace{\postparenlength}}
+
+\newcommand{\varWindowDDnotes}{%
+Each dot is one regression.
+The $y$- and $x$-axes represent the window start and end, measured in weeks before or after the dividend day.
+The dividend day starts week zero.
+
+ The area of the circles represent the magnitude of the larger bound of the 95\% confidence interval for each regression.
+In plot (a), the values are scaled by the sample mean weekly sale count.
+(Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
+Sign is the sign of the coefficient estimate. %, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
+}
+
 \begin{document}
 \thispagestyle{empty}
 \setcounter{page}{0}
@@ -134,10 +162,13 @@
     \href{mailto:karldw@berkeley.edu}{\textit{\Large Karl Dunkle Werner}}$^*$
 
 \vspace{1em}
-  This draft: \gitCommitterDate{} (version
+  This draft:
     % The \gitHash here will automatically update the URL as necessary
     \href{https://github.com/karldw/second_year_paper/tree/\gitHash}{
-    \textsc{\gitAbbrevHash{}}})\\
+    % \textsc{\gitAbbrevHash{}}
+    \gitCommitterDate{}
+    }
+    \\
     \href{http://karldw.org/second_year_paper.pdf}{Click here for the most recent version.}
 \end{center}
 
@@ -148,12 +179,12 @@
         \begin{center}
             \textit{Abstract}
         \end{center}
-        Abstract text here \ldots
-        \begin{itemize}
-            \item Alaska payments are large
-            \item I don't observe large effects, though some estimates are imprecise.
-            \item Results are consistent with the permanent income hypothesis, dealers absorbing demand shocks with inventory or real\hyp{}but\hyp{}moderately\hyp{}sized effects
-        \end{itemize}
+        The Alaska Permanent Fund sends substantial dividend checks state residents every October.
+        We might think these payments would change residents' decisions to purchase durable goods, including automobiles.
+        Looking at a variety of outcomes from wholesale used vehicle auctions, I find small point estimates for the number, value and fuel efficiency.
+        For some specifications, I'm able to rule out effects larger than a change of a couple of percentage points.
+        For others my estimates are less precise and I can't exclude moderate effect sizes.
+        These results are consistent with the permanent income hypothesis, dealers absorbing demand shocks with inventory or real\hyp{}but\hyp{}moderately\hyp{}sized effects.
     \end{minipage}
 \end{center}
 
@@ -163,30 +194,83 @@
 $^*$Many thanks to the Claire Duquennois, Elisa Duran Micco, Gabe Englander, Hal Gordon, Andy Hultgren, Stephen Jarvis, Scott Kaplan, Ben Krause, Megan Lang, Peiley Lau, Kate Pennington, Wenfeng Qiu, Eleanor Wiseman, Derek Wolfson, Jim Sallee and the faculty of the Energy Institute.
 The numerous remaining errors are, of course, my own.
 }
-
-\pagebreak
 %
-% \textsc{\Large Outline}
+% \pagebreak
+%
+% \textsc{\Large Outline: draft for Feb 27}
 %
 % \begin{itemize}
-%     \item Findings!
-%     \begin{itemize}
-%         \item Sales counts per capita
-%         \item Sales volumes per capita
-%         \item Mean efficiency (gallons per mile)
-%         \item Vehicle value
-%         \begin{itemize}
-%             \item \msrp{}
-%             \item Model year age
-%             \item Auction price
-%         \end{itemize}
-%     \end{itemize}
+%     \item Short paragraph on income effects, durable goods, why we care about people's car purchase decisions at all.
+%     \item Describe APF
 %     \item Contribute to some literature strands:
 %     \begin{itemize}
 %         \item PIH
 %         \item Fuel efficiency choice
 %         \item IO of used auto markets
 %     \end{itemize}
+%     \item Write theory of car buying, make predictions about results
+%     \begin{itemize}
+%         \item Explain why announcement date isn't going to be informative.
+%     \end{itemize}
+%
+%     \item Findings -- small results
+%     \begin{itemize}
+%         \item Sales counts
+%         \begin{itemize}
+%             \item Very small coefficients, however you slice it.  Logs imply a somewhat noisier response.
+%             % anticipation_window_sale_count_weekly_notitle_coef_effect_mean.pdf
+%             % Then put these side-by-side:
+%             % variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf
+%             % variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf
+%         \end{itemize}
+%
+%         \item Sales volumes
+%         \begin{itemize}
+%             \item  Only mention sales volumes in passing; the component pieces of sales\_count and sales\_pr are more interesting.
+%             \item The effects are small when estimated in levels, moderate with logs.
+%         \end{itemize}
+%         \item Mean efficiency (liters per 100~km)
+%         \begin{itemize}
+%             % TODO in next iteration: look at mechanisms: if we control for vehicle age, what happens to the effect? What about weight?
+%             \item Overall, not a large effect. We can rule out any effect larger than about 10\% of the mean, and the coefficients aren't statistically significant.
+%             % anticipation_window_fuel_cons_weekly_notitle_coef_effect_mean.pdf
+%             % Then put these side-by-side:
+%             % variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf
+%             % variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf
+%
+%         \end{itemize}
+%         \item Vehicle value, as measured by one of the following:
+%         \begin{itemize}
+%             \item \msrp{}
+%             \begin{itemize}
+%                 % TODO: note that the last week of MSRP has a huge coefficient, but that says more about some year-end effect than this check.  I've dropped it to make the graph easier to see.
+%                 \item  For \msrp{} the conclusions are dramatically different for levels and logs.
+%                     For levels, the estimated effects are insignificant, and the confidence intervals rule out large effects -- anything larger than 10 or 20\% of the mean.
+%                     % variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf
+%                     For logs, the point estimates and confidence intervals allow for much larger results.
+%                     With point estimates around 0.35 and confidence interval upper bounds around 0.7 (for reasonable specifications; not those starting at the beginning), we can't reject large effects.
+%                     At the same time, the lower bound of the CIs is \emph{just} above zero, so I don't want to put too much stock in the statistical significance shown in the plot.
+%                     % variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf
+%             \end{itemize}
+%             % \item Model-year age (TODO: add vehicle age in next draft)
+%             \item Auction price (valid as a unified measure of vehicle quality if there aren't market failures)
+%             \begin{itemize}
+%                 \item  As with \textsc{msrp}, there's a difference between logs and levels here.  With levels, the results are insignificant, the point estimates are  close to zero and we can reject most results above 15\% of the mean price.  (The mean is \$14,912.13.)
+%                 With logs, the point estimates again imply larger effects, around 0.3, with confidence intervals around 0.7.
+%                 % Show two pairs here:
+%                 % Pair a:
+%                 % effects_individual_period_sales_pr_mean_weekly_coef_notitle.pdf
+%                 % effects_individual_period_sales_pr_mean_log_weekly_coef_notitle.pdf
+%                 % Pair b:
+%                 % variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf
+%                 % variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf
+%             \end{itemize}
+%         \end{itemize}
+%         \item Show that results are robust to dropping any particular year (make a graph)
+%         \item Acknowledge the issues of multiple testing -- they cut both ways, with my ``precise'' zeros being somewhat less precise.
+%     \end{itemize}
+%
+%
 %     \item Papers to compare
 %     \begin{itemize}
 %         \item Hsieh
@@ -195,96 +279,13 @@ The numerous remaining errors are, of course, my own.
 %         \item \eitc{} literature (e.g.\ \cite{goodman2008eitc})
 %     \end{itemize}
 % \end{itemize}
-%
-% \pagebreak
-\textsc{\Large Outline: draft for Feb 27}
-
-\begin{itemize}
-    \item Short paragraph on income effects, durable goods, why we care about people's car purchase decisions at all.
-    \item Describe APF
-    \item Contribute to some literature strands:
-    \begin{itemize}
-        \item PIH
-        \item Fuel efficiency choice
-        \item IO of used auto markets
-    \end{itemize}
-    \item Write theory of car buying, make predictions about results
-    \begin{itemize}
-        \item Explain why announcement date isn't going to be informative.
-    \end{itemize}
-
-    \item Findings -- small results
-    \begin{itemize}
-        \item Sales counts
-        \begin{itemize}
-            \item Very small coefficients, however you slice it.  Logs imply a somewhat noisier response.
-            % anticipation_window_sale_count_weekly_notitle_coef_effect_mean.pdf
-            % Then put these side-by-side:
-            % variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf
-            % variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf
-        \end{itemize}
-
-        \item Sales volumes
-        \begin{itemize}
-            \item  Only mention sales volumes in passing; the component pieces of sales\_count and sales\_pr are more interesting.
-            \item The effects are small when estimated in levels, moderate with logs.
-        \end{itemize}
-        \item Mean efficiency (liters per 100~km)
-        \begin{itemize}
-            % TODO in next iteration: look at mechanisms: if we control for vehicle age, what happens to the effect? What about weight?
-            \item Overall, not a large effect. We can rule out any effect larger than about 10\% of the mean, and the coefficients aren't statistically significant.
-            % anticipation_window_fuel_cons_weekly_notitle_coef_effect_mean.pdf
-            % Then put these side-by-side:
-            % variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf
-            % variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf
-
-        \end{itemize}
-        \item Vehicle value, as measured by one of the following:
-        \begin{itemize}
-            \item \msrp{}
-            \begin{itemize}
-                % TODO: note that the last week of MSRP has a huge coefficient, but that says more about some year-end effect than this check.  I've dropped it to make the graph easier to see.
-                \item  For \msrp{} the conclusions are dramatically different for levels and logs.
-                    For levels, the estimated effects are insignificant, and the confidence intervals rule out large effects -- anything larger than 10 or 20\% of the mean.
-                    % variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf
-                    For logs, the point estimates and confidence intervals allow for much larger results.
-                    With point estimates around 0.35 and confidence interval upper bounds around 0.7 (for reasonable specifications; not those starting at the beginning), we can't reject large effects.
-                    At the same time, the lower bound of the CIs is \emph{just} above zero, so I don't want to put too much stock in the statistical significance shown in the plot.
-                    % variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf
-            \end{itemize}
-            % \item Model-year age (TODO: add vehicle age in next draft)
-            \item Auction price (valid as a unified measure of vehicle quality if there aren't market failures)
-            \begin{itemize}
-                \item  As with \textsc{msrp}, there's a difference between logs and levels here.  With levels, the results are insignificant, the point estimates are very close to zero and we can reject most results above 15\% of the mean price.  (The mean is \$14,912.13.)
-                With logs, the point estimates again imply larger effects, around 0.3, with confidence intervals around 0.7.
-                % Show two pairs here:
-                % Pair a:
-                % effects_individual_period_sales_pr_mean_weekly_coef_notitle.pdf
-                % effects_individual_period_sales_pr_mean_log_weekly_coef_notitle.pdf
-                % Pair b:
-                % variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf
-                % variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf
-            \end{itemize}
-        \end{itemize}
-        \item Show that results are robust to dropping any particular year (make a graph)
-        \item Acknowledge the issues of multiple testing -- they cut both ways, with my ``precise'' zeros being somewhat less precise.
-    \end{itemize}
-
-
-    \item Papers to compare
-    \begin{itemize}
-        \item Hsieh
-        \item \textcite{Busse2015_weather_on_cars} about fickle car buying
-        \item Presentation about subsidy in EVs
-        \item \eitc{} literature (e.g.\ \cite{goodman2008eitc})
-    \end{itemize}
-\end{itemize}
 
 % {\Large Questions for Jim}
 % \begin{itemize}
 %     \item What papers should I cite when I mention the energy efficiency gap?
 %     \item Am I interpreting the log analysis right?  It seems odd that the confidence intervals there would be so large.
 % \end{itemize}
+
 \pagebreak
 \setcounter{page}{1}
 \begin{doublespacing}
@@ -305,7 +306,7 @@ In recent years, the payment has happened on the first Thursday in October.
 I will use this somewhat\hyp{}arbitrary payment date as a source of variation in household's income, and therefore willingness to buy vehicles.
 % It's worth mentioning a few of the dividend details before going on.
 The dividend is paid out of investment earnings -- 10.5\% of the past five years' earnings -- not out of present\hyp{}day oil revenue.
-The Permanent Fund investments are made in a broad variety of stocks and bonds, and the dividend amount is very predictable.
+The Permanent Fund investments are made in a broad variety of stocks and bonds, and the dividend amount is predictable.
 \footnote{The asset allocation is detailed in the Alaska Permanent Fund Corporation's website, \url{http://apfc.org/home/Content/investments/assetAllocation2009.cfm}}
 The dividend amount is finalized and announced a few weeks before payment, and Alaskan newspapers publish accurate predictions before that \parencite{adn_dividend_prediction, adn_dividend_realization}.
 
@@ -376,7 +377,8 @@ People value the stream of services provided by owning a vehicle, ad so they hav
 Consumers are constrained by their budgets, so they may therefore change what they buy when they have a check from the government.
 Even though the check is anticipated, they may not fully smooth because they don't build up enough savings in the course of their normal consumption path (if, for example, they act as buffer\hyp{}stock savers).
 
-There are also behavioral possibilities, both in lack of smoothing and people treating dividend checks differently than they would treat their own savings.
+There are also behavioral possibilities.
+It may be that people treating dividend checks differently than they would treat their own savings, or that people buy expensive durable goods for somewhat capricious reasons \parencite{Busse2015_weather_on_cars}.
 I won't really be able to disentangle these, since I don't have any situations where saved wealth is exogenously manipulated, but it's important to consider that responses may differ between this situation and others.
 
 For simplicity, I'll assume each buyer purchases at most one car, indexed by $v$.
@@ -412,7 +414,7 @@ To consider the problem analytically, a dealer would consider the cross-price el
 It seems likely that  the dividend checks influence both new and used car purchases, as outlined in the consumer model.
 Some dealers specialize in used vehicles, while others sell both used and new vehicles.
 
-
+%TODO: come up with a theoretical prediction of dealer anticipation effects
 
 
 \section{Data}
@@ -428,7 +430,7 @@ The Manhiem auctions dataset includes a rich set of variables; I've only used th
 The data include identifiers for buyers, sellers and auction sites, as well as the billing zipcodes for all three.
 I use the zipcodes to identify which wholesalers are in Alaska or one of my control states.
 
-\begin{table}[hbt]
+\begin{table}[!hbtp]
     \caption{Cleaning Manheim auction data}
     \label{tab:cleaning_manheim}
     % TODO: Make the numbers here better by having parse-numbers = true (currently broken because the snippet gets added after siunitx tries to parse the number)
@@ -518,8 +520,11 @@ I do this because fuel consumption is generally much better behaved than fuel ef
 Rather than simply taking the reciprocal and having gallons per mile, I convert to liters per 100~km because no one uses gallons per mile, while liters per 100~km is at least interpretable by people who have lived outside the US\@.
 
 \subsection{Alaskan dividends}
-Note: the amounts don't matter because I have year FE
 
+For the Alaskan dividends, I've pulled the amounts from the Alaska Permanent Fund Division's website \parencite{apfd_payments_summary}.
+\textcite{hsieh2003} provides the history of the dividend\hyp{}payment dates, obtained in personal correspondence with Permanent\hyp{}Fund staff.
+Note that while the dividend amounts vary from year to year, in any given year, the dividend is the same for all recipients.
+Therefore, my year fixed effects control for the amount.
 
 
 \section[DD Results]{Difference-in-Differences Results}
@@ -531,6 +536,8 @@ In section~\ref{sec:synthetic-controls} I discuss next steps to formalize the se
 
 For the difference\hyp{}in\hyp{}differences analysis, I've chosen a default window of 70~days (10~weeks) before and after the early\hyp{}October dividend.
 This fairly wide window allows for various anticipation or delayed effects without getting too close to the end of the year and the associated sales slowdown.
+My preferred specification aggregates the data to state\hyp{}by\hyp{}week averages or totals. Using daily data instead produces similar results that are broadly similar, but somewhat noisier.
+
 
 
 \subsection{Picking control states}
@@ -564,93 +571,22 @@ The log specifications adjust for percentage differences more directly.
 As mentioned in section~\ref{sec:model}, we might expect consumers to sharply change their consumption when they receive the dividend checks.
 Auto dealers would anticipate that behavior and change their auction purchases somewhat earlier, depending on transportation time and the costs of holding inventory.
 
+Theory doesn't tell us, however, how long that anticipation window should be.
+To be flexible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figure~\ref{fig:anticipation_window_sale_count}.
+In all cases, the anticipation window ends the immediately before the dividend day.
+
 On the other hand, dealers anecdotally say they just try to maintain their inventories.
 While the dealers know that customers tend to  buy more cars around the dividend date and when they receive tax refunds, but the dealers report that don't make additional efforts to stock up before the dividend is sent.
 In this case, the auction data should show no anticipation effect.
 Instead, there should be some increase in auction sales after the dividend, as customers buy cars and deplete dealers' inventories, which the dealers then restock.
-
-% \begin{figure}[hbt]
-%     \caption{Anticipation effects for sales count}
-%     \label{fig:anticipation_window_sale_count}
-%     \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_coef_effect_mean.pdf}
-%
-%     {\footnotesize
-%     The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-%     Error bars indicate 95\% confidence intervals.
-%     %The horizontal line at \snippet{sales_count_weekly_std_dev.tex} is the standard deviation of weekly counts.
-%     All windows end at $-1$ week.
-%     }
-
-% \end{figure}
-% \begin{figure}[hbt]
-%      \caption{Anticipation effects for sales totals}
-%      \label{fig:anticipation_window_sale_tot}
-%         \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_coef_effect_mean.pdf}
-%
-%     {\footnotesize
-%     The plot shows the Alaska $\times$ anticipation coefficients ($\gamma_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-%     Error bars indicate 95\% confidence intervals.
-%     %The horizontal line at \snippet{sales_tot_weekly_thousands_std_dev.tex} is the standard deviation of weekly sales volume (in thousands).
-%     All dollar amounts are in thousands of 2016 dollars.
-%     All windows end at $-1$ week.
-%     }
-% \end{figure}
-
-
-Anecdata are often wrong, so maybe it's worth considering the theoretical predicting a dealer anticipation effect.
-Theory doesn't tell us, however, how long that anticipation window should be.
-To be as flexible as possible, I have estimated the results for varying windows from one to nine weeks of anticipation, as shown in figures~\ref{fig:anticipation_window_sale_count} and~\ref{fig:anticipation_window_sale_tot}.
-% TODO: remove the previous figure reference. (Replace with something else?)
-In all cases, the anticipation window ends the immediately before the dividend day.
-
-None of the estimates are statistically significant, and they are all far below the standard deviation of weekly sales counts and sales totals, as indicated by the horizontal lines at the top of the graphs.
-Different states have somewhat different standard deviations, the pooled standard deviation is not driven by states with particularly large variation.
-The 95\% confidence interval of the anticipation estimates less than are standard deviation for Alaska and every control state; figure~\ref{fig:alaska_vs_pooled_mean_sd} plots the pooled and Alaska\hyp{}only mean and standard deviation.
-I default to calculating the pooled mean across Alaska and the control states and across all weeks in the data.
-Calculating the meanon only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives very similar results as the all\hyp{}year sample.
-
-Using daily data produces similar results.
-The coefficients are somewhat more variable and a couple are statistically significant, but they're still much smaller than the standard deviation.
-% (See figure~\ref{bonusfig:anticipation_window_sale_count_daily}.)
-
-
-% \begin{figure}[hbt]
-%      \caption{Sales totals effect size across windows, max 95\% CI}
-%      \label{fig:variable_window_sale_tot_conf95_max_effect}
-%         \includegraphics[width=\linewidth]{variable_window_dd_sale_tot_weekly_area_conf95_max_effect.pdf}
-%
-%     {\footnotesize
-%     % TODO: write an equation for this, put in the appropriate greek letter. (use \psi or change the math below)
-%     \textsc{Notes:} The plot shows the Alaska $\times$ anticipation coefficients on total sales from a regression with a varying window.
-%     The $y$-axis shows is the start of the window relative to the dividend day, while the $x$-axis codes the end of the window.
-%     The size of the points is the maximum of the absolute value of the effect size of the 95\% confidence intervals: $\max \big\{ \hat{\psi} - 1.96 \sqrt{\Var(\hat{\psi})},$ $ \hat{\psi} + 1.96 \sqrt{\Var(\hat{\psi})} \big\}$.
-%     A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
-%     }
-% \end{figure}
-
-% \begin{figure}[hbt]
-%      \caption{Maximum sales count effect size confidence intervals}
-%      \label{fig:variable_window_sale_count_conf95_max_effect}
-%         \includegraphics[width=\linewidth]{variable_window_dd_sale_count_weekly_area_conf95_max_effect.pdf}
-%
-%     {\footnotesize
-%     % TODO: write an equation for this, put in the appropriate greek letter. (use \psi or change the math below)
-%     \textsc{Notes:} The plot shows the Alaska $\times$ anticipation coefficients on sale count from a regression with a varying  window.
-%     The $y$-axis shows is the start of the window relative to the dividend day, while the $x$-axis codes the end of the window.
-%     The size of the points is the maximum of the absolute value of the effect size of the 95\% confidence intervals: $\max \big\{ \hat{\psi} - 1.96 \sqrt{\Var(\hat{\psi})},$ $ \hat{\psi} + 1.96 \sqrt{\Var(\hat{\psi})} \big\}$.
-%     A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
-%     }
-% \end{figure}
-
 On the other hand, one might put more credence in the anecdotes.
 To show that there is still no effect on vehicle sales, I'll estimate an even more flexible treatment window.
+In this style of plot, I estimate all possible windows longer than one week and plot out the confidence interval for each, as in figure~\ref{fig:variable_window_sale_count}.
 
 
 
 
-% TODO: in addition to comparing vs the std dev, also compare as a pct of the mean.
-
-% \begin{figure}[hbt]
+% \begin{figure}[!hbtp]
 %     \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
 %     \label{fig:anticipation_window_sale_tot}
 %     \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
@@ -663,94 +599,166 @@ To show that there is still no effect on vehicle sales, I'll estimate an even mo
 %     }
 % \end{figure}
 
-\subsection{Volume of cars sold}
-% TODO: move this section up so I can talk about number and volumes of cars sold
+
+\subsection{Difference-in-differences equations}
+Let $t$ represent time, measured in event weeks, $t \in [-10, 10]$.
+The week the dividend is received is $t=0$.
+Let $s$ index states and $y$ index years: $s \in \{\textsc{ak}, \textsc{id},\textsc{mt},\textsc{ut} \}$ and $y \in [2002, 2014]$.
+Let $W_0$ be the start of the anticipation window and $W_1$ be the end, so $[W_0, W_1]$ is the window and $\anticipation$ is a dummy for $t$ in the window.
+Though I'm calling it an ``anticipation window,'' I'm going to estimate some versions with $W_0$ or $W_1 > 0$.
+For brevity, let $F{\, sty}$ be the vector of state and year fixed effects, 17 in all.
+The capital Greek letter premultiplying $F$ represents a vector of the 17 coefficients.
+In a slight abuse of notation, let $\varepsilon$ be the error term in each of the equations below, though it represents a different error term in each.
+The difference\hyp{}in\hyp{}differences specification is the same in all eight equations, but the left\hyp{}hand side is different in each.
+Listing out all of the outcomes in gory detail, we have the following.
+The terms to be estimated are the $\alpha_i$, $A$, $\beta_i$, $B$, $\gamma_i$, $\Gamma$, $\delta_i$, $\Delta$, $\zeta_i$, $Z$, $\eta_i$, $H$, $\theta_i$, $\Theta$, $\lambda_i$, $\Lambda$ (for $i = 1,2,3,4$).
 \begin{align}
-    \label{eqn:cars_sold_with_anticipation}
-    \text{Cars sold} = & \ \beta_1 \ \text{anticipation} + \beta_2 \ \text{Alaska} \times \text{anticipation} + \beta_3 \ \text{post-dividend} \\ \nonumber
-    &+ \beta_4 \ \text{Alaska} \times \text{post-dividend} + \text{state and year fixed effects}
-    %\\
-    % \text{Sale volume} = & \ \gamma_1 \ \text{anticipation} + \gamma_2 \ \text{Alaska} \times \text{anticipation} + \gamma_3 \ \text{post-dividend} \\ \nonumber
-    % &+ \gamma_4 \ \text{Alaska} \times \text{post-dividend} + \text{state and year fixed effects}
+    \label{eqn:cars-sold}
+    \ddEqn{Cars sold}{\alpha}{A} \\
+    %
+    \label{eqn:log-cars-sold}
+    \ddEqnLog{Cars sold}{\beta}{B} \\
+    %
+    \label{eqn:sale-price}
+    \ddEqn{Sale price}{\gamma}{\Gamma}\\
+    %
+    \label{eqn:log-sale-price}
+    \ddEqnLog{Sale price}{\delta}{\Delta} \\
+    %
+    \label{eqn:msrp}
+    \ddEqn{\msrp{}\!}{\zeta}{Z} \\
+    %
+    \label{eqn:log-msrp}
+    \ddEqnLog{\msrp{}\!}{\eta}{H} \\
+    %
+    \label{eqn:fuel-cons}
+    \ddEqn{Fuel cons}{\theta}{\Theta} \\
+    %
+    \label{eqn:log-fuel-cons}
+    \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
+    % Greek letters that could be useful here, in order:
+    % \alpha, \beta, \gamma, \delta, \zeta, \eta, \theta, \iota, \kappa, \lambda, \mu,\nu, \xi, \phi, \chi, \psi, \omega
 \end{align}
 
-% Collapse data to a state-by-day panel and run DD regs of sale count per capita and sale volume per capita.
-% Use all years, use event time relative to the dividend day and don't take into account any anticipation.
-% Control for either a year FE or state \gdp{}. Control for either daily or day-of-week FE.
-% As a default, the cars sold in the set of states where Alaskan buyers are active (in a given year).
-% Force the panel to be balanced by adding zeros (if necessary).
+\subsection{Volume of cars sold}
 
-This is theoretically ambiguous -- sales of \emph{used} cars could go up or down with an income shock, or be unchanged.
-
-
-\begin{figure}[hbt]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation}
+\begin{figure}[!hbtp]
+    \caption{$\alpha_2$ and $\beta_2$, the treatment coefficients on Alaska $\times$ anticipation, for varying windows}
     \label{fig:anticipation_window_sale_count}
+    \begin{subfigure}{\linewidth}
     \includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_coef_effect_mean.pdf}
+    \end{subfigure}
+    \begin{subfigure}{\linewidth}
+    \includegraphics[width=\linewidth]{anticipation_window_sale_count_log_weekly_notitle_coef.pdf}
+    \end{subfigure}
 
     {\footnotesize
     \textsc{Notes:}
-    % The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-    All windows end at $-1$ event weeks.
+    The $x$-axis represents event weeks, estimating the difference\hyp{}in\hyp{}differences coefficients for different window starts (varying $W_0$).
+    The coefficients on top are from equation~\ref{eqn:cars-sold} and the bottom are from equation~\ref{eqn:log-cars-sold}.
+    All windows end at $W_1 = -1$ event weeks.
+    The normalization for the top chart, mean weekly sale count, is \snippet{sales_count_weekly_mean.tex} cars per state per week.
     }
 \end{figure}
 
-\begin{figure}[hbt]
-    \caption{Sales count effects with varying windows}
-    % \label{bonusfig:anticipation_window_sale_count_daily}
-    \begin{subfigure}{\linewidth}
+
+Let's first consider the most direct outcome variable, the number of cars sold, equations~\ref{eqn:cars-sold} and~\ref{eqn:log-cars-sold} above.
+Note that The effect on used car sales is theoretically ambiguous.
+If the permanent income hypothesis holds, there should be no change.
+If not, I expect overall car sales to increase, but it could be that people purchase more new cars and fewer used cars.
+
+Figure~\ref{fig:anticipation_window_sale_count} shows these first results, in levels and logs.
+None of the estimates of $\alpha_2$ or $\beta_2$ are statistically significant.
+The levels estimates ($\alpha_2$) are fairly precise, allowing me to reject an effect bigger than 2\% of the mean.
+(Effect sizes measured in standard deviations, rather than as a fraction of the mean, are also small.)
+Different states have somewhat different means, as shown in the comparison of figure~\ref{fig:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
+I default to calculating the pooled mean across Alaska and the control states and across all weeks in the data.
+Calculating the mean on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives very similar results as the all\hyp{}year sample.
+The log regression, estimates of $\beta_2$, are also not huge, but the standard errors are wide enough that I can't rule out fairly large effects.
+
+\begin{figure}[!hbtp]
+    \caption{Sales count effects with varying windows ($\alpha_2$ and $\beta_2$)}
+    \label{fig:variable_window_sale_count}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in levels, scaled by weekly mean sales}
+        \centering
         \includegraphics[width=\linewidth]{variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
-    \begin{subfigure}{\linewidth}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in logs}
         \includegraphics[width=\linewidth]{variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
-
     {\footnotesize
     \textsc{Notes:}
-    Each dot is one regression.
-    The $y$- and $x$-axes represent the window start end, measured in weeks before or after the dividend day
-    The dividend day starts week zero.
-
-     The area of the circles represent the magnitude of the larger bound of the 95\% confidence interval for each regression.
-    In plot (a), the values are scaled by the sample mean weekly sale count.
-    (Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
-    Sign is the sign of the coefficient estimate, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
+    \varWindowDDnotes
     }
 \end{figure}
 
+As mentioned previously, it's possible that dealers aren't anticipating sales, instead opting to react to customer demand, only buying new cars as necessary.
+This behavior wouldn't lead to any anticipation effect, but might lead to effects after the dividend date.
+To show that there is still no effect on vehicle sales, I'll estimate an even more flexible treatment window.
+In figure~\ref{fig:variable_window_sale_count}, I've estimated all possible windows longer than one week.
+(I've excluded windows that span more than 19 of the 21 week event period, as these are irrelevant and imprecisely estimated.)
+The area of each point is scaled to the 95\% confidence interval, since this is the largest value we can tell an economic story about.
+I can only plot one bound of the 95\% confidence interval in each point, so I've chosen the bound with the larger magnitude.
+That is, for negative point estimates, I've plotted the lower bound of the confidence interval, and for positive point estimates, I've plotted the upper bound.
+In the graph, points that are darker (less transparent) represent point estimates that are statistically significant.
+There is no multiple\hyp{}testing adjustment to the confidence intervals in the graph.
+Adjusting for the number of tests would increase the intervals, leading my small zeros to be somewhat less small.
+
+As in the anticipation window plot before, most of the estimates are small and statistically insignificant.
+The levels estimates are small across the board, allowing me to reject most effects larger than 2\% of the mean car sales.
+The logs estimates are noisier, but for most windows I can reject an effect larger than 30\% or so.
+It's curious that for windows beginning and ending late in the event period, the levels estimates are positive while the log estimates are negative.
 
 In addition to the number of cars sold, we could look at total sales volume in dollars.
 I find the component pieces -- the number of cars and the price of each -- more interesting, so I won't linger on the total sales volume analysis.
 As with sales count, the effects are quite small when estimated in levels, with wider confidence intervals when estimated in logs.
 
 \subsection{Quality of cars sold}
+% TODO talk about sale price here too.
 
-\begin{figure}[hbt]
-    \caption{MSRP effects with varying windows}  % Not \msrp here
+
+
+For the sake of brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots, in the style of figure~\ref{fig:variable_window_sale_count}.
+\begin{figure}[!hbtp]
+    \caption{Sales price effects with varying windows}
     % \label{}
-    \begin{subfigure}{\linewidth}
+    \begin{subfigure}{0.97\linewidth}
+        \caption{Estimate in levels, scaled by weekly mean sales price}
+        \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf}
+    \end{subfigure}
+    \begin{subfigure}{0.97\linewidth}
+        \caption{Estimate in logs}
+        \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf}
+    \end{subfigure}
+
+    {\footnotesize
+    \textsc{Notes:}
+    \varWindowDDnotes
+    % A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
+    % TODO: put in the appropriate greek letter.
+    }
+\end{figure}
+
+\begin{figure}[!hbtp]
+    \caption{MSRP effects with varying windows}
+    % \label{}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in levels, scaled by weekly mean MSRP}
         \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
-    \begin{subfigure}{\linewidth}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in logs}
         \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
 
-
     {\footnotesize
     \textsc{Notes:}
-    Each dot is one regression.
-    The $y$- and $x$-axes represent the window start end, measured in weeks before or after the dividend day
-    The dividend day starts week zero.
-
-     The area of the circles represent the magnitude of the larger bound of the 95\% confidence interval for each regression.
-    In plot (a), the values are scaled by the sample mean weekly \msrp{}.
-    (Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
-    Sign is the sign of the coefficient estimate, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
+    \varWindowDDnotes
+    % A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
+    % TODO: put in the appropriate greek letter.
     }
 \end{figure}
 
@@ -778,28 +786,15 @@ I can rule out any effect larger than about 10\% of the mean, and the coefficien
 
 
 
-
-\begin{figure}[hbt]
-    \caption{Fuel consumption treatment coefficients on Alaska $\times$ anticipation}
-    % \label{bonusfig:anticipation_window_sale_count_daily}
-    \includegraphics[width=\linewidth]{anticipation_window_fuel_cons_weekly_notitle_coef_effect_mean.pdf}
-
-    {\footnotesize
-    \textsc{Notes:}
-    % The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-    All windows end at $-1$ event weeks.
-    }
-\end{figure}
-
-
-\begin{figure}[hbt]
+\begin{figure}[!hbtp]
+    % TODO: better title.
     \caption{Fuel consumption effects with varying windows}
     % \label{bonusfig:anticipation_window_sale_count_daily}
-    \begin{subfigure}{\linewidth}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in levels, scaled by weekly mean sales}
         \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_weekly_area_conf95_max_effect_mean.pdf}
     \end{subfigure}
-    \begin{subfigure}{\linewidth}
+    \begin{subfigure}{0.97\linewidth}
         \caption{Estimate in logs}
         \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_log_weekly_area_conf95_max.pdf}
     \end{subfigure}
@@ -807,14 +802,7 @@ I can rule out any effect larger than about 10\% of the mean, and the coefficien
 
     {\footnotesize
     \textsc{Notes:}
-    Each dot is one regression.
-    The $y$- and $x$-axes represent the window start end, measured in weeks before or after the dividend day
-    The dividend day starts week zero.
-
-     The area of the circles represent the magnitude of the larger bound of the 95\% confidence interval for each regression.
-    In plot (a), the values are scaled by the sample mean weekly fuel consumption.
-    (Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
-    Sign is the sign of the coefficient estimate, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
+    \varWindowDDnotes
     }
 \end{figure}
 
@@ -824,24 +812,28 @@ I can rule out any effect larger than about 10\% of the mean, and the coefficien
 
 \subsection{Synthetic controls}
 \label{sec:synthetic-controls}
+% TODO: elaborate
 Do the previous DD section again, but with synthetic controls or, maybe, the fancier frameworks of
 \textcite{DoudchenkoImbens2016DD} or \textcite{Xu2016}
 
 \subsection{Standard errors}
-% Elaborate:
+% TODO Elaborate:
 The standard errors are only robust to heteroskedasticity, not any form of autocorrelation, so the \textcite{bertrand_duflo2004DD} critique applies.
 I haven't clustered because I don't have enough clusters for the asymptotics to be valid.
 
 \subsection{Other measures of vehicle quality}
+% TODO: explain
 \begin{itemize}
     \item Age
     \item Depreciated value
 \end{itemize}
 
 \subsection{Consumer side}
-\subsubsection{Quarterly Polk data}
+Quarterly Polk data
 % TODO: run a regression with Hsieh-style quarter-over-quarter registration counts
-\subsubsection{Other registration data}
+
+
+Other registration data
 
 \subsection{Robustness}
 Not all years are the same.
@@ -872,9 +864,17 @@ A natural robustness check is to exclude one year at a time and see if the resul
     \end{itemize}
 \end{itemize}
 
-\end{doublespacing}
 \FloatBarrier
+
+
 \pagebreak
+% Make a much more compressed format for the references: single spaced, 1in margin.
+% fancyhfoffset makes fancyhdr recalculate the footer location for the new margin.
+\end{doublespacing}
+\newgeometry{margin=1in}
+\fancyhfoffset[O]{0pt}
+
+
 % References
 \printbibliography
 
@@ -892,7 +892,7 @@ A natural robustness check is to exclude one year at a time and see if the resul
 
 \section{Bonus Figures for Jim}
 
-\begin{figure}[hbt]
+\begin{figure}[!hbtp]
     \caption{Treatment coefficients on Alaska $\times$ anticipation}
     \label{bonusfig:anticipation_window_sale_count_daily}
     \includegraphics[width=\linewidth]{anticipation_window_sale_count_daily_notitle.pdf}
@@ -902,7 +902,7 @@ A natural robustness check is to exclude one year at a time and see if the resul
     }
 \end{figure}
 
-\begin{figure}[hbt]
+\begin{figure}[!hbtp]
 	\caption{Treatment coefficients on Alaska $\times$ anticipation, with state-specific standard deviation lines}
 	\label{bonusfig:anticipation_window_sale_count_and_tot_weekly_states_sd}
 	\includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_states_sd.pdf}

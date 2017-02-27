@@ -7,6 +7,7 @@
 - Post to website
 - Replace acronyms with sc version: MSRP, APF, PIH, VIN, CEX
 - Search pdf for unresolved references: "??"
+- Search for TODOs
 
 ## To do:
 ### Analysis to-do
