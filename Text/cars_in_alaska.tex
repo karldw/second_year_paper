@@ -633,7 +633,10 @@ To provide one example, the equation for cars sold is:
 \end{figure}
 
 
-Let's first consider the most direct outcome variable, the number of cars sold:
+Let's first consider the most direct outcome variable, the number of cars sold.
+Note that the effect on used car sales is theoretically ambiguous.
+If the permanent income hypothesis holds, there should be no change.
+If not, I expect overall car sales to increase, but it could be that people purchase more new cars and fewer used cars.
 \begin{align}
     \tag{\ref{eqn:cars-sold}}
     \ddEqn{Cars sold}{\alpha}{A}\\
@@ -641,18 +644,15 @@ Let's first consider the most direct outcome variable, the number of cars sold:
     \label{eqn:log-cars-sold}
     \ddEqnLog{Cars sold}{\beta}{B}
 \end{align}
-Note that the effect on used car sales is theoretically ambiguous.
-If the permanent income hypothesis holds, there should be no change.
-If not, I expect overall car sales to increase, but it could be that people purchase more new cars and fewer used cars.
 
 Figure~\ref{fig:anticipation_window_sale_count} shows these first results, in levels and logs.
 None of the estimates of $\alpha_2$ or $\beta_2$ are statistically significant.
 The levels estimates ($\alpha_2$) are fairly precise, allowing me to reject an effect bigger than 2\% of the mean.
 (Effect sizes measured in standard deviations, rather than as a fraction of the mean, are also small.)
-Different states have somewhat different means, as shown in the comparison of figure~\ref{fig:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
+Alaska and the control states have somewhat different means, as shown in the comparison of figure~\ref{fig:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
 I default to calculating the pooled mean across Alaska and the control states and across all weeks in the data.
 Calculating the mean on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives similar results as the all\hyp{}year sample.
-The log regression, estimates of $\beta_2$, are also not huge, but the standard errors are wide enough that I can't rule out fairly large effects.
+The log regression, estimates of $\beta_2$, are also not huge, but the standard errors are wide enough that I can't rule out larger effects.
 
 \begin{figure}[!hbtp]
     \caption{Sales count effects with varying windows}
@@ -673,37 +673,38 @@ The log regression, estimates of $\beta_2$, are also not huge, but the standard 
     }
 \end{figure}
 
-As mentioned previously, it's possible that dealers aren't anticipating sales, instead opting to react to customer demand, only buying new cars as necessary.
-This behavior wouldn't lead to any anticipation effect, but might lead to effects after the dividend date.
-To show that there is still no effect on vehicle sales, I'll estimate an even more flexible treatment window.
-In figure~\ref{fig:variable_window_sale_count}, I've estimated all possible windows longer than one week.
-(I've excluded windows that span more than 19 of the 21~week event period, as these are irrelevant and imprecisely estimated.)
+As mentioned above, it's possible that dealers aren't anticipating sales, instead reacting to customer demand and only buying new cars as necessary.
+This behavior wouldn't lead to any anticipation effect, but might lead to increased sales after the dividend date.
+
+To show that there is still no effect on vehicle sales, I'll estimate a more flexible treatment window.
+In figure~\ref{fig:variable_window_sale_count}, I've estimated equations~\ref{eqn:cars-sold} and~\ref{eqn:log-cars-sold} for all possible windows longer than one week.
+(I've excluded windows that span more than 19 of the 21~weeks in the event period, as these are both irrelevant and imprecisely estimated.)
 The area of each point is scaled to the 95\% confidence interval, since this is the largest value we can tell an economic story about.
-I can only plot one bound of the 95\% confidence interval in each point, so I've chosen the bound with the larger magnitude.
-That is, for negative point estimates, I've plotted the lower bound of the confidence interval, and for positive point estimates, I've plotted the upper bound.
+I only plot one bound of the 95\% confidence interval in each point -- I've chosen the bound with the larger magnitude.
+For negative point estimates I've plotted the lower bound of the confidence interval and for positive point estimates I've plotted the upper bound.
 In the graph, points that are darker (less transparent) represent point estimates that are statistically significant.
 There is no multiple\hyp{}testing adjustment to the confidence intervals in the graph.
 Adjusting for the number of tests would increase the intervals, leading my small zeros to be somewhat less small.
 
-As in the anticipation window plot before, most of the estimates are small and statistically insignificant.
-The levels estimates are small across the board, allowing me to reject most effects larger than 2\% of the mean car sales.
-The logs estimates are noisier, but for most windows I can reject an effect larger than 30\% or so.
+As in the anticipation window plot, most of the estimates are small and statistically insignificant.
+The levels estimates are tiny across the board, allowing me to reject most effects larger than 2\% of the mean car sales.
+The log estimates are noisier, but for most windows I can reject an effect larger than 30\% or so.
 It's curious that for windows beginning and ending late in the event period, the levels estimates are positive while the log estimates are negative.
 
-In addition to the number of cars sold, we could look at total sales volume in dollars.
-I find the component pieces -- the number of cars and the price of each -- more interesting, so I won't linger on the total sales volume analysis.
+In addition to the number of cars sold, we could look at the dollar value of total sales.
+I've run those regressions, but I find the component pieces -- the number of cars and the price of each -- more interesting, so I won't linger on the total sales volume analysis.
 As with sales count, the effects are quite small when estimated in levels, with wider confidence intervals when estimated in logs.
 
 \subsection{Quality of cars sold: sale price and MSRP}
 Though there weren't huge effects in the number of cars sold, one might also anticipate a change in vehicle prices or quality.
 With the very\hyp{}detailed auction data, there are many possible measures of quality: age, odometer reading, luxury car status and so on.
 For this analysis, I'll focus on the manufacturer's suggested retail price (\msrp{}) and sales price.
-The \msrp{} is fixed for each car, so it captures a measure of the original luxuriousness of the car.
+The \msrp{} is fixed for each car, so it captures a measure of the original luxuriousness.
 The sales price may change over time, because of vehicle depreciation or market dynamics.
-Alaskan buyers are a small segment of the market, so I'm assuming their purchases don't shift the prices in the market.
+Alaskan buyers are a small segment of the market, so I'm assuming their purchases don't move around prices.
 If that's the case, and if there are no other market failures, sales price measures the depreciated vehicle quality.
 (In practice, auction participants have some behavioral biases, including discontinuous valuation around round odometer readings; \cite{sallee2016consumers}.)
-For brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots in the style of figure~\ref{fig:variable_window_sale_count}.
+For brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots.
 
 
 \begin{figure}[!hbtp]
@@ -757,9 +758,9 @@ The equations for price and \msrp{} are:
 \end{align}
 
 
-Sales price effects are noisier, relative to the mean, than the sales count effects.
-The point estimates are still small, maybe 5\% of the mean, but the confidence intervals don't rule out effects as large as 20 or 30\%.
-In logs, the point estimates are somewhat larger, indicating a 30\% increase, and the confidence intervals don't rule out effects of 100\% price increases.
+Sales price effects are noisier, relative to their mean, than the sales count effects.
+The point estimates are still small, around 5\% of the mean, but the confidence intervals don't rule out effects as large as 20 or 30\%.
+In logs, the point estimates are larger, indicating a 30\% increase, and the confidence intervals don't rule out effects as large as 100\% price increases.
 
 For \msrp{} the conclusions are dramatically different for levels and logs.
     For levels, the estimated effects are insignificant, and the confidence intervals rule out large effects -- anything larger than 10 or 20\% of the mean.
@@ -815,13 +816,13 @@ The effect in logs is slightly larger, with point estimates around 10\% and conf
 \label{sec:synthetic-controls}
 As I discussed in section~\ref{sec:picking-controls},  I picked control states that seemed to be appropriate controls for Alaska.
 These control states participate in similar markets and, as Alaska does, they buy many of their vehicles in out\hyp{}of\hyp{}state auctions.
-In future iterations of this research project, I plan to use synthetic controls to pick the control states.
+In future iterations of this research project, I plan to use a synthetic control.
 I'll also consider the more general frameworks presented by
 \textcite{DoudchenkoImbens2016DD} and \textcite{Xu2016}.
 
 The standard errors I've used and discussed are only robust to heteroskedasticity, not any form of autocorrelation.
 Therefore, the \textcite{bertrand_duflo2004DD} critique applies, and my inferences of narrow confidence intervals are somewhat overstated.
-Clustering would be inappropriate because I'm only using a few states, but I can also draw inferences from the synthetic controls without clustering on individual states.
+Clustering at the state level would be inappropriate because I'm only using a few states, but I can also draw inferences from the synthetic controls without clustering on individual states.
 %
 % \subsection{Robustness}
 % Not all years are the same.
@@ -840,7 +841,7 @@ I've obtained a quarter\hyp{}by\hyp{}zip code database of registration counts, b
 %
 \subsection{Auto market IO}
 One of the strongest aspects of this dataset is to examine the behavior of buyers and sellers in the market, rather than focusing on sales to end-consumers.
-I plan to look further into the specifics of buyers and sellers, beyond their state.
+I plan to look further into the specifics of buyers and sellers, looking at their behavior over time instead of just their state.
 It's possible that buyer--seller interactions are important, or that certain buyers and sellers respond differently to the dividend.
 Finally, I plan to look in more detail at the price effects I've assumed away, examining if dealers in Alaska pay more for the same type of vehicle in years with larger dividends.
 %
@@ -862,6 +863,7 @@ On one hand,  the results are unsurprising.
 The dividend is known in advance by both dealers and consumers.
 Buyers who are not liquidity constrained may not change their behavior at all, and dealers may adjust their inventory smoothly.
 On the other, consumers have been shown to be mercurial \parencite{Busse2015_weather_on_cars}.
+In future research, there are a wide variety of extensions and further investigation using this dataset.
 
 %
 % \begin{itemize}
