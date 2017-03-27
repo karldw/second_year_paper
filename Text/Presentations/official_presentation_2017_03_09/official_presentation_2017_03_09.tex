@@ -1,0 +1,272 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb,amsmath,amsthm}
+%\usepackage{enumitem}
+\usepackage{libertine}
+\usepackage{libertinust1math}
+\usepackage{carlito}
+\usepackage{inconsolata}
+% Make libertine use osf; must be done after loading libertinust1math
+% See http://tex.stackexchange.com/a/114371
+\makeatletter
+\AtBeginDocument{\def\libertine@figurealign{}\libertineOsF}
+\newcommand\libertineTabular{\def\libertine@figurealign{T}\libertineLF}
+\makeatother
+
+%\usepackage{sectsty}
+
+%\allsectionsfont{\sffamily\mdseries}
+\usepackage[activate={true,nocompatibility},final,tracking=true,spacing=true]{microtype}
+\microtypecontext{spacing=nonfrench}
+% Set color theme
+
+\newcommand{\proofsep}{\vspace{-0.75em}}
+\usepackage{booktabs}
+
+\usepackage{graphicx}
+% Improve math spacing around |,\left and \right
+% See: https://tex.stackexchange.com/questions/2607/spacing-around-left-and-right/
+\let\originalleft\left
+\let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+\renewcommand{\right}{\aftergroup\egroup\originalright}
+
+% Remove section numbering
+\makeatletter
+% we use \prefix@<level> only if it is defined
+\renewcommand{\@seccntformat}[1]{%
+	\ifcsname prefix@#1\endcsname
+	\csname prefix@#1\endcsname
+	\else
+	\csname the#1\endcsname\quad
+	\fi}
+% define \prefix@section
+\newcommand\prefix@section{}
+\newcommand\prefix@subsection{}
+\newcommand\prefix@subsubsection{}
+\makeatother
+
+% Define new commands for "such that", the blackboard-bold letters and "closure".
+\newcommand{\st}{\textit{ s.t.\ }}
+\newcommand{\R}{\ensuremath{\mathbb{R}}}
+\newcommand{\N}{\ensuremath{\mathbb{N}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
+\newcommand{\cl}{\ensuremath{\text{cl\hspace{0.1em}}}}
+\newcommand{\card}{\ensuremath{\text{card\hspace{0.1em}}}}
+
+\DeclareMathOperator{\blackboardE}{\mathbb{E}}
+\newcommand{\expected}[1]{\blackboardE\left[#1\right]}
+\newcommand{\expectedwhen}[2]{\blackboardE_{#2}\left[#1\right]}
+\newlength{\postparenlength}
+\setlength{\postparenlength}{0.14em}
+\newcommand{\postparen}{\hspace{\postparenlength}}
+\usepackage{url}
+\usepackage{xcolor}
+
+\usepackage{embrac}
+\usepackage{siunitx}
+\sisetup{
+	group-separator={,},
+	group-digits = integer,
+	input-ignore = {,},
+	input-decimal-markers = {.}
+}
+
+
+\usepackage[autoplay]{animate}
+
+\usetheme{Szeged}
+\usecolortheme{dove}
+\beamertemplatenavigationsymbolsempty
+\title[Cars in Alaska]{Cars in Alaska}
+\author{Karl Dunkle Werner}
+\institute{}
+\date{March 9, 2017}
+%\usefonttheme{structuresmallcapsserif}
+\usefonttheme{serif}
+
+
+\usepackage[overlay,absolute]{textpos}
+\setlength{\TPHorizModule}{\textwidth}
+\setlength{\TPVertModule}{\textwidth}
+
+%\usepackage{footnote}
+\usepackage{hyperref}
+\hypersetup{colorlinks,
+	linkcolor=darkgray,
+	filecolor=black,
+	urlcolor=gray,
+	citecolor=darkgray,
+	pdfpagemode=UseNone,
+	pdftoolbar=false,
+	pdftitle={},
+	pdfauthor={Karl Dunkle Werner},
+	pdfsubject={},
+	pdfcreator={},
+	pdfproducer={},
+	pdflang=en,
+	unicode=true
+}
+\graphicspath{{../../Plots/}}
+\begin{document}
+\begin{frame}
+	\maketitle
+\end{frame}
+\section{Overview}
+
+
+\begin{frame}
+	\begin{itemize}
+		\item Context
+		\begin{itemize}
+			\item Alaskan cars
+		\end{itemize}
+		\item Questions
+		\begin{itemize}
+			\item Income effects
+		\end{itemize}
+		\item Setup
+		\begin{itemize}
+			\item DD
+			\item Caveats!
+		\end{itemize}
+		\item Results
+		\begin{itemize}
+			\item Small(ish)
+		\end{itemize}
+	\end{itemize}
+\end{frame}
+{
+\usebackgroundtemplate{\includegraphics[width=\paperwidth,height=\paperheight]{permanent_fund_payments_individual.pdf}}
+\begin{frame}[plain]
+\end{frame}
+}
+
+\begin{frame}{Questions}
+	\begin{itemize}
+		\item Is the purchase of expensive durable goods sensitive to large, anticipated income shocks?
+			\begin{itemize}
+				\item (Think permanent income hypothesis / consumption smoothing)
+			\end{itemize}
+		\item Several margins:
+		\begin{itemize}
+			\item Count sold
+			\item Value of vehicles sold
+			\item Efficiency of vehicles
+		\end{itemize}
+		% \item Do firms adjust accordingly?
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Data}
+	\begin{itemize}
+		\item Timing and amount of Permanent Fund payments
+		% \item County-by-quarter counts of new vehicle registrations
+		\item Wholesale auto auctions, with buyer, seller and auction-site zip codes
+		% \item Quarterly consumer expenditure data (\textsc{cex})
+	\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Difference-in-differences setup}
+	\begin{itemize}
+		\item Pick control states
+		\item Collapse to state-by-week observations
+		\item Consider different windows
+	\end{itemize}
+
+\end{frame}
+{
+\usebackgroundtemplate{\includegraphics[height=1.14\paperheight, clip, trim=2.25cm 16cm 0cm 2.4cm]{US_map_AK_ID_MT_UT.pdf}}
+\begin{frame}[plain]
+	\vspace*{8cm}
+	\hspace*{11cm}
+	\href{https://www.amcharts.com/visited_states/}{\footnotesize Source: amcharts.com}
+\end{frame}
+}
+
+\section{Sales Counts}
+
+\begin{frame}{Sales counts anticipation widows of $[i, -1]$ for $i \in \{-9, \ldots -1\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{anticipation_window_sale_count_weekly_notitle_coef_effect_mean.pdf}
+\end{frame}
+
+\begin{frame}{Log sales counts anticipation widows of $[i, -1]$ for $i \in \{-9, \ldots -1\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{anticipation_window_sale_count_log_weekly_notitle_coef.pdf}
+\end{frame}
+
+% Let's spice things up
+% \begin{frame}{}
+% \animategraphics[loop, autoplay, height=0.9\textheight]{12}{seasoning-}{0}{34}
+% \end{frame}
+
+\begin{frame}{Sale counts max.\ detectable effects, widows of $[i, j]$ for $i,j \in \{-8, \ldots, 9\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{variable_window_dd_sale_count_weekly_area_conf95_max_effect_mean.pdf}
+
+\end{frame}
+
+\begin{frame}{Log sale counts max.\ detectable effects, widows of $[i, j]$ for $i,j \in \{-8, \ldots, 9\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{variable_window_dd_sale_count_log_weekly_area_conf95_max.pdf}
+\end{frame}
+
+\section{Fuel Consumption}
+\begin{frame}{Fuel cons.\ max.\ detectable effects, widows of $[i, j]$ for $i,j \in \{-8, \ldots 9\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{variable_window_dd_fuel_cons_weekly_area_conf95_max_effect_mean.pdf}
+
+\end{frame}
+
+\begin{frame}{Log fuel cons.\ max.\ detectable effects, widows of $[i, j]$ for $i,j \in \{-8, \ldots 9\}$}
+	\centering
+	\includegraphics[height=0.9\textheight]{variable_window_dd_fuel_cons_log_weekly_area_conf95_max.pdf}
+\end{frame}
+
+\begin{frame}{Questions}
+	\begin{itemize}
+		\item Vehicle count: probably no effect
+		\item Fuel consumption: can't rule out smallish effects
+		\item (Vehicle value: can't rule out smallish effects)
+	\end{itemize}
+
+\end{frame}
+\begin{frame}{Next steps}
+	\begin{itemize}
+		\item Better control selection
+		\item Better standard errors
+		\item Suggestions?
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Thanks!}
+
+\end{frame}
+
+
+%
+% \begin{frame}{Identification}
+% 	\begin{itemize}
+% 		\item Normal difference-in-differences assumptions:
+% 			\begin{itemize}
+% 				\item Alaska has the same time trends as some weighted combination of other states, within a narrow window of each year's dividend date.
+% 				\item \textsc{sutva}
+% 			\end{itemize}
+% 		\item Contrast with Hsieh (2003), who derives identification from differences in family size and changes in payment amount.
+% 	\end{itemize}
+% \end{frame}
+
+
+% \begin{frame}{Next Steps}
+% 	\begin{itemize}
+% 		\item How to combine the event study from each year
+% 		\item How do auto dealers hold inventory
+% 		\item Higher-frequency auto registration data exist
+% 	\end{itemize}
+% \end{frame}
+
+\end{document}
