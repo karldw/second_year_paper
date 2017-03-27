@@ -1,5 +1,46 @@
 # Cars in Alaska
 
+## Second draft to-dos:
+### Michael and Thibault:
+- [ ] Discuss the PIH theory.  "Under what conditions would we expect it to hold, and under what conditions would we expect it to fail?"
+- [ ] Ditch or de-focus the event window figures and plot the outcome means in event time.
+- [ ] Analyze subgroups of cars that seem likely to see counter-PIH effects, such as cheaper/older vehicles. (make sure you don't define "cheaper" autos endogenously.)
+- [ ] Is there an error in logs vs levels? Difference seems too large.
+- [ ] Incorporate the variation in rebate amount to modify the treatment "intensity" across different years
+
+### Claire
+- [ ] Tighten the intro, make it very clear what the question is.
+- [ ] See if I can theoretically sign the effects on price or quality.
+    - [ ] Look in the literature to see if anyone has come up with income elasticities for used cars.
+- [ ] State hypotheses more clearly, particularly what we would see if dealers anticipate vs restock.
+- [ ] Reorder things: together the model, then discussion of the time windows, then the estimating equations and a clear set of predictions under alternative hypotheses.
+- [ ] What % of used cars does this represent? How does this compare to new registrations?
+- [ ] Mention Alaskan dealers selling cars out of state.
+- [ ] Make an appendix for some of the results I mention.
+- [ ] Test different control states.
+- [ ] Test placebo dates in spring/summer.
+- [ ] Discuss the fact that sales in AK may be differentially affected by seasonal effects -- Xu (2016) factor methods would be one solution, but you worry about overfitting.
+- Presenting results
+    - [ ] Present some results more traditionally -- maybe just a standard DD table as a complement.
+    - [ ] I can't follow the suggestion to use shape (instead of color) for sign, because that makes interpreting the size even harder. *But* I can use colors that come out better when rendered in black and white.
+    - [ ] Explain the choice of 95% conf bound in more detail.
+    - [ ] Consider making schematic results of what we would see under different hypotheses.
+    - [ ] What's up at the bottom of the graph?
+
+### Andy
+- [ ] Fix the list of control states -- is it Montana or Oregon? (It's Montana.)
+- [ ] Do better proofing of typos etc
+- [ ] Make a table of descriptive statistics to show comparability with the controls
+    - [ ] State demographics, including income distribution or % urban
+    - [ ] Vehicle market characteristics
+    - [ ]
+- [ ] Do a specification with state-specific trends
+- [ ]
+- [ ]
+- [ ]
+- [ ]
+- [ ]
+
 ## First draft must-dos:
 - Rebuild all plots (run make_all_plots.sh)
 - Two copies
