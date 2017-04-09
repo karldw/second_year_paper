@@ -418,7 +418,7 @@ is_id_ <- function(df, claimed_id_vars, quiet = FALSE) {
 }
 
 
-id_id <- function(df, ..., quiet = FALSE) {
+is_id <- function(df, ..., quiet = FALSE) {
     claimed_id_vars <- dots_to_names(...)
     return(is_id_(df, claimed_id_vars, quiet = quiet))
 }
@@ -1171,7 +1171,8 @@ get_sales_efficiency <- function(df_base, date_var = 'sale_date', id_var = 'buye
 }
 
 
-get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id') {
+get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id',
+    summarize_vars = NULL) {
     # Aggregate sale counts and sales_pr at some level of date and ID.
     stopifnot(length(date_var) == 1, length(id_var) == 1,
               date_var %in% c('sale_date', 'sale_week', 'event_time', 'event_week'),
@@ -1191,6 +1192,18 @@ get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id
         # event_time and sale_year identify days exactly as well as sale_date.)
         group_vars <- c(group_vars, 'sale_year', 'sale_date')
     }
+    summarize_vars_formulae <- c(
+        'sales_pr_mean_log' = 'mean(ln(sales_pr))',
+        'sales_pr_mean' = 'mean(sales_pr)',
+        'msrp_mean' = 'mean(msrp)',
+        'msrp_mean_log' = 'mean(ln(msrp))')
+    if (is.null(summarize_vars)) {
+        summarize_vars <- names(summarize_vars_formulae)
+    }
+    # Always do these two, no mater what summarize_vars is.
+    summarize_calls <- c('sale_count' = 'n()', 'sale_tot' = 'sum(sales_pr)',
+        summarize_vars_formulae[summarize_vars])
+    summarize_calls <- summarize_calls[! is.na(summarize_calls)]
     # Use ln here rather than log. ln isn't defined in dplyr, so is passed to postgres.
     # The downside of using log() in dplyr is that it calls the two-argument form of
     # log, which doesn't work for floating points in postgres.
@@ -1198,11 +1211,12 @@ get_sales_counts <- function(df_base, date_var = 'sale_date', id_var = 'buyer_id
     # Use ln() instead, which gets passed through.
     # https://www.postgresql.org/docs/current/static/functions-math.html#FUNCTIONS-MATH-FUNC-TABLE
     sales_counts <- df_base %>% group_by_(.dots = group_vars) %>%
-        summarize(sale_count = n(), sale_tot = sum(sales_pr),
-                  sales_pr_mean_log = mean(ln(sales_pr)),
-                  sales_pr_mean = mean(sales_pr),
-                  msrp_mean = mean(msrp),
-                  msrp_mean_log = mean(ln(msrp))) %>%
+        summarize_(.dots = as.list(summarize_calls)) %>%
+        # summarize(sale_count = n(), sale_tot = sum(sales_pr),
+        #           sales_pr_mean_log = mean(ln(sales_pr)),
+        #           sales_pr_mean = mean(sales_pr),
+        #           msrp_mean = mean(msrp),
+        #           msrp_mean_log = mean(ln(msrp))) %>%
         ungroup() %>%
         mutate(sale_count_log = ln(sale_count), sale_tot_log = ln(sale_tot)) %>%
         collapse()
