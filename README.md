@@ -1,5 +1,19 @@
 # Cars in Alaska
 
+
+
+## Implementing Doudchenko and Imbens (2016)
+I'm going to apply what they call "Constrained Regression", which is like the original Abadie-Diamond-Hainmueller synthetic controls, but allowing a non-zero intercept.  Think of allowing this non-zero intercept as avoiding picking states just to match the average size of the Alaska market and instead focusing on trends.
+Alternatively, this is like standard difference-in-differences, but allowing variable weights on the controls.
+I'm going to, in my preferred specification, maintain the "adding up" and "non-negativity" constraints, which say that the weight on the controls must be non-negative and sum to one.
+The weights are the solution to Doudchenko and Imbens' equation 5.6 (but allowing mu != 0).
+In alternative specifications, I can consider dropping these two constraints. (They require more data to estimate though.)
+
+To include covariates, they recommend "Prior to
+choosing the weights and possibly the intercept, we can regress the control outcomes on the pre-treatment variables and calculate the residuals. Then we use the residuals in the approaches
+discussed in the previous sections."
+
+
 ## Second draft to-dos:
 ### Michael and Thibault:
 - [ ] Discuss the PIH theory.  "Under what conditions would we expect it to hold, and under what conditions would we expect it to fail?"
@@ -30,16 +44,36 @@
 ### Andy
 - [ ] Fix the list of control states -- is it Montana or Oregon? (It's Montana.)
 - [ ] Do better proofing of typos etc
-- [ ] Make a table of descriptive statistics to show comparability with the controls
+- [ ] Make a table of descriptive statistics to show comparability with the control states
     - [ ] State demographics, including income distribution or % urban
     - [ ] Vehicle market characteristics
-    - [ ]
+    - [ ] Do a simple plot of trends over time (same as Michael's suggestion)
 - [ ] Do a specification with state-specific trends
-- [ ]
-- [ ]
-- [ ]
-- [ ]
-- [ ]
+- [ ] Discuss the dealership turnaround (time to sale) in more detail, including what would happen if my assumption is wrong.
+    - The answer here is something along the lines of "this is why I'm considering different windows."
+- [ ] Be more concrete about the dividend anticipation
+- [ ] Look at PIH empirical literature.
+- [ ] Section 1: Add statistics, clarify event timing.
+- [ ] Section 2: Refine theory
+    - [ ] Be more explicit about wealth changes over time, particularly how the shock comes in.
+    - [ ] Elaborate on the differentiated products model (or drop it and explain that the section didn't add much)
+    - [ ] Write FOCs.
+- [ ] Section 3:
+    - [ ] Move table 1 to appendix
+    - [ ] Add dividend amount interacted with Alaska dummy (demean first for easier interpretation)
+- [ ] Section 4:
+    - [ ] Pick logs or levels as preferred spec
+    - [ ] Make figure 2 (comparison between states) into a table instead, unnormalized.
+    - [ ] Commit to a particular anticipation/post window and stick to it. Make section 4.2 into a robustness discussion instead of a lead-up to the many-window figures.
+    - [ ] Change fixed effects notation
+    - [ ] Double check which alphas I'm talking about. Point out that I interpret in the text.
+    - [ ] Keep figure 3 (treatment coefficients for varying pre-treatment windows), but make explanation clearer
+    - [ ] Explain why we're not particularly interested in coefficient 4, AK * post, because we're more or less capturing all interesting cases with the different windows.
+    - [ ] There's nothing special about where I started (8 weeks before, in mid-August), just that it seemed like a reasonable tradeoff to having a not-too-wide window.
+- [ ] Fix typos, defend relatively informal language.
+
+
+
 
 ## First draft must-dos:
 - Rebuild all plots (run make_all_plots.sh)

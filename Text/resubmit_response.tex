@@ -1,0 +1,161 @@
+\documentclass[11pt,letterpaper,oneside]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amssymb,amsmath,amsthm}
+\allowdisplaybreaks
+\usepackage{dsfont}
+\usepackage[mathlf]{MinionPro}
+\usepackage{carlito}
+\usepackage{inconsolata}
+\usepackage{sectsty}
+\usepackage{setspace}
+\usepackage[font=sf]{caption}
+\allsectionsfont{\sffamily\mdseries}
+
+\usepackage[activate={true,nocompatibility}, final, tracking=true, spacing=true, letterspace=80% only letterspace 80, rather than 100 (units are 1/1000 em)
+]{microtype}
+\microtypecontext{spacing=nonfrench}
+\SetProtrusion{encoding={*},family={bch},series={*},size={6,7}}
+              {1={ ,750},2={ ,500},3={ ,500},4={ ,500},5={ ,500},
+               6={ ,500},7={ ,600},8={ ,500},9={ ,500},0={ ,500}}
+\widowpenalty=10000
+% \raggedbottom
+% \usepackage[headsep=0pt]{typearea}
+\usepackage[top=1.2in, bottom=1.4in]{geometry}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{}
+\chead{}
+\rhead{}
+\lfoot{}
+\cfoot{}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+% \setlength{\headheight}{10pt}
+
+\newcommand{\proofsep}{\vspace{-0.75em}}
+\usepackage{booktabs}
+
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{placeins}  % use \usepackage[section]{placeins} to automatically put a FloatBarrier before each section
+% Improve math spacing around |,\left and \right
+% See: https://tex.stackexchange.com/questions/2607/spacing-around-left-and-right/
+\let\originalleft\left
+\let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+\renewcommand{\right}{\aftergroup\egroup\originalright}
+
+% \setlength{\parskip}{0.5\parindent plus 0.1\parindent minus 0.1\parindent}
+% \setlength{\parskip}{\baselineskip}
+\usepackage{url}
+\usepackage{xcolor}
+
+\usepackage[biblatex]{embrac}
+\usepackage{hyphenat}
+\doublehyphendemerits=20000  % Increase the penalty for multiple hyphenated lines in a row (note, in this case, >10000 isn't infinity)
+\usepackage{siunitx}
+\sisetup{
+	group-separator={,},
+	group-digits = integer,
+	input-ignore = {,},
+	input-decimal-markers = {.}
+	}
+\usepackage[authordate,isbn=false,backend=biber,autopunct=true,url=false]{biblatex-chicago}
+% \DefineBibliographyExtras{american}{\stdpunctuation}
+\renewcommand{\finalnamedelim}{\addspace \bibstring {and}\space}
+%\renewcommand*{\bibfont}{\footnotesize}
+%\DefineBibliographyStrings{english}{references = {References}}
+%\setlength\bibitemsep{0pt}
+\bibhang=\parindent
+\addbibresource{./papers.bib}
+\newcommand{\cex}{\textsc{cex}}
+\newcommand{\apf}{\textsc{apf}}
+\newcommand{\msrp}{\textsc{msrp}}
+\newcommand{\eitc}{\textsc{eitc}}
+\newcommand{\gdp}{\textsc{gdp}}
+\newcommand{\vin}{\textsc{vin}}
+
+\newcommand{\Var}{\text{Var}}
+
+\usepackage{gitinfo2}  % requires git hooks!  See the Code/git_hooks folder in this repo.
+\newcommand{\snippet}[1]{\input{./Generated_snippets/#1}\hspace{-0.15em}}
+%\usepackage{footnote}
+\usepackage{hyperref}
+\hypersetup{colorlinks,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=darkgray,
+    citecolor=black,
+    pdfpagemode=UseNone,
+    pdftoolbar=false,
+    pdftitle={Cars in Alaska},
+    pdfauthor={Karl Dunkle Werner},
+    pdfsubject={ARE second year paper},
+    pdfcreator={},
+    pdfproducer={},
+    pdflang=en,
+    unicode=true
+}
+
+
+\graphicspath{{./Plots/}, {./Plots/Daily/}}
+
+
+
+% Define new commands for "such that", the blackboard-bold letters and "closure".
+\newcommand{\st}{\textit{ s.t.\ }}
+\newcommand{\indicator}[1]{\mathds{1}\left\{#1\right\}}
+\newcommand{\anticipation}{\indicator{t \in [W_0, W_1]}}
+\newcommand{\isAlaska}{\indicator{s = \textsc{ak}}}
+\newcommand{\postWindow}{\indicator{t > W_1}}
+\newcommand{\ddEqn}[3]{%
+\text{#1}_{\, sty} = & \  #2_1 \ \anticipation + #2_2 \ \isAlaska \times \anticipation + #2_3 \ \postWindow \\ \nonumber
+&+ #2_4 \ \isAlaska \times \postWindow + #3 F_{ sty} + \varepsilon_{\, sty}
+}
+\newcommand{\ddEqnLog}[3]{%
+\ln\left(\text{#1}_{\, sty}\right) = & \  #2_1 \ \anticipation + #2_2 \ \isAlaska \times \anticipation + #2_3 \ \postWindow \\ \nonumber
+&+ #2_4 \ \isAlaska \times \postWindow + #3 F_{ sty} + \varepsilon_{\, sty}
+}
+
+\newlength{\postparenlength}
+\setlength{\postparenlength}{0.14em}
+\newcommand{\postparen}{\hspace{\postparenlength}}
+
+\begin{document}
+\setcounter{page}{0}
+\thispagestyle{empty}
+
+\vspace*{0.7in plus 0.3in minus 0.3in}
+
+\begin{center}
+    {\huge Resubmission notes for ``Cars in Alaska''}
+
+    \vspace{2em}
+    \href{mailto:karldw@berkeley.edu}{\textit{\Large Karl Dunkle Werner}}
+
+    \vspace{1em}
+    {\large April 17, 2017}
+\end{center}
+
+\vspace{3em plus 1em minus 1em}
+\noindent 
+My readers and commenters have provided valuable guidance, and I've benefited significantly from their suggestions.
+In broad strokes, my changes have focused on three main areas.
+I've added more context, discussion of the permanent income hypothesis and refined my theory section;
+I've chosen control states more rigorously and improved the comparison between Alaska and the controls; and
+I've narrowed my focus to fewer event windows and regression specifications, moving the alternative specifications to an appendix.
+Hopefully these changes serve to make the results both more credible and easier to parse.
+% \begin{itemize}
+%     \item Add more context, discussion of PIH and improve theory.
+%     \item Choose control states better, show comparisons
+%     \item Focus on simpler event study plots
+% \end{itemize}
+
+
+\pagebreak
+
+\section{Comments from Michael Anderson and Thibault Fally}
+\section{Comments from Claire Duquennois}
+\section{Comments from Andy Hultgren}
+\end{document}
