@@ -103,10 +103,26 @@ dataprep <- function(.tbl, dependent, unit_variable, time_variable, treated_unit
     if (treated_unit %in% control_units) {
         stop("\n treated unit among controls\n")
     }
-    stopifnot(! anyNA(df),
-              setequal(c(control_units, treated_unit), unique(df[[unit_variable]])),
-              all(time_optimize_ssr %in% df[[time_variable]])
-    )
+    if (! treated_unit %in% df[[unit_variable]]) {
+        stop('Treated unit not in data')
+    }
+    if (! all(df[[unit_variable]] %in% c(control_units, treated_unit))) {
+        stop("Data contain units not in treated or control (this is a bug)")
+    }
+    if (! all(control_units %in% df[[unit_variable]])) {
+        bad_control_unit_idx <- which(! control_units %in% df[[unit_variable]])
+
+        message("Some controls requested are not present: ",
+            vec2string(control_units[bad_control_unit_idx]))
+        control_units <- control_units[-bad_control_unit_idx]
+    }
+
+    if (anyNA(df)) {
+        stop("NAs in the data!")
+    }
+    if (! all(time_optimize_ssr %in% df[[time_variable]])) {
+        stop("Specified time periods not in the data")
+    }
 
     Y_t0 <- df %>% filter_units(treated_unit) %>% filter_time(time_optimize_ssr) %>%
         select_(.dots = dependent) %>%
@@ -589,13 +605,18 @@ make_synthetic_alaska <- function(years, optimized_coef, dependent = 'sale_count
         # This function relies on constants defined in the parent function.
 
         real_data <- pull_data_once(yr, date_var = time_variable, dependent = dependent)
+        control_units <- intersect(names(omega), unique(real_data$buy_state))
         prepped_matrices <- dataprep(real_data, dependent = dependent, unit_variable = 'buy_state',
             time_variable = time_variable, treated_unit = treated_unit,
             # Only use the ones we've estimated weights for (the intersection of
             # complete cases across years)
-            control_units = names(omega))
-        synth0 <- mu + prepped_matrices$Y_c0 %*% omega
-        synth1 <- mu + prepped_matrices$Y_c1 %*% omega
+            control_units = control_units)
+        control_units2 <- intersect(names(omega), colnames(prepped_matrices$Y_c0))
+        omega <- omega[control_units2]
+        Y_c0 <- prepped_matrices$Y_c0[, control_units2]
+        Y_c1 <- prepped_matrices$Y_c1[, control_units2]
+        synth0 <- mu + Y_c0 %*% omega
+        synth1 <- mu + Y_c1 %*% omega
         synth_df0 <- data_frame(time = as.numeric(prepped_matrices$time_col_pre),
                                 synth_ak = as.numeric(synth0))
         synth_df1 <- data_frame(time = as.numeric(prepped_matrices$time_col_post),
@@ -760,9 +781,100 @@ weights_to_table <- function(synth_outcomes) {
     return(weights_df)
 }
 
+plot_weight_comparisons <- function(synth_outcomes,
+        to_compare = c('sale_count', 'fuel_cons')) {
+    stopifnot(all(to_compare %in% names(synth_outcomes)))
+    synth_pred_own_weights <- lapply_bind_rows(to_compare, function(varname) {
+        synth_outcomes[[varname]]$synth_df %>%
+        mutate(pred_var = varname,
+            # Here (and only here), don't filter  out synth == 'real', so we can
+            # have a reality line for synth_var
+            synth_var = if_else(synth == 'real', 'real', varname)) %>%
+            select(-synth) %>% return()
+        }, parallel_cores = 1)
+
+    # next, get cross-variable predictions
+    n_cross_var_pred <- (length(synth_outcomes) - 1) * (length(to_compare) - 1)
+    if (n_cross_var_pred <= 0) {
+        stop("Not enough variables provided to do cross-variable prediction. (",
+            length(synth_outcomes), " outcomes and ", length(to_compare),
+            " comparison variables were provided.)")
+    }
+    synth_pred_cross_weights_list <- vector(mode = 'list', length = n_cross_var_pred)
+    i <- 1
+    for (synth_var in names(synth_outcomes)) {
+        for (pred_var in to_compare) {
+            if (pred_var == synth_var) {
+                next
+            }
+            # synth_var is the parameter set we're using to predict
+            # pred_var is the actual value we're looking at
+            synth_pred_cross_weights_list[[i]] <- make_synthetic_alaska(years = 2002:2014,
+                optimized_coef = synth_outcomes[[synth_var]]$param,
+                dependent = pred_var, time_variable = 'event_week') %>%
+                filter(synth == 'synth_ak') %>% select(-synth) %>%
+                mutate(pred_var = pred_var, synth_var = synth_var) %>% return()
+            i <- i + 1
+        }
+    }
+    synth_pred_cross_weights <- bind_rows(synth_pred_cross_weights_list)
+    # Make some parameter 'results' for uniform weights on the selected states
+
+    dd_control_states <- c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")
+    dd_omega <- tibble::enframe(synth_outcomes[[1]]$param$omega, name = 'state') %>%
+        mutate(value = if_else(state %in% dd_control_states,
+            1 / length(dd_control_states), 0)) %>%
+        tibble::deframe()
+    stopifnot(all(dd_control_states %in% names(dd_omega)))
+    # mu = 0 because we're going to demean later, not because that's the actual
+    # DD intercept
+    dd_param <- list(mu = 0, omega = dd_omega)
+    synth_pred_dd <- lapply_bind_rows(to_compare, # fill in everything else so
+        # to_compare goes in as dependent.  This is poor style; too fragile.
+        make_synthetic_alaska,
+        years = 2002:2014,
+        optimized_coef = dd_param,
+        time_variable = 'event_week',
+        parallel_cores = 1,
+        rbind_src_id = 'pred_var') %>%
+        filter(synth == 'synth_ak') %>% select(-synth) %>%
+        mutate(synth_var = 'dd_even_weight')
 
 
-# main <- function() {
+    # First, if we have multiple years, make an average.
+    to_plot <- bind_rows(synth_pred_cross_weights, synth_pred_own_weights,
+            synth_pred_dd) %>%
+        group_by(time, pred_var, synth_var) %>%
+        # Take the mean across years, within each group
+        summarize(dep_value = mean(dep_value)) %>%
+        group_by(pred_var, synth_var) %>%
+        # Scale the variables so we can compare on a common axis
+        mutate(dep_value = scale(dep_value)) %>%
+        ungroup() %>%
+        filter(synth_var %in% c('real', 'dd_even_weight', 'sale_count', 'fuel_cons', 'sales_pr_mean')) %>%
+        mutate(
+            synth_var = factor(synth_var,
+                levels = c('real', 'dd_even_weight', 'sale_count', 'fuel_cons', 'sales_pr_mean'),
+                labels = c('Reality', 'DD weights', 'Sale count weights', 'Fuel cons. weights', 'Sale price weights')),
+            pred_var = factor(pred_var,
+                levels = c('sale_count', 'fuel_cons'),
+                labels = c('Sale count', 'Fuel cons.')))
+    plt <- ggplot(to_plot, aes(x = time, y = dep_value, color = synth_var,
+            linetype = synth_var)) +
+        geom_line() +
+        facet_grid(pred_var ~ ., scales = 'free_y') +
+        guides(linetype = 'none') +
+        scale_color_manual(values = PALETTE_8_COLOR_START_WITH_BLACK) +
+        PLOT_THEME +
+        labs(x = 'Event weeks', y = 'Outcome (standardized)',
+            color = 'Predicting variable', linetype = '')
+    save_plot(plt, 'synth_cross_var_weights_comparison.pdf')
+    return(plt)
+}
+
+
+
+main <- function() {
     outcome_vars <- c('sale_count', 'fuel_cons', 'sales_pr_mean', 'msrp_mean')
 
     synth_outcomes <- lapply(outcome_vars, run_multiyear,
@@ -773,7 +885,7 @@ weights_to_table <- function(synth_outcomes) {
     top_10_total_weight <- weights_to_table(synth_outcomes) %>% select(-state) %>%
         rowSums() %>% setNames(weights_to_table(synth_outcomes)$state) %>%
         tibble::enframe() %>% arrange(-value) %>% slice(1:10) %>% extract2('name')
-    
+
 
     plt_fuel_cons <- plot_synth_alaska(synth_outcomes$fuel_cons$synth_df,
         labs(x = 'Event week', y = 'Fuel consumption (L/100km)', color = ''),
@@ -792,7 +904,7 @@ weights_to_table <- function(synth_outcomes) {
     print(par_sale_count)
     par_fuel_cons  <- compare_weights(dependent = 'fuel_cons')
     print(par_fuel_cons)
-# }
+}
 # matrix_list <- dataprep_multiyear(2012:2013)
 # res <- run_for_2013(weekly = FALSE)
 # res <- run_multiyear(years = c(2012, 2013), dependent = 'fuel_cons')
