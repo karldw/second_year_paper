@@ -12,6 +12,7 @@ suppressPackageStartupMessages(library(readr))
 library(ggplot2)
 DATA_DIR <- '../Data'
 SAVED_DATA <- file.path(DATA_DIR, 'permanent_fund_payments.rda')
+SAVED_DATA_ADJUSTED <- file.path(DATA_DIR, 'permanent_fund_payments_adjusted.rda')
 stopifnot(dir.exists(DATA_DIR))
 if (! memoise::is.memoised(read_html)) {
     read_html <- memoise::memoise(xml2::read_html)
@@ -142,5 +143,5 @@ plot_payments <- function() {
     save_plot(plt_aggregate, 'permanent_fund_payments_aggregate.pdf')
 }
 
-x <- adjust_pfd_payments()
+adjust_pfd_payments() %>% readr::write_rds(SAVED_DATA_ADJUSTED, compress = 'gz')
 plot_payments()
