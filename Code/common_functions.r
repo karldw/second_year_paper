@@ -199,7 +199,11 @@ install_lazy <- function(pkg_list, verbose = FALSE) {
     for (pkg in need_to_install) {
         try(install.packages(pkg), silent = TRUE)
     }
-    failed_to_install <- need_to_install[! is_pkg_installed(need_to_install)]
+    if (length(need_to_install) > 0) {
+        failed_to_install <- need_to_install[! is_pkg_installed(need_to_install)]
+    } else {
+        failed_to_install <- NULL
+    }
     if (verbose) {
         message("Already installed:")
         print(already_installed)
@@ -216,8 +220,28 @@ install_lazy <- function(pkg_list, verbose = FALSE) {
 }
 
 
-is_pkg_installed <- function(pkg_list) {
-    vapply(pkg_list, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))
+is_pkg_installed <- function(pkg_list, pkg_versions = NULL) {
+    stopifnot(length(pkg_list) > 0)
+    is_installed <- vapply(pkg_list, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1))
+    # In typical case, we only care about whether it's installed.
+    if (is.null(pkg_versions)) {
+        return(is_installed)
+    }
+    if (length(pkg_list) != length(pkg_versions)) {
+        stop("If specifying package versions, the versions and names lists have the same length.")
+    }
+    compare_version_once <- function(pkg_name, exact_version) {
+        if (! is_pkg_installed(pkg_name)) {
+            return(FALSE)
+        }
+        pkg_ver <- as.character(packageVersion(pkg_name))
+        compare_result <- compareVersion(pkg_ver, exact_version)
+        installed <- compare_result == 0  # -1 if out of date, 1 if newer, 0 if exact
+        return(installed)
+    }
+    exact_version_installed <- mapply(compare_version_once, pkg_list, pkg_versions,
+        SIMPLIFY = TRUE)
+    return(exact_version_installed)
 }
 
 
