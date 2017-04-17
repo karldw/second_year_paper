@@ -2129,3 +2129,17 @@ symdiff <- function(x, y) {
     # http://stackoverflow.com/a/35949294
     unique(c(setdiff(x, y), setdiff(y, x)))
 }
+
+
+make_tabular <- function(df, varnames = FALSE) {
+    install_lazy('repr')
+    tab <-  gsub('\t', '  ', strsplit(repr::repr_latex(df), '\\n')[[1]] , fixed = TRUE)
+    stopifnot(length(tab) > 4 || (varnames && length(tab) == 4))
+    if (varnames){
+        row_index <- seq.int(2, length(tab) - 1, by = 1)
+    } else {
+        row_index <- seq.int(4, length(tab) - 1, by = 1)
+    }
+    tab <- paste(tab[row_index], collapse = '\n')
+    return(tab)
+}
