@@ -3,6 +3,7 @@ source('r_defaults.r')  # set common parameters and call common_functions.r
 # NB: con, auctions, states and vin_decoder are defined in r_defaults.r
 
 install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr'))
+stopifnot(is_pkg_installed('dplyr', '0.5.0'))  # dplyr 0.6.0 is going to change things that I don't want to change yet.
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 library(magrittr)
@@ -416,7 +417,9 @@ pick_maximizing_window <- function(years = 2002:2014) {
 
 
 plot_dd_sales <- function(years = 2002:2014) {
-    control_states <- find_match_states_crude()
+    # control_states <- find_match_states_crude()
+    # Top-10 controls (sort of) picked by synthetic_controls_analysis.r
+    control_states <- c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")
     # Iterate over the years, pulling and aggregating data for each.
     # Use a window of 70 days before and after (but aggregate to weeks)
     # Then add a column called sale year with the year variable.
@@ -587,7 +590,9 @@ pull_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
         return()
     }
     # Alaska vs pooled
-    states_incl_list <- list(c('AK', find_match_states_crude()), 'AK')
+    # Top-10 controls (sort of) picked by synthetic_controls_analysis.r
+    control_states <- c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")
+    states_incl_list <- list(c('AK', control_states), 'AK')
     v1 <- intersect(outcomes, GET_SALES_COUNTS_VARS)
     v2 <- intersect(outcomes, GET_SALES_EFFICIENCY_VARS)
     df <- list(states_incl_list, list(v1, v2), c('sd', 'mean'), c(TRUE, FALSE)) %>%
