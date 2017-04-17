@@ -572,7 +572,7 @@ pull_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
         vars_to_summarize <- params[[2]]
         summary_fn <- params[[3]]
         all_year <- params[[4]]
-        stopifnot(is.character(states_included), between(length(states_included), 1, 4),
+        stopifnot(is.character(states_included), length(states_included) >= 1,
             is.character(vars_to_summarize), length(vars_to_summarize) > 0,
             is.character(summary_fn), length(summary_fn) == 1,
             is.logical(all_year), length(all_year) == 1)

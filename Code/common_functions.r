@@ -1283,7 +1283,9 @@ aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
     stopifnot(is.numeric(years), length(years) >= 1,
               is.character(agg_var), length(agg_var) == 1)
     aggregate_fn <- match.fun(aggregate_fn)
-    control_states <- find_match_states_crude()
+    # control_states <- find_match_states_crude()
+    # Top-10 controls (sort of) picked by synthetic_controls_analysis.r
+    control_states <- c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")
     df <- auctions %>%
     # TODO: could make this faster by selecting vars depending on aggregate_fn
         select(sale_date, buy_state, sales_pr, vin_pattern, msrp) %>%
@@ -1653,7 +1655,9 @@ get_state_by_time_variation_unmemoized <- function(aggregation_level = 'daily',
 
     if (is.null(states_included)) {
         # What states get included in the std dev calculations?
-        control_states <- find_match_states_crude()
+        # control_states <- find_match_states_crude()
+        # Top-10 controls (sort of) picked by synthetic_controls_analysis.r
+        control_states <- c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")
         states_included <- c('AK', control_states)
     }
     if (length(states_included) <= 1) {
@@ -2117,4 +2121,11 @@ plot_effects_by_anticipation <- function(outcome,
     # save_plot(coef_plot_with_pooled_sd, paste0(filename_part, '_pooled_sd.pdf'))
     # save_plot(coef_plot_with_states_sd, paste0(filename_part, '_states_sd.pdf'))
     invisible(to_plot)  # then return the data
+}
+
+
+symdiff <- function(x, y) {
+    # https://en.wikipedia.org/wiki/Symmetric_difference
+    # http://stackoverflow.com/a/35949294
+    unique(c(setdiff(x, y), setdiff(y, x)))
 }
