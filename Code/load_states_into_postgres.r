@@ -13,8 +13,9 @@ options(warn = 2)
 DATA_DIR <- '../Data'
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_TABLE <- 'states'
+POSTGRES_CPI_TABLE <- 'cpi'
 
-DATA_TYPES <- c(state = 'char(2)', year = 'int2', population = 'int4', gdp_pc = 'int4',
+DATA_TYPES <- c(state = 'char(2)', year = 'int2', population = 'int4', gdp_pc = 'float8',
   gdp_method = 'text', state_fips = 'char(2)', state_full = 'text')
 
 
@@ -88,14 +89,31 @@ get_gdp_data <- function() {
 }
 
 
+get_cpi_data <- function() {
+    pg_user <- Sys.info()[["user"]] %>% tolower()
+    dplyr_con <- dplyr::src_postgres(dbname = POSTGRES_DB,
+        user = pg_user, password = pg_user)
+    cpi <- dplyr::tbl(dplyr_con, POSTGRES_CPI_TABLE) %>%
+        dplyr::collect(n = Inf) %>%
+        dplyr::group_by(year) %>%
+        dplyr::summarize(cpi_base_2016 = mean(cpi_base_2016)) %>%
+        dplyr::ungroup() %>%
+        ensure_id_vars(year)
+    return(cpi)
+}
+
 
 main <- function(verbose = TRUE) {
     pop_df <- get_pop_data()
     gdp_df <- get_gdp_data()
     state_fips_df <- get_state_fips()
+    cpi_df <- get_cpi_data()
     combined_df <- full.join(pop_df, gdp_df, by = c('state', 'year')) %>%
-        left.join(state_fips_df, by = 'state')
-        #
+        left.join(state_fips_df, by = 'state') %>%
+        left.join(cpi_df, by = 'year') %>%
+        mutate(gdp_pc = gdp_pc / cpi_base_2016) %>%
+        select(-cpi_base_2016)
+
     auction_years_df <- combined_df %>%
         filter(between(year, 2002, 2014)) %>%
         ensure(! anyNA(.)) %>%
