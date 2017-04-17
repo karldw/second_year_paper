@@ -2,7 +2,7 @@
 source('r_defaults.r')  # set common parameters and call common_functions.r
 # NB: con, auctions, states and vin_decoder are defined in r_defaults.r
 
-install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr'))
+install_lazy(c('dplyr', 'ggplot2', 'magrittr', 'lfe', 'memoise', 'lubridate', 'purrr', 'repr'))
 stopifnot(is_pkg_installed('dplyr', '0.5.0'))  # dplyr 0.6.0 is going to change things that I don't want to change yet.
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
@@ -578,7 +578,8 @@ pull_alaska_vs_pooled_mean_sd <- function(outcomes = NULL) {
             is.logical(all_year), length(all_year) == 1)
         get_state_by_time_variation(vars_to_summarize = vars_to_summarize,
             states_included = states_included, summary_fn = summary_fn,
-            all_year = all_year) %>%
+            all_year = all_year,
+            aggregation_level = 'weekly') %>%
         reshape2::melt(id.vars = c()) %>%
         as.tbl() %>%
         mutate(
@@ -688,6 +689,104 @@ generate_snippets <- function() {
 }
 
 
+make_control_state_comparison_table <- function(control_states =
+        c("VT", "WA", "WY", "MT", "IL", "NM", "NH", "WV", "WI", "DC")) {
+    states_deomographics_base <- states %>%
+        filter(state %in% c('AK', control_states),
+               gdp_method == "NAICS (new)",
+               between(year, 2002, 2014)) %>%
+        select(state, year, population, gdp_pc) %>%
+        ensure_id_vars(state, year) %>%
+        mutate(alaska_pooled = if_else(state == 'AK', 'Alaska-only', 'Pooled')) %>%
+        group_by(alaska_pooled)
+    states_deomographics_means <- states_deomographics_base %>%
+        summarize(population = mean(population), gdp_pc = mean(gdp_pc)) %>%
+        ungroup() %>%
+        collect() %>%
+        reshape2::melt(id.vars = 'alaska_pooled') %>%
+        mutate(summary_fn = 'mean')
+    states_deomographics_sd <- states_deomographics_base %>%
+        summarize(population = sd(population), gdp_pc = sd(gdp_pc)) %>%
+        ungroup() %>%
+        collect() %>%
+        reshape2::melt(id.vars = 'alaska_pooled') %>%
+        mutate(summary_fn = 'sd')
+    states_deomographics <- bind_rows(states_deomographics_means,
+        states_deomographics_sd)
+
+    summary_stats <- pull_alaska_vs_pooled_mean_sd() %>%
+        # select all year, rather than just the window
+        filter(all_year == TRUE) %>% select(-all_year) %>%
+        bind_rows(states_deomographics)
+    #
+    # mpg_to_L100km_coef <- (100 * 3.785411784 / 1.609344)  # 3.7 L/gal, 1.6 km/mi
+    # sales_stats <- auctions %>%
+    #     select(buy_state, sale_date, sales_pr) %>%
+    #     filter(buy_state %in% c('AK', control_states)) %>%
+    #     add_sale_year() %>%
+    #     group_by(sale_year, buy_state) %>%
+    #     summarize(sales_pr_mean = mean(sales_pr),
+    #               sales_pr_mean_log = mean(ln(sales_pr)),
+    #               annual_sale_count = n()) %>%
+    #     ungroup() %>%
+    #     collapse()
+    #
+    # fuel_cons_stats <- auctions %>%
+    #     select(sale_date, buy_state, vin_pattern) %>%
+    #     filter(buy_state %in% c('AK', control_states)) %>%
+    #     add_sale_year() %>%
+    #     inner_join(vin_decoder, by = 'vin_pattern') %>%
+    #     group_by(sale_year, buy_state) %>%
+    #     summarize(fuel_cons = mean(mpg_to_L100km_coef / combined)) %>%
+    #     ungroup() %>%
+    #     collapse()
+    #
+    # all_stats <- full_join(sales_stats, fuel_cons_stats,
+    #     by = c('sale_year', 'buy_state')) %>%
+    #     left_join(states_deomographics, by = c('buy_state' = 'state', 'sale_year' = 'year')) %>%
+    #
+    #     collect(n = Inf)
+
+    # Make a table, then remove the header rows
+    label_vec <- c('sale_tot' = 'Sale total',
+                   'sale_tot_log' = 'Log sale total',
+                   'sale_count' = 'Cars sold',
+                   'sale_count_log' = 'Log cars sold',
+                   'sales_pr_mean' = 'Average sales price',
+                   'sales_pr_mean_log' = 'Average log sales price',
+                   'fuel_cons' = 'Fuel consumption (L/100km)',
+                   'fuel_cons_log' = 'Log fuel consumption',
+                   'msrp_mean' = 'MSRP',  # Nominal MSRP
+                   'msrp_mean_log' = 'Log MSRP',  # Nominal MSRP
+                   'population' = 'Population (thousands)',
+                   'gdp_pc' = 'GDP per capita'
+    )
+
+    table_order = c('sale_count', 'fuel_cons','sales_pr_mean', 'msrp_mean', 'sale_tot', 'population', 'gdp_pc')
+    stats_table <- summary_stats %>%
+      mutate(value = if_else(variable == 'population', value / 1e3, value),
+             value = if_else(variable == 'sale_tot',   value / 1e6, value),
+             # variable = renaming_vec[variable],
+             alaska_pooled_summary_fn = paste(alaska_pooled, summary_fn)) %>%
+      select(-summary_fn,-alaska_pooled) %>%
+      tidyr::spread_(key_col = 'alaska_pooled_summary_fn', value_col = 'value') %>%
+      mutate(Difference = `Alaska-only mean` - `Pooled mean`) %>%
+      # need proper R names to use mutate_if, but make.names adds periods
+      setNames(gsub('.', '_', make.names(names(.)), fixed = TRUE)) %>%
+      # make all numeric into character so I can more easily make some cells blank
+      mutate_if(is.numeric, as.character) %>%
+      mutate(Alaska_only_sd = if_else(variable %in% c('gdp_pc', 'population'), '', Alaska_only_sd),
+             Pooled_sd = if_else(variable %in% c('gdp_pc', 'population'), '', Pooled_sd),
+             variable = factor(variable, levels = table_order, labels = label_vec[table_order])) %>%
+      arrange(variable)
+
+    make_tabular(stats_table) %>%
+        make_snippet('outcome_means_comparison_table_contents.tex', lazy = FALSE)
+
+    invisible(stats_table)
+}
+
+
 make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose = FALSE) {
     # Note that daily is much slower because there are a lot more regressions to run.
     if (verbose) {
@@ -707,18 +806,37 @@ make_all_plot_types <- function(outcome, aggregation_level = 'weekly', verbose =
     invisible(NULL)
 }
 
+
+run_dd_simplest <- purrr::partial(run_dd, years = 2002:2014, aggregation_level = 'weekly',
+    anticipation_window = c(-1, -1),
+    fixed_effects = c('sale_year', 'buy_state'), cluster = 'buy_state_X_sale_year',
+    controls = c('post', 'alaskan_buyer_post', 'pfd_payment_X_alaska'))
+
+stargazer <- purrr::partial(stargazer::stargazer, omit.stat = c("f", "ser"),
+                            table.placement = "htbp", label = sample(letters, 10),
+                            dep.var.caption = "", column.sep.width = "0pt")
+
+# Now dropping some of the log regressions.
 all_outcomes <- c(
-    'sale_tot', 'sale_tot_log',
+    'sale_tot', #'sale_tot_log',
     'sale_count', 'sale_count_log',
-    'sales_pr_mean', 'sales_pr_mean_log',
-    'msrp_mean', 'msrp_mean_log')
-# ~4 minutes for first run (if weekly, ~5 hours if daily)
+    'sales_pr_mean', #'sales_pr_mean_log',
+    'msrp_mean')#, 'msrp_mean_log')
+# ~4 minutes for first run (if weekly, ~5 hours if daily)  (timings are old)
 print(system.time(lapply(all_outcomes, make_all_plot_types)))
+simple_dd_results <- purrr::map(all_outcomes, function(outcome) {
+    run_dd_simplest(outcome = outcome)
+    })
+simple_dd_results_df <- purrr::map_df(seq_along(all_outcomes), function(i) {
+  broom::tidy(simple_dd_results[[i]]) %>% mutate(outcome = all_outcomes[i])
+})
+
+stargazer(simple_dd_results)  # copy and paste this (Karl is lazy)
 plot_alaska_vs_pooled_mean_sd()
 # generate_snippets is fast, as long as find_match_states_crude and
 # get_state_by_time_variation have been run.
 generate_snippets()
-
+make_control_state_comparison_table()
 # quality_control_graphs()
 # plot_dd_sales(2002)
 

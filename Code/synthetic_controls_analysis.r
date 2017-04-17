@@ -886,7 +886,6 @@ main <- function() {
         rowSums() %>% setNames(weights_to_table(synth_outcomes)$state) %>%
         tibble::enframe() %>% arrange(-value) %>% slice(1:10) %>% extract2('name')
 
-
     plt_fuel_cons <- plot_synth_alaska(synth_outcomes$fuel_cons$synth_df,
         labs(x = 'Event week', y = 'Fuel consumption (L/100km)', color = ''),
         filename = 'synthetic_fuel_cons.pdf')
@@ -904,7 +903,15 @@ main <- function() {
     print(par_sale_count)
     par_fuel_cons  <- compare_weights(dependent = 'fuel_cons')
     print(par_fuel_cons)
+
+    return(list(
+        synth_outcomes = synth_outcomes,
+        top_10_total_weight = top_10_total_weight,
+        plots = list(fuel_cons = plt_fuel_cons, sales_pr_mean = plt_sales_pr_mean, msrp_mean = plt_msrp_mean),
+        comparisons = list(sale_count = par_sale_count, fuel_cons = par_fuel_cons)))
 }
+
+all_res <- main()
 # matrix_list <- dataprep_multiyear(2012:2013)
 # res <- run_for_2013(weekly = FALSE)
 # res <- run_multiyear(years = c(2012, 2013), dependent = 'fuel_cons')

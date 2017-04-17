@@ -930,9 +930,12 @@ make_snippet <- function(x, filename, lazy = TRUE, ...) {
             stopifnot(length(x) == 1)
         }
         x <- unlist(x)
-        x <- format_numbers(x, ...)
+        if (is.numeric(x)) {
+            x <- format_numbers(x, ...)
+        }
         write(x, file = outfile)
     }
+    invisible(x)
 }
 
 
@@ -1300,6 +1303,54 @@ aggregate_sales_dd_unmemoized <- function(years, agg_var, days_before = 70,
 }
 
 
+pull_dd_data <- function(years, aggregation_level, outcomes, anticipation_window, days_before_limit, days_after_limit = days_before_limit) {
+    # look up varname (will error if aggregation_level is not in there)
+    agg_var <- c(daily = 'event_time', weekly = 'event_week')[[aggregation_level]]
+    agg_fn <- outcome_to_agg_fn(outcomes)
+    # grouping_vars <- c('sale_year', 'buy_state', agg_var)
+
+    # Set up mutate_ calls.
+    # Create two variables, anticipation_period and post_period.  anticipation_period
+    # will be true for rows where agg_var (event_time or event_week) is between
+    # within anticipation_window, and post_period is true when it's greater.
+    mutate_calls_time <- list(
+        anticipation = lazyeval::interp(~ between(agg_var, low, high),
+            agg_var = as.name(agg_var), low = anticipation_window[1],
+            high = anticipation_window[2]),
+        # NB: this is post-anticipation, not post-dividend
+        post = lazyeval::interp(~ agg_var > high,
+            agg_var = as.name(agg_var), high = anticipation_window[2])
+        )
+
+    aggregate_sales_dd(years, agg_var, aggregate_fn = agg_fn,
+        days_before = days_before_limit, days_after = days_after_limit) %>%
+    force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE) %>%
+        # Make these variables even if they're not used (it's fast)
+        mutate_(.dots = mutate_calls_time) %>% # Make anticipation and post
+        mutate(alaskan_buyer_anticipation = alaskan_buyer & anticipation,
+               alaskan_buyer_post = alaskan_buyer & post) %>%
+        collect(n = Inf) %>%
+        return()
+}
+
+
+add_pfd_payment <- function(df) {
+    if (! dir.exists('../Data')) {
+        stop("Could not find local data directory (expected it to be in '../data')")
+    }
+    if (! file.exists('../Data/permanent_fund_payments_adjusted.rda')) {
+        stop("Could not find permanent fund payments. Please run get_alaska_data.r")
+    }
+    pfd_data <- readRDS('../Data/permanent_fund_payments_adjusted.rda') %>%
+        select(year, amount_2016dollars) %>%
+        rename(pfd_payment = amount_2016dollars) %>%
+        ensure_id_vars(year)
+    left_join(df, pfd_data, by = c('sale_year' = 'year')) %>%
+    mutate(pfd_payment_X_alaska = alaskan_buyer * pfd_payment) %>%
+    return()
+}
+
+
 run_dd <- function(years = 2002:2014,
     aggregation_level = 'daily',
     # How many days/weeks relative to the event day do we think dealers are anticipating?
@@ -1315,7 +1366,7 @@ run_dd <- function(years = 2002:2014,
     fixed_effects = c('sale_year', 'buy_state'),
     # what clusters should we have?
     # (remember that cluster covariance relies on asymptotics!)
-    clusters = 0,
+    clusters = 'buy_state_X_sale_year',
     days_before_limit = 70,
     days_after_limit = days_before_limit
     ) {
@@ -1342,44 +1393,28 @@ run_dd <- function(years = 2002:2014,
         stop(err_msg)
     }
 
-    pull_dd_data <- function() {
-        # This is a sub-function for organizational ease, but it relies heavily on
-        # variables defined in the parent function. Be careful before moving it.
-
-        # look up varname (will error if aggregation_level is not in there)
-        agg_var <- c(daily = 'event_time', weekly = 'event_week')[[aggregation_level]]
-        agg_fn <- outcome_to_agg_fn(outcomes)
-        # grouping_vars <- c('sale_year', 'buy_state', agg_var)
-
-        # Set up mutate_ calls.
-        # Create two variables, anticipation_period and post_period.  anticipation_period
-        # will be true for rows where agg_var (event_time or event_week) is between
-        # within anticipation_window, and post_period is true when it's greater.
-        mutate_calls_time <- list(
-            anticipation = lazyeval::interp(~ between(agg_var, low, high),
-                agg_var = as.name(agg_var), low = anticipation_window[1],
-                high = anticipation_window[2]),
-            # NB: this is post-anticipation, not post-dividend
-            post = lazyeval::interp(~ agg_var > high,
-                agg_var = as.name(agg_var), high = anticipation_window[2])
-            )
-
-        aggregate_sales_dd(years, agg_var, aggregate_fn = agg_fn,
-            days_before = days_before_limit, days_after = days_after_limit) %>%
-        force_panel_balance(c('sale_year', agg_var, 'buy_state'), fill_na = TRUE) %>%
-            # Make these variables even if they're not used (it's fast)
-            mutate_(.dots = mutate_calls_time) %>% # Make anticipation and post
-            mutate(alaskan_buyer_anticipation = alaskan_buyer & anticipation,
-                   alaskan_buyer_post = alaskan_buyer & post) %>%
-            collect(n = Inf) %>%
-            return()
-    }
+    # finally collect the data
+    df <- pull_dd_data(years = years, aggregation_level = aggregation_level,
+        outcomes = outcomes, anticipation_window = anticipation_window,
+        days_before_limit = days_before_limit, days_after_limit = days_before_limit)
 
     # Avoid collinearity
     if ('buy_state' %in% fixed_effects) {
         controls <- setdiff(controls, 'alaskan_buyer')
     }
-    df <- pull_dd_data()  # finally collect the data
+    if ('sale_year' %in% fixed_effects && length(years) < 2) {
+        message("Can't estimate year FE with only one year")
+        fixed_effects <- setdiff(fixed_effects, 'sale_year')
+    }
+    if ('pfd_payment_X_alaska' %in% controls) {
+        if (! any(c('alaskan_buyer', 'buy_state') %in% c(controls, fixed_effects))) {
+            stop("Must have AK dummy to include dividend * AK")
+        }
+        df <- add_pfd_payment(df)
+    }
+    if ('buy_state_X_sale_year' %in% clusters) {
+        df <- df %>% mutate(buy_state_X_sale_year = factor(paste(buy_state, sale_year)))
+    }
 
     # Make the felm multi-part formula, something like
     # sale_tot | sale_count ~ anticipation + alaskan_buyer_anticipation + post +
@@ -1403,7 +1438,6 @@ run_dd <- function(years = 2002:2014,
     }, finally = {
 
     })
-
     return(reg_results)
 }
 
