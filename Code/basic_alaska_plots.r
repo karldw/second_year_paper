@@ -1,8 +1,8 @@
 
 source('r_defaults.r')
 source('polk_registrations.r')
-install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'lubridate'),
-             verbose = FALSE)
+install_lazy(c('ggplot2', 'RPostgreSQL', 'dplyr', 'magrittr', 'lubridate',
+               'RColorBrewer'), verbose = FALSE)
 
 POSTGRES_DB <- 'second_year_paper'
 POSTGRES_CLEAN_TABLE <- 'auctions_cleaned'
@@ -10,6 +10,7 @@ VERBOSE <- FALSE
 library(ggplot2)
 library(dplyr)
 library(magrittr)
+library(RColorBrewer)
 
 # provide the string "Non-Alaskan", but with a proper unicode hyphen
 # NON_ALASKAN <- "Non\u2010Alaskan"
