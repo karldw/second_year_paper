@@ -1,4 +1,4 @@
-\documentclass[11pt,letterpaper,oneside]{article}
+\documentclass[12pt,letterpaper,oneside]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amssymb,amsmath,amsthm}
@@ -46,8 +46,9 @@
 \renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
 \renewcommand{\right}{\aftergroup\egroup\originalright}
 
+\setlength{\parindent}{0pt}
 % \setlength{\parskip}{0.5\parindent plus 0.1\parindent minus 0.1\parindent}
-% \setlength{\parskip}{\baselineskip}
+\setlength{\parskip}{0.5\baselineskip}
 \usepackage{url}
 \usepackage{xcolor}
 
@@ -139,13 +140,14 @@
 \end{center}
 
 \vspace{3em plus 1em minus 1em}
-\noindent 
+\noindent
 My readers and commenters have provided valuable guidance, and I've benefited significantly from their suggestions.
 In broad strokes, my changes have focused on three main areas.
 I've added more context, discussion of the permanent income hypothesis and refined my theory section;
 I've chosen control states more rigorously and improved the comparison between Alaska and the controls; and
 I've narrowed my focus to fewer event windows and regression specifications, moving the alternative specifications to an appendix.
 Hopefully these changes serve to make the results both more credible and easier to parse.
+Ultimately, I didn't have time to implement all of the suggested changes, but I hope to use the advice I've received in future iterations of this project.
 % \begin{itemize}
 %     \item Add more context, discussion of PIH and improve theory.
 %     \item Choose control states better, show comparisons
@@ -155,7 +157,45 @@ Hopefully these changes serve to make the results both more credible and easier 
 
 \pagebreak
 
-\section{Comments from Michael Anderson and Thibault Fally}
-\section{Comments from Claire Duquennois}
-\section{Comments from Andy Hultgren}
+% \section{Comments from Michael Anderson and Thibault Fally}
+% \begin{itemize}
+\textbf{Under what conditions would we expect [the permanent income hypothesis] to hold, and under what conditions would we expect it to fail?}\\
+I've added some additional discussion of heterogeneity, both theoretically (people with credit constraints) and empirically (particularly \cite{misra2014consumption}).
+
+
+\textbf{Move away from the event-window figures}\\
+I've relegated these figures to the appendix, instead plotting outcomes (sale count and fuel consumption) in figure~2 for a variety of control-state weights.
+I've also calculated a more traditional difference-in-differences regression, simply looking at the post-period instead of any anticipation windows.
+
+In all of my estimates, including the event-window figures, I'm now clustering at the state-by-year level, which mitigates some of the serial correlation concern.
+I don't have enough enough years (13) or control states (10) to cluster on either of those dimensions and reasonably claim asymptotic results.
+A more formal approach would conduct the causal inference using placebos on the synthetic controls. For lack of time, I haven't done that.
+
+% \section{Comments from Claire Duquennois}
+% \textbf{} (NOT DONE YET)
+
+
+
+% \section{Comments from Andy Hultgren}
+\vspace{2\baselineskip}
+Because of time constraints, there were several suggestions that are useful and important, but are not included in this draft.
+\begin{itemize}
+    \item \textbf{Analyze subgroups of cars that seem likely to see counter-PIH effects, such as cheaper/older vehicles.}
+    \item \textbf{Finding an error in levels vs.\ logs} -- I've not been able to find an error, and I already have a lot of outcome variables, so I'm de-emphasizing the log results.
+    \item \textbf{Using theory to sign the expected effect on prices or quantities}
+    \item \textbf{Detailing and solving the first-order conditions of the theory I've imposed}
+    \item \textbf{Conduct placebo tests} -- either with respect to season (as Claire suggested) or with respect to the treated state (as \cite{abadie2010synthetic} suggest).
+    \item \textbf{Include vehicle market covariates in the means-comparison table}
+    \item \textbf{Do a specification with state-specific trends}
+    \item \textbf{Polish the paper and minimize typos} -- if anything, I believe there are more typos in this draft.  It was a bit of a crunch at the end.
+    \item \textbf{State the hypothesis more clearly, particularly in the introduction.}
+\end{itemize}
+
+\pagebreak
+
+Finally, there were a few points I've considered and ultimately rejected.
+\begin{itemize}
+    \item I can't follow the suggestion to use shape (instead of color) to show the sign of the coefficient in the dots plots because that makes interpreting the size even harder. However, I can use colors that come out better when rendered in black and white.
+    \item I'm choosing not to make my language choices very formal. I think my approach makes for easier reading.
+\end{itemize}
 \end{document}

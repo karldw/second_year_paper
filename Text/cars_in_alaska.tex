@@ -54,12 +54,16 @@
 \usepackage[biblatex]{embrac}
 \usepackage{hyphenat}
 \doublehyphendemerits=20000  % Increase the penalty for multiple hyphenated lines in a row (note, in this case, >10000 isn't infinity)
+\usepackage{dcolumn}
 \usepackage{siunitx}
 \sisetup{
 	group-separator={,},
 	group-digits = integer,
-	input-ignore = {,},
-	input-decimal-markers = {.}
+	input-ignore = {,()},
+	input-decimal-markers = {.},
+    round-mode=figures,
+    round-precision=3,
+    % input-symbols = ()
 	}
 \usepackage[authordate,isbn=false,backend=biber,autopunct=true,url=false]{biblatex-chicago}
 % \DefineBibliographyExtras{american}{\stdpunctuation}
@@ -77,6 +81,13 @@
 \newcommand{\vin}{\textsc{vin}}
 
 \newcommand{\Var}{\text{Var}}
+
+
+% Allow for non-justified columns in tables by using column types L and R
+\usepackage{ragged2e}  % https://tex.stackexchange.com/a/7375
+\newcolumntype{L}[1]{>{\RaggedRight\hspace{0pt}}p{#1}}
+\newcolumntype{R}[1]{>{\RaggedLeft\hspace{0pt}}p{#1}}
+
 
 \usepackage{gitinfo2}  % requires git hooks!  See the Code/git_hooks folder in this repo.
 \newcommand{\snippet}[1]{\input{./Generated_snippets/#1}\hspace{-0.15em}}
@@ -133,7 +144,7 @@ The dividend day starts week zero.
 
  The area of the circles represent the magnitude of the larger bound of the 95\% confidence interval for each regression.
 In plot (a), the values are scaled by the sample mean weekly sale count.
-(Using the pooled mean across Alaska and control states; see figure~\ref{fig:alaska_vs_pooled_mean_sd} for details.)
+(Using the pooled mean across Alaska and control states; see table~\ref{tab:alaska_vs_pooled_mean_sd} for details.)
 Sign is the sign of the coefficient estimate. %, and because confidence intervals are symmetric, the sign of the larger bound of the 95\% confidence interval.
 A standard DD regression -- where the window begins at zero and ends at the end of the period -- is the rightmost point on the $y=0$ line.
 }
@@ -149,14 +160,15 @@ A standard DD regression -- where the window begins at zero and ends at the end 
     \href{mailto:karldw@berkeley.edu}{\textit{\Large Karl Dunkle Werner}}$^*$
 
 \vspace{1em}
-  This draft:
-    % The \gitHash here will automatically update the URL as necessary
-    \href{https://github.com/karldw/second_year_paper/tree/\gitHash}{
-    % \textsc{\gitAbbrevHash{}}
-    \gitCommitterDate{}
-    }
-    \\
-    \href{http://karldw.org/second_year_paper.pdf}{Click here for the most recent version.}
+    This draft:  \gitCommitterDate{}
+  % This draft:
+  %   % The \gitHash here will automatically update the URL as necessary
+  %   \href{https://github.com/karldw/second_year_paper/tree/\gitHash}{
+  %   % \textsc{\gitAbbrevHash{}}
+  %   \gitCommitterDate{}
+  %   }
+    % \\
+    % \href{http://karldw.org/second_year_paper.pdf}{Click here for the most recent version.}
 \end{center}
 
 \vspace{2in plus 1in minus 0.7in}
@@ -169,15 +181,15 @@ A standard DD regression -- where the window begins at zero and ends at the end 
         The Alaska Permanent Fund sends substantial dividend checks to state residents every October, possibly changing residents' decisions to purchase durable goods, including automobiles.
         Looking at a variety of outcomes from wholesale used vehicle auctions, I find small point estimates for the count, value and fuel efficiency of cars sold.
         For some specifications, I'm able to rule out changes larger than a change of a couple of percentage points.
-        For others my estimates are less precise and I can't exclude moderate effect sizes.
-        These results are consistent with the permanent income hypothesis, dealers absorbing demand shocks with inventory or real\hyp{}but\hyp{}not\hyp{}huge effects.
+        For others my estimates are less precise and I cannot exclude moderate-to-large effect sizes.
+        These results are consistent with moderate responses to shifts in income, the permanent income hypothesis or auto dealers smoothing demand shocks with inventory.
     \end{minipage}
 \end{center}
 
 \vspace{3in plus 2in minus 1.7in}
 {\footnotesize
 \noindent
-$^*$Many thanks to the Claire Duquennois, Elisa Duran Micco, Gabe Englander, Hal Gordon, Andy Hultgren, Stephen Jarvis, Scott Kaplan, Ben Krause, Megan Lang, Peiley Lau, Kate Pennington, Wenfeng Qiu, Eleanor Wiseman, Derek Wolfson, Jim Sallee, the faculty of the Energy Institute and Harrison Decker.
+$^*$Many thanks to the Claire Duquennois, Elisa Duran Micco, Gabe Englander, Hal Gordon, Andy Hultgren, Stephen Jarvis, Scott Kaplan, Ben Krause, Megan Lang, Peiley Lau, Kate Pennington, Wenfeng Qiu, Eleanor Wiseman, Derek Wolfson, Jim Sallee, the faculty of the Energy Institute, Michael Anderson, Thibault Fally and Harrison Decker.
 The numerous remaining errors are, of course, my own.
 }
 %
@@ -264,6 +276,7 @@ The numerous remaining errors are, of course, my own.
 \begin{doublespacing}
 \section{Introduction}
 
+% \RaggedRight
 Automobile sales make up a large portion of the US economy, generate significant externalities and are some of the largest purchases consumers make.
 For these reasons and others, we should be interested in what factors drive automobile purchases.
 Since vehicles are substantial investments, it's natural to expect income effects -- when a consumer's budget constraint is relaxed (exogenously and without anticipation), their purchase decisions change.
@@ -324,6 +337,15 @@ The previous paper analyzing the Alaska Permanent Fund dividends, \textcite{hsie
 Hsieh also didn't reject the consumption smoothing hypothesis, though his identifying variation relied on potentially\hyp{}endogenous differences in family size and year\hyp{}to\hyp{}year dividend variation.
 I'm unaware of other papers looking at the consumption effects of the Alaskan dividend, but many researchers have looked at tax returns.
 For example, \textcite{goodman2008eitc} look at \eitc{} payments and find that \eitc{} recipients seem to spend their refunds on automobiles.
+
+In general, I expect consumers to have heterogeneous responses to sudden shifts in their income.
+Some may exhibit behavior that follows the permanent income hypothesis very closely, while others may not.
+Intuitively, I expect consumers who face tighter budget constraints to have a higher propensity to shift their income -- these tight budget constraints could be because of a lack of savings or credit constraints.
+Additionally, some people plan their expenditures less carefully than the permanent income hypothesis assumes; these people may feel that the dividend check is ``burning a hole in their pocket.''
+Empirically, \textcite{misra2014consumption} find that, following tax rebates in 2001 and 2008, a subset of people (particularly those with high mortgage debt) increase their spending on gasoline, public transportation, health, apparel and new vehicles.
+
+
+
 
 In addition to consumption smoothing, we may be interested in durable goods purchases because those goods determine energy use and generate externalities.
 Some authors have argued that consumers undervalue fuel efficiency, and if so, it's possible that having more cash on hand would lead a consumer to make a longer\hyp{}sighted decision and include the full value of fuel efficiency savings.
@@ -390,12 +412,12 @@ The Manhiem auctions dataset includes a rich set of variables; I've only used th
 The data include identifiers for buyers, sellers and auction sites, as well as the billing zip codes for all three.
 I use the zip codes to identify which wholesalers are in Alaska and my control states.
 
-\begin{table}[!hbtp]
+\begin{table}[!hbt]
     \caption{Cleaning Manheim auction data}
     \label{tab:cleaning_manheim}
     % TODO: Make the numbers here better by having parse-numbers = true (currently broken because the snippet gets added after siunitx tries to parse the number)
-    \sisetup{parse-numbers = true}
-\begin{tabular}{l S p{0.493\linewidth}}
+    \sisetup{parse-numbers = true, round-mode=off}
+\begin{tabular}{l S L{0.493\linewidth}}
     \toprule
 	Elimination category & \multicolumn{1}{l}{Count removed} & Details\\
 	\midrule
@@ -451,6 +473,9 @@ Cars that are listed for auction but not sold are not included.
 Rows are removed in the order listed.
 \end{table}
 
+
+
+
 The auctions they include many kinds of sales outside the scope of this research.
 In table~\ref{tab:cleaning_manheim}, I detail the cleaning I've done and the observation count removed in each.
 To minimize the resale observations, When I observe the same vehicle (same 17-digit \vin{}) sold two or more times in a one-year period, I only use the last sale.
@@ -493,11 +518,47 @@ Therefore, my year fixed effects control for the amount.
 
 The auction data have before- and after\hyp{}dividend observations for treated and untreated states, so a difference\hyp{}in\hyp{}differences framework is a natural framing.
 Alaska is different from many other states, so picking appropriate controls is an important and somewhat subjective endeavor.
-Below, in section~\ref{sec:picking-controls} I discuss how I've chosen the current set of controls: Utah, Idaho and Montana.
+Below, in section~\ref{sec:picking-controls} I discuss how I've chosen the current set of controls: Washington DC, Illinois, Montana, New Hampshire, New Mexico, Vermont, Washington, Wisconsin, West Virginia and Wyoming.
 For the difference\hyp{}in\hyp{}differences analysis, I've chosen a default window of 70~days (10~weeks) before and after the early\hyp{}October dividend.
 This fairly wide window allows for various anticipation or delayed effects without getting too close to the end of the year and associated sales slowdown.
 My preferred specification aggregates the data to state\hyp{}by\hyp{}week averages or totals. Using daily data instead produces similar results that are broadly similar, but somewhat noisier.
 
+\begin{table}[bth]
+  \caption{Simple Difference-in-Differences Results (no anticipation)}
+  \label{tab:standard_dd_results}
+  \figureversion{tabular}
+% \begin{tabular}{@{\extracolsep{0pt}}lD{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} }
+\begin{tabular}{@{\extracolsep{0pt}}L{8em}D{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} D{.}{.}{-3} }
+% \\[-1.8ex] & \multicolumn{5}{c}{post + alaskan\_buyer\_post + pfd\_payment\_X\_alaska} \\
+% & \multicolumn{1}{c}{(1)} & \multicolumn{1}{c}{(2)} & \multicolumn{1}{c}{(3)} & \multicolumn{1}{c}{(4)} & \multicolumn{1}{c}{(5)}\\
+& \multicolumn{1}{c}{Sale total} & \multicolumn{1}{c}{Sale count} & \multicolumn{1}{c}{Log sale count} & \multicolumn{1}{c}{Sales price} & \multicolumn{1}{c}{MSRP}\\
+
+\midrule \\
+ % Post & -872,501.000^{***} & -67.900^{***} & -0.257^{***} & -91.113 & -231.032 \\
+  % & (188,441.300) & (13.870) & (0.042) & (207.647) & (303.504) \\
+Alaskan buyer $\times$  & 680.^{***} & 56.8^{***} & -0.121 & -103. & 648. \\
+post  & (190.) & (14.1) & (0.129) & (550.) & (744.) \\
+  \addlinespace
+ \textsc{apfd} payment $\times$  & -0.123 & -0.021 & 0.0003^{***} & 0.847 & 2.02^{***} \\
+Alaska  & (0.331) & (0.022) & (0.0001) & (0.487) & (0.773) \\
+  \addlinespace
+\midrule
+Observations & \multicolumn{1}{c}{$1092$} & \multicolumn{1}{c}{$1092$} & \multicolumn{1}{c}{$1092$} & \multicolumn{1}{c}{$1092$} & \multicolumn{1}{c}{$1092$} \\
+% R$^{2}$ & \multicolumn{1}{c}{0.808} & \multicolumn{1}{c}{0.837} & \multicolumn{1}{c}{0.846} & \multicolumn{1}{c}{0.270} & \multicolumn{1}{c}{0.373} \\
+Adjusted R$^{2}$ & \multicolumn{1}{c}{$0.805$} & \multicolumn{1}{c}{$0.835$} & \multicolumn{1}{c}{$0.844$} & \multicolumn{1}{c}{$0.258$} & \multicolumn{1}{c}{$0.363$}\\ \bottomrule
+\addlinespace
+\end{tabular}
+
+{\footnotesize
+\textsc{Note:}
+Observations are state-by-week totals and averages.
+All regressions include state and year fixed effects. Standard errors are clustered at the intersection of state-by-year.
+DD Control states are the 10 selected in section~\ref{sec:picking-controls}.
+Sale total is the total value of vehicles sold, in thousands of dollars.
+The average value of the \textsc{apfd} payment is \$1656.
+$^{**}p<0.05$; $^{***}p < 0.01$.
+}
+\end{table}
 
 
 \subsection{Picking control states}
@@ -505,26 +566,153 @@ My preferred specification aggregates the data to state\hyp{}by\hyp{}week averag
 In considering which states are good controls for Alaska, it's worth diving a little more into the structure of the Manheim auction data.
 Auctions occur in 32 states and Puerto Rico, and Alaska is not among them.
 Therefore all purchases by Alaskan buyers are at out\hyp{}of\hyp{}state auctions.
-For the simple difference\hyp{}in\hyp{}differences below, I've chosen Idaho, Oregon and Utah.
+
+
+For the difference\hyp{}in\hyp{}differences below, I've chosen Washington DC, Illinois, Montana, New Hampshire, New Mexico, Vermont, Washington, Wisconsin, West Virginia and Wyoming Idaho, Oregon and Utah.
+I picked these states by first estimating the \textcite{DoudchenkoImbens2016DD} for several outcome variables, then comparing the weights assigned to various states.%
+\footnote{A more formal approach would minimize prediction error across all outcomes simultaneously.}
+Ultimately, the uniform weights on the 10 states I've chosen seem to predict similarly to the synthetic controls weights -- see figure~\ref{fig:synth-weights}
+
 The choice is somewhat subjective -- I chose these states because they have a large fraction of their out\hyp{}of\hyp{}state purchases in the auction states where Alaskan dealers are buying.
 This heuristic is appealing because it captures the markets where Alaska is operating, as well as additional factors, such as transportation costs, that arise from dealers buying their vehicles out of state.
 % See the code in find_match_states_crude_unmemoized for full details..
 A more robust approach is to use best\hyp{}subset or synthetic controls methods described in \textcite{DoudchenkoImbens2016DD}; I plan to implement these in a future iteration of this project.
 
-\begin{figure}[bth]
-	\caption{Alaska-only and pooled mean and standard deviations}
-	\label{fig:alaska_vs_pooled_mean_sd}
-	\includegraphics[width=\linewidth]{comparison_alaska_vs_pooled_mean_sd.pdf}
+Beyond arbitrarily picking control states, one can use synthetic controls methods to pick an appropriate control.
+The original synthetic controls approach, proposed by \textcite{abadie2010synthetic} , is compelling, but in some ways it's limiting.
+In \textcite{DoudchenkoImbens2016DD}, the authors bring a broader framework that nests the Abadie-Diamond-Hainmueller synthetic controls and standard difference-in-differences.
+In particular, they highlight two additional approaches, which they call \textit{constrained regression} and \textit{best subset selection.}
+I've chosen to implement the constrained regression (equation 5.6 in Doudchenko and Imbens' paper), which is much like difference-in-differences, but rather than giving all control states equal weight, the algorithm picks state-specific weights in the $[0, 1]$ interval.
+I've constrained the weights to sum to $1$ and allowed for a non-zero difference in means, estimating weights that minimize the sum of squared residuals in the 10-week period before the dividend days. (All years are pooled.)
+
+Allowing for a difference in means is appealing, since Alaska is a small market and I don't want to spend all of the model's degrees of freedom to match means.
+As with difference-in-differences, I'm interested in changes of trend.
+Last, I've added a small $l_0$ penalty, minimizing the number of non-zero weights.
+While the results may depend on these choices of constraints and meta-parameters, time constraints prevent me from fully exploring the system's sensitivity.
+
+\begin{table}[bth]
+\caption{Weights on Control States}
+\label{tab:synth-weights}
+\centering
+\begin{minipage}{0.763\linewidth}
+
+\figureversion{tabular}
+\begin{tabular}{l S S S S S}
+State & \multicolumn{1}{l}{Sales count} & \multicolumn{1}{l}{Fuel cons.} &
+ \multicolumn{1}{l}{Sales price} &
+  \multicolumn{1}{l}{MSRP} & \multicolumn{1}{l}{DD chosen} \\
+\midrule
+% Table
+\textsc{az} & 0.0 & 0.0011940 & 0.0 & 0.0 & 0.0 \\
+\textsc{ca} & 0.0 & 0.0 & 0.0880577 & 0.0 & 0.0 \\
+\textsc{dc} & 0.0 & 0.0634228 & 0.0279254 & 0.0 & 0.1 \\
+\textsc{de} & 0.0529473 & 0.0 & 0.0 & 0.0 & 0.0 \\
+\textsc{hi} & 0.0274633 & 0.0 & 0.0 & 0.0 & 0.0 \\
+\textsc{il} & 0.0 & 0.0 & 0.2460708 & 0.1360270 & 0.1 \\
+\textsc{in} & 0.0199278 & 0.0 & 0.0 & 0.0 & 0.0 \\
+\textsc{me} & 0.0356947 & 0.0 & 0.0 & 0.0 & 0.0 \\
+\textsc{mt} & 0.0 & 0.0 & 0.2671123 & 0.1604908 & 0.1 \\
+\textsc{nh} & 0.0 & 0.1906009 & 0.0 & 0.1504336 & 0.1 \\
+\textsc{nm} & 0.0 & 0.0 & 0.3708337 & 0.0 & 0.1 \\
+\textsc{vt} & 0.6939342 & 0.0 & 0.0 & 0.0 & 0.1 \\
+\textsc{wa} & 0.0 & 0.1927583 & 0.0 & 0.3172060 & 0.1 \\
+\textsc{wi} & 0.0 & 0.0 & 0.0 & 0.2358426 & 0.1 \\
+\textsc{wv} & 0.1082959 & 0.1710181 & 0.0 & 0.0 & 0.1 \\
+\textsc{wy} & 0.0617368 & 0.3810059 & 0.0 & 0.0 & 0.1 \\
+\bottomrule
+\addlinespace
+\end{tabular}
+
+{\footnotesize
+\textsc{Note:}
+Only states that receive positive weight in any of the constrained regressions are shown.
+Each column represents one constrained regression, and the values are the weight assigned to a particular state.
+In the DD chosen column, I've indicated the 10 states that will be used as (equally-weighted) controls in the remainder of the analysis.
+These are the 10 states that received the greatest sum of weights across the four constrained regressions shown.
+}
+\end{minipage}
+\end{table}
+
+In addition, time constraints lead me to depart from \textcite{DoudchenkoImbens2016DD}.
+Instead of following their advice on statistical inference, I am choosing to take the set of states chosen by synthetic controls and use them (with equal weights) in a difference-in-differences estimation.%
+\footnote{In retrospect, a best-subset approach may have been better suited, but as I mentioned, time is fleeting.}
+Doing so allows me to more directly estimate standard errors, to use the same weights across different outcomes and to more easily include regressors.
+Table~\ref{tab:synth-weights} and figure~\ref{fig:synth-weights} provide comparisons of the control-state weights.
+
+
+\begin{figure}
+    \caption{Synthetic Control Weights Demonstrate Similar Trends}
+
+    \label{fig:synth-weights}
+    \includegraphics[width=\textwidth]{synth_cross_var_weights_comparison.pdf}
+    {\footnotesize
+    \textsc{Note:}
+    The two plots show standardized outcomes over event time, taking averages across all years.
+    The lines in each plot show the predicted value of the outcome (sale count or fuel consumption) where the control state weights were chosen looking looking at a particular variable (sales count, fuel consumption or sale price).
+
+    The the solid black line is the truth.
+    The DD weight (dashed orange line) assigns equal weight to 10 states, as described in table~\ref{tab:synth-weights}.
+    The rest of the lines represent predicted values from minimizing the constrained regression the indicated variable.
+    We might expect the sales count line to fit the sales count outcome particularly well in weeks before the event date.
+    Likewise, we might expect the fuel consumption line to fit the fuel consumption outcome particularly well.
+    Neither of these seem to be the case.
+    In fact, the DD weight line seems to follow about as well as the rest.
+
+    }
 \end{figure}
+
+% \begin{figure}[bth]
+% 	\caption{Alaska-only and pooled mean and standard deviations}
+% 	\label{fig:alaska_vs_pooled_mean_sd}
+% 	\includegraphics[width=\linewidth]{comparison_alaska_vs_pooled_mean_sd.pdf}
+% \end{figure}
+
+
+\begin{table}[bth]
+	\caption{Alaska-only and Pooled Mean and Standard Deviations}
+	\label{tab:alaska_vs_pooled_mean_sd}
+    \figureversion{tabular}
+    \begin{tabular}{L{7.3em} S S S S S}
+        Variable & \multicolumn{1}{l}{\textsc{ak} mean} & \multicolumn{1}{l}{\textsc{ak} \textsc{sd}} & \multicolumn{1}{l}{Control mean} & \multicolumn{1}{l}{Control \textsc{sd}} & \multicolumn{1}{l}{Diff.\ means} \\
+        \midrule
+        Cars sold\par (weekly)                 & 423.301886792453           & 148.088926624104           & 7761.46140651801           & 2575.18254019928           & -7338.15951972556         \\
+        \addlinespace
+        Fuel consumption\par (L/100km) & 13.5318989830821           & 0.297873941875563          & 12.5950143489404           & 0.171468103633867          & 0.9368846341417           \\
+        \addlinespace
+        Sales price        & 16385.7464853612           & 1605.30178194432           & 13213.6287600248           & 1466.32534834483           & 3172.1177253364           \\
+        \addlinespace
+        MSRP                       & 29315.4287041851           & 1082.29042624375           & 26654.6421263061           & 646.750532645365           & 2660.786577879            \\
+        \addlinespace
+        Sale total \par (\$ millions)                & 7.00527505401487           & 2.74497385552374           & 103.625361134693           & 36.2120750339191           & -96.6200860806781         \\
+        \addlinespace
+        Population\par (thousands)     & 692.414769230769           &                            & 3278.19153076923           &                            & -2585.77676153846         \\
+        \addlinespace
+        GDP per capita             & 75742.8503015557           &                            & 65700.4372354834           &                            & 10042.4130660723          \\
+        % \input{./Generated_snippets/outcome_means_comparison_table_contents.tex}
+        \bottomrule
+        \addlinespace
+    \end{tabular}
+    \figureversion{proportional}
+
+    {\footnotesize
+    \textsc{Note:}
+    Cars sold is a weekly average; Sale total is millions of dollars per week and Population is thousands of people. All dollar figures are measured in 2016 dollars.
+    Control states are Washington DC, Illinois, Montana, New Hampshire, New Mexico, Vermont, Washington, Wisconsin, West Virginia and Wyoming -- with equal weights -- as detailed in table~\ref{tab:synth-weights}.
+    }
+
+\end{table}
+
 
 In addition to considering the control group for difference\hyp{}in\hyp{}differences, one might also worry about the effect size measurements.
 In some of the analyses below, I divide by the sample mean or standard deviation to look at the size of the estimated coefficient.
-Figure~\ref{fig:alaska_vs_pooled_mean_sd} plots out the mean and standard deviation I use for these normalizations.
+Table~\ref{tab:alaska_vs_pooled_mean_sd} shows the mean and standard deviation I use for these normalizations.
 Using the event window sample (70~days before to 70~days after the dividend) is almost identical to the full\hyp{}year sample, but Alaska is a smaller market than the controls I've chosen.
 Alaska has a lower mean and standard deviation in cars sold, and therefore the total value of sales.
 As well, the cars sold in Alaska are a bit more expensive and a bit less efficient.
 It's worth keeping these differences in mind in the outcomes below.
 The log specifications adjust for percentage differences more directly; I don't need to divide by the mean.
+
+
 
 \subsection{Picking an anticipation window}
 
@@ -546,7 +734,7 @@ In this style of plot, I estimate all possible windows longer than one week and 
 
 
 
-% \begin{figure}[!hbtp]
+% \begin{figure}[!hbt]
 %     \caption{Treatment coefficients on Alaska $\times$ anticipation: total sales}
 %     \label{fig:anticipation_window_sale_tot}
 %     \includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_pooled_sd.pdf}
@@ -575,11 +763,11 @@ The terms to be estimated are, for $i = 1,2,3,4$,
 $\alpha_i$ and $A$ (eqn.~\ref{eqn:cars-sold});
 $\beta_i$ and $B$ (eqn.~\ref{eqn:log-cars-sold});
 $\gamma_i$ and $\Gamma$ (eqn.~\ref{eqn:sale-price});
-$\delta_i$ and $\Delta$ (eqn.~\ref{eqn:log-sale-price});
-$\zeta_i$ and $Z$ (eqn.~\ref{eqn:msrp});
-$\eta_i$ and $H$ (eqn.~\ref{eqn:log-msrp});
-$\theta_i$ and $\Theta$ (eqn.~\ref{eqn:fuel-cons}); and
-$\lambda_i$ and $\Lambda$ (eqn.~\ref{eqn:log-fuel-cons}).
+% $\delta_i$ and $\Delta$ (eqn.~\ref{eqn:log-sale-price});
+$\zeta_i$ and $Z$ (eqn.~\ref{eqn:msrp}); and
+% $\eta_i$ and $H$ (eqn.~\ref{eqn:log-msrp});
+$\theta_i$ and $\Theta$ (eqn.~\ref{eqn:fuel-cons}).
+% $\lambda_i$ and $\Lambda$ (eqn.~\ref{eqn:log-fuel-cons}).
 To provide one example, the equation for cars sold is:
 \begin{align}
     \label{eqn:cars-sold}
@@ -613,7 +801,19 @@ To provide one example, the equation for cars sold is:
 \subsection{Volume of cars sold}
 
 
-\begin{figure}[!hbtp]
+\begin{figure}
+    \caption{Quarterly Manheim Sales vs.\ Total Registrations}
+    \label{fig:comparison_regs_auctions_sales}
+    \includegraphics[width=\linewidth]{combined_regs_sales_counts_per_capita_alaska_vs_no_resale_quarterly_notitle.pdf}
+
+    {\footnotesize
+    \textsc{Source:} Registrations are from R.L.Polk \& Co., covering new and used car and light truck registrations from 2000 to 2011.
+    Auctions are from the Manheim used-vehicle auction data, covering 2002--2014.
+    The vehicle types included are detailed in table~\ref{tab:cleaning_manheim}.
+
+    }
+\end{figure}
+\begin{figure}[!hbt]
     \caption{$\alpha_2$ and $\beta_2$, the treatment coefficients on Alaska $\times$ anticipation, for varying windows}
     \label{fig:anticipation_window_sale_count}
     \begin{subfigure}{\linewidth}
@@ -649,12 +849,12 @@ Figure~\ref{fig:anticipation_window_sale_count} shows these first results, in le
 None of the estimates of $\alpha_2$ or $\beta_2$ are statistically significant.
 The levels estimates ($\alpha_2$) are fairly precise, allowing me to reject an effect bigger than 2\% of the mean.
 (Effect sizes measured in standard deviations, rather than as a fraction of the mean, are also small.)
-Alaska and the control states have somewhat different means, as shown in the comparison of figure~\ref{fig:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
+Alaska and the control states have somewhat different means, as shown in the comparison of table~\ref{tab:alaska_vs_pooled_mean_sd}, but the sale count effect is small relative to both the pooled and Alaska\hyp{}specific mean.
 I default to calculating the pooled mean across Alaska and the control states and across all weeks in the data.
 Calculating the mean on only periods within the event window -- from 70~days before the dividend is sent to 70~days after -- gives similar results as the all\hyp{}year sample.
 The log regression, estimates of $\beta_2$, are also not huge, but the standard errors are wide enough that I can't rule out larger effects.
 
-\begin{figure}[!hbtp]
+\begin{figure}[!hbt]
     \caption{Sales count effects with varying windows}
     \label{fig:variable_window_sale_count}
     \begin{subfigure}{0.97\linewidth}
@@ -707,54 +907,19 @@ If that's the case, and if there are no other market failures, sales price measu
 For brevity, I will omit the anticipation window plots (in the style of figure~\ref{fig:anticipation_window_sale_count}) and only present the dot plots.
 
 
-\begin{figure}[!hbtp]
-    \caption{Sales price effects with varying windows}
-    \label{fig:variable_window_sales_price}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels ($\gamma_2$), scaled by weekly mean sales price}
-        \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf}
-    \end{subfigure}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs ($\delta_2$)}
-        \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf}
-    \end{subfigure}
-
-    {\footnotesize
-    \textsc{Notes:}
-    \varWindowDDnotes
-    }
-\end{figure}
-
-\begin{figure}[!hbtp]
-    \caption{MSRP effects with varying windows}
-    \label{fig:variable_window_msrp}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels ($\zeta_2$), scaled by weekly mean MSRP}
-        \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf}
-    \end{subfigure}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs ($\eta_2$)}
-        \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf}
-    \end{subfigure}
-
-    {\footnotesize
-    \textsc{Notes:}
-    \varWindowDDnotes
-    }
-\end{figure}
 The equations for price and \msrp{} are:
 \begin{align}
     \label{eqn:sale-price}
     \ddEqn{Sale price}{\gamma}{\Gamma}\\
     %
-    \label{eqn:log-sale-price}
-    \ddEqnLog{Sale price}{\delta}{\Delta}\\
+    % \label{eqn:log-sale-price}
+    % \ddEqnLog{Sale price}{\delta}{\Delta}\\
     %
     \label{eqn:msrp}
-    \ddEqn{\msrp{}\!}{\zeta}{Z} \\
+    \ddEqn{\msrp{}\!}{\zeta}{Z} %\\
     %
-    \label{eqn:log-msrp}
-    \ddEqnLog{\msrp{}\!}{\eta}{H}
+    % \label{eqn:log-msrp}
+    % \ddEqnLog{\msrp{}\!}{\eta}{H}
 \end{align}
 
 
@@ -781,48 +946,30 @@ As \textcite{kiso2013automobilefueleconomy} reminds us, fuel economy is intimate
 Since burning fuel generates externalities, the question still matters. %TODO: flesh this out?
 \begin{align}
     \label{eqn:fuel-cons}
-    \ddEqn{Fuel cons}{\theta}{\Theta} \\
+    \ddEqn{Fuel cons}{\theta}{\Theta}% \\
     %
-    \label{eqn:log-fuel-cons}
-    \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
+    % \label{eqn:log-fuel-cons}
+    % \ddEqnLog{Fuel cons}{\lambda}{\Lambda}
 \end{align}
 In the difference\hyp{}in\hyp{}differences analysis, the effect is rather small.
 I can rule out any effect larger than about 10\% of the mean, and the coefficients aren't statistically significant.
 The effect in logs is slightly larger, with point estimates around 10\% and confidence intervals around 30\%.
 
 
-\begin{figure}[!hbtp]
-    \caption{Fuel consumption effects with varying windows}
-    \label{fig:variable_window_fuel_cons}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in levels, scaled by weekly mean sales}
-        \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_weekly_area_conf95_max_effect_mean.pdf}
-    \end{subfigure}
-    \begin{subfigure}{0.97\linewidth}
-        \caption{Estimate in logs}
-        \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_log_weekly_area_conf95_max.pdf}
-    \end{subfigure}
-
-    {\footnotesize
-    \textsc{Notes:}
-    \varWindowDDnotes
-    }
-\end{figure}
-
 
 \section{Planned Extensions}
-
-\subsection{Synthetic controls and standard errors}
-\label{sec:synthetic-controls}
-As I discussed in section~\ref{sec:picking-controls},  I picked control states that seemed to be appropriate controls for Alaska.
-These control states participate in similar markets and, as Alaska does, they buy many of their vehicles in out\hyp{}of\hyp{}state auctions.
-In future iterations of this research project, I plan to use a synthetic control.
-I'll also consider the more general frameworks presented by
-\textcite{DoudchenkoImbens2016DD} and \textcite{Xu2016}.
-
-The standard errors I've used and discussed are only robust to heteroskedasticity, not any form of autocorrelation.
-Therefore, the \textcite{bertrand_duflo2004DD} critique applies, and my inferences of narrow confidence intervals are somewhat overstated.
-Clustering at the state level would be inappropriate because I'm only using a few states, but I can also draw inferences from the synthetic controls without clustering on individual states.
+%
+% \subsection{Synthetic controls and standard errors}
+% \label{sec:synthetic-controls}
+% As I discussed in section~\ref{sec:picking-controls},  I picked control states that seemed to be appropriate controls for Alaska.
+% These control states participate in similar markets and, as Alaska does, they buy many of their vehicles in out\hyp{}of\hyp{}state auctions.
+% In future iterations of this research project, I plan to use a synthetic control.
+% I'll also consider the more general frameworks presented by
+% \textcite{DoudchenkoImbens2016DD} and \textcite{Xu2016}.
+%
+% The standard errors I've used and discussed are only robust to heteroskedasticity, not any form of autocorrelation.
+% Therefore, the \textcite{bertrand_duflo2004DD} critique applies, and my inferences of narrow confidence intervals are somewhat overstated.
+% Clustering at the state level would be inappropriate because I'm only using a few states, but I can also draw inferences from the synthetic controls without clustering on individual states.
 %
 % \subsection{Robustness}
 % Not all years are the same.
@@ -897,32 +1044,64 @@ In future research, there are a wide variety of extensions and further investiga
 \end{refsection}
 
 
-\end{document}
 \pagebreak
-
-
 \appendix
 
-\section{Bonus Figures for Jim}
+\section{Event-Window Figures}
 
-\begin{figure}[!hbtp]
-    \caption{Treatment coefficients on Alaska $\times$ anticipation}
-    \label{bonusfig:anticipation_window_sale_count_daily}
-    \includegraphics[width=\linewidth]{anticipation_window_sale_count_daily_notitle.pdf}
+
+\begin{figure}[!hbt]
+    \caption{Sales price effects with varying windows}
+    \label{fig:variable_window_sales_price}
+    \begin{subfigure}{0.97\linewidth}
+        \caption{Estimate in levels ($\gamma_2$), scaled by weekly mean sales price}
+        \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_weekly_area_conf95_max_effect_mean.pdf}
+    \end{subfigure}
+    % \begin{subfigure}{0.97\linewidth}
+    %     \caption{Estimate in logs ($\delta_2$)}
+    %     \includegraphics[width=\linewidth]{variable_window_dd_sales_pr_mean_log_weekly_area_conf95_max.pdf}
+    % \end{subfigure}
+
     {\footnotesize
-    The plot shows the Alaska $\times$ anticipation coefficients ($\beta_2$) from the regression in equation~\ref{eqn:cars_sold_with_anticipation}, with varying anticipation windows.
-    All windows end at $-1$ event day.
+    \textsc{Notes:}
+    \varWindowDDnotes
     }
 \end{figure}
 
-\begin{figure}[!hbtp]
-	\caption{Treatment coefficients on Alaska $\times$ anticipation, with state-specific standard deviation lines}
-	\label{bonusfig:anticipation_window_sale_count_and_tot_weekly_states_sd}
-	\includegraphics[width=\linewidth]{anticipation_window_sale_count_weekly_notitle_states_sd.pdf}
+\begin{figure}[!hbt]
+    \caption{MSRP effects with varying windows}
+    \label{fig:variable_window_msrp}
+    \begin{subfigure}{0.97\linewidth}
+        \caption{Estimate in levels ($\zeta_2$), scaled by weekly mean MSRP}
+        \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_weekly_area_conf95_max_effect_mean.pdf}
+    \end{subfigure}
+    % \begin{subfigure}{0.97\linewidth}
+    %     \caption{Estimate in logs ($\eta_2$)}
+    %     \includegraphics[width=\linewidth]{variable_window_dd_msrp_mean_log_weekly_area_conf95_max.pdf}
+    % \end{subfigure}
 
-	\includegraphics[width=\linewidth]{anticipation_window_sale_tot_weekly_notitle_states_sd.pdf}
+    {\footnotesize
+    \textsc{Notes:}
+    \varWindowDDnotes
+    }
 \end{figure}
 
+\begin{figure}[hbtp]
+    \caption{Fuel consumption effects with varying windows}
+    \label{fig:variable_window_fuel_cons}
+    \begin{subfigure}{0.97\linewidth}
+        \caption{Estimate in levels, scaled by weekly mean sales}
+        \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_weekly_area_conf95_max_effect_mean.pdf}
+    \end{subfigure}
+    % \begin{subfigure}{0.97\linewidth}
+    %     \caption{Estimate in logs}
+    %     \includegraphics[width=\linewidth]{variable_window_dd_fuel_cons_log_weekly_area_conf95_max.pdf}
+    % \end{subfigure}
 
+    {\footnotesize
+    \textsc{Notes:}
+    \varWindowDDnotes
+    }
+\end{figure}
 
 \end{document}

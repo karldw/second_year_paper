@@ -2,25 +2,14 @@
 
 
 
-## Implementing Doudchenko and Imbens (2016)
-I'm going to apply what they call "Constrained Regression", which is like the original Abadie-Diamond-Hainmueller synthetic controls, but allowing a non-zero intercept.  Think of allowing this non-zero intercept as avoiding picking states just to match the average size of the Alaska market and instead focusing on trends.
-Alternatively, this is like standard difference-in-differences, but allowing variable weights on the controls.
-I'm going to, in my preferred specification, maintain the "adding up" and "non-negativity" constraints, which say that the weight on the controls must be non-negative and sum to one.
-The weights are the solution to Doudchenko and Imbens' equation 5.6 (but allowing mu != 0).
-In alternative specifications, I can consider dropping these two constraints. (They require more data to estimate though.)
-
-To include covariates, they recommend "Prior to
-choosing the weights and possibly the intercept, we can regress the control outcomes on the pre-treatment variables and calculate the residuals. Then we use the residuals in the approaches
-discussed in the previous sections."
-
 
 ## Second draft to-dos:
 ### Michael and Thibault:
-- [ ] Discuss the PIH theory.  "Under what conditions would we expect it to hold, and under what conditions would we expect it to fail?"
-- [ ] Ditch or de-focus the event window figures and plot the outcome means in event time.
-- [ ] Analyze subgroups of cars that seem likely to see counter-PIH effects, such as cheaper/older vehicles. (make sure you don't define "cheaper" autos endogenously.)
-- [ ] Is there an error in logs vs levels? Difference seems too large.
-- [ ] Incorporate the variation in rebate amount to modify the treatment "intensity" across different years
+- [x] Discuss the PIH theory.  "Under what conditions would we expect it to hold, and under what conditions would we expect it to fail?"
+- [x] Ditch or de-focus the event window figures and plot the outcome means in event time.
+- [x] Analyze subgroups of cars that seem likely to see counter-PIH effects, such as cheaper/older vehicles. (make sure you don't define "cheaper" autos endogenously.)
+- [x] Is there an error in logs vs levels? Difference seems too large.
+- [x] Incorporate the variation in rebate amount to modify the treatment "intensity" across different years
 
 ### Claire
 - [ ] Tighten the intro, make it very clear what the question is.
@@ -31,24 +20,24 @@ discussed in the previous sections."
 - [ ] What % of used cars does this represent? How does this compare to new registrations?
 - [ ] Mention Alaskan dealers selling cars out of state.
 - [ ] Make an appendix for some of the results I mention.
-- [ ] Test different control states.
-- [ ] Test placebo dates in spring/summer.
+- [x] Test different control states.
+- [x] Test placebo dates in spring/summer.
 - [ ] Discuss the fact that sales in AK may be differentially affected by seasonal effects -- Xu (2016) factor methods would be one solution, but you worry about overfitting.
 - Presenting results
     - [ ] Present some results more traditionally -- maybe just a standard DD table as a complement.
-    - [ ] I can't follow the suggestion to use shape (instead of color) for sign, because that makes interpreting the size even harder. *But* I can use colors that come out better when rendered in black and white.
+    - [x] I can't follow the suggestion to use shape (instead of color) for sign, because that makes interpreting the size even harder. *But* I can use colors that come out better when rendered in black and white.
     - [ ] Explain the choice of 95% conf bound in more detail.
     - [ ] Consider making schematic results of what we would see under different hypotheses.
     - [ ] What's up at the bottom of the graph?
 
 ### Andy
-- [ ] Fix the list of control states -- is it Montana or Oregon? (It's Montana.)
+- [x] Fix the list of control states -- is it Montana or Oregon? (It's Montana.)
 - [ ] Do better proofing of typos etc
-- [ ] Make a table of descriptive statistics to show comparability with the control states
-    - [ ] State demographics, including income distribution or % urban
-    - [ ] Vehicle market characteristics
+- [x] Make a table of descriptive statistics to show comparability with the control states
+    - [x] State demographics, including income distribution or % urban
+    - [x] Vehicle market characteristics
     - [ ] Do a simple plot of trends over time (same as Michael's suggestion)
-- [ ] Do a specification with state-specific trends
+- [x] Do a specification with state-specific trends
 - [ ] Discuss the dealership turnaround (time to sale) in more detail, including what would happen if my assumption is wrong.
     - The answer here is something along the lines of "this is why I'm considering different windows."
 - [ ] Be more concrete about the dividend anticipation
@@ -62,7 +51,7 @@ discussed in the previous sections."
     - [ ] Move table 1 to appendix
     - [ ] Add dividend amount interacted with Alaska dummy (demean first for easier interpretation)
 - [ ] Section 4:
-    - [ ] Pick logs or levels as preferred spec
+    - [x] Pick logs or levels as preferred spec
     - [ ] Make figure 2 (comparison between states) into a table instead, unnormalized.
     - [ ] Commit to a particular anticipation/post window and stick to it. Make section 4.2 into a robustness discussion instead of a lead-up to the many-window figures.
     - [ ] Change fixed effects notation
@@ -73,6 +62,17 @@ discussed in the previous sections."
 - [ ] Fix typos, defend relatively informal language.
 
 
+
+## DONEish: Implementing Doudchenko and Imbens (2016)
+I'm going to apply what they call "Constrained Regression", which is like the original Abadie-Diamond-Hainmueller synthetic controls, but allowing a non-zero intercept.  Think of allowing this non-zero intercept as avoiding picking states just to match the average size of the Alaska market and instead focusing on trends.
+Alternatively, this is like standard difference-in-differences, but allowing variable weights on the controls.
+I'm going to, in my preferred specification, maintain the "adding up" and "non-negativity" constraints, which say that the weight on the controls must be non-negative and sum to one.
+The weights are the solution to Doudchenko and Imbens' equation 5.6 (but allowing mu != 0).
+In alternative specifications, I can consider dropping these two constraints. (They require more data to estimate though.)
+
+To include covariates, they recommend "Prior to
+choosing the weights and possibly the intercept, we can regress the control outcomes on the pre-treatment variables and calculate the residuals. Then we use the residuals in the approaches
+discussed in the previous sections."
 
 
 ## First draft must-dos:
